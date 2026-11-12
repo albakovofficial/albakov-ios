@@ -3,9 +3,12 @@ import Foundation
 #if DEBUG
 /// Только для снимков экрана на GitHub (сборка Debug, в TestFlight и App Store этого кода нет).
 /// Запуск с «-screen "/account?demo=staff"»: вымышленная покупательница с правами владельца, её заказы и данные панели.
+/// «demo=buyer» — та же покупательница без прав панели (снимки для App Store).
 /// Товары и цены — настоящие с сайта, а всё, что меняет данные (заказы, корзина, push, ответы), на сервер не уходит.
 enum Demo {
-    static var on: Bool { (UserDefaults.standard.string(forKey: "screen") ?? "").contains("demo=staff") }
+    private static var screen: String { UserDefaults.standard.string(forKey: "screen") ?? "" }
+    static var on: Bool { screen.contains("demo=staff") || screen.contains("demo=buyer") }
+    private static var staff: Bool { screen.contains("demo=staff") }
 
     private static var products: [[String: Any]] = []
     /// Витрина с сайта как есть: настройки, категории, акции, страницы — чтобы разделы панели на снимках были заполнены
@@ -18,7 +21,7 @@ enum Demo {
             guard var j = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return data }
             pub = (j["data"] as? [String: Any]) ?? [:]
             products = (pub["products"] as? [[String: Any]]) ?? []
-            j["user"] = user; j["isAdmin"] = true
+            j["user"] = user; j["isAdmin"] = staff
             return try JSONSerialization.data(withJSONObject: j)
         }
         if method == "POST" && path == "quote" { return nil }

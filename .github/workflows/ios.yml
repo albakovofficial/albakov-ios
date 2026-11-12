@@ -19,6 +19,10 @@ on:
         description: 'Снять экраны приложения в симуляторе (для проверки дизайна)'
         type: boolean
         default: false
+      store:
+        description: 'Снимки для App Store: экраны покупателя, полный размер iPhone Pro Max, раздел «Мужчинам»'
+        type: boolean
+        default: false
       runner:
         description: 'Mac на GitHub (по умолчанию Intel: Mac на Apple Silicon у GitHub часто в очереди)'
         type: choice
@@ -33,7 +37,7 @@ jobs:
   build:
     name: Сборка (симулятор)
     # Для выгрузки в TestFlight отдельная проверочная сборка не нужна: архив и так всё собирает (и Mac на GitHub бывает в дефиците).
-    if: ${{ !startsWith(github.ref, 'refs/tags/') && !(github.event_name == 'workflow_dispatch' && (inputs.testflight || inputs.screens)) }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/') && !(github.event_name == 'workflow_dispatch' && (inputs.testflight || inputs.screens || inputs.store)) }}
     runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 30
     steps:
@@ -68,7 +72,7 @@ jobs:
 
   screens:
     name: Экраны (симулятор)
-    if: github.event_name == 'workflow_dispatch' && inputs.screens
+    if: github.event_name == 'workflow_dispatch' && (inputs.screens || inputs.store)
     runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 40
     permissions:
@@ -86,13 +90,27 @@ jobs:
           xcodebuild build -project Albakov.xcodeproj -scheme Albakov -configuration Debug \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO | tail -3
       - name: Снять экраны
+        env:
+          STORE: ${{ inputs.store }}
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k in d for x in d[k] if 'iPhone 1' in x['name'] and 'Pro' in x['name'] and 'Max' not in x['name']))")
+          # App Store: Pro Max (1320×2868 — размер 6,9"); проверка дизайна: обычный Pro
+          if [ "$STORE" = "true" ]; then WANT=Max; else WANT=; fi
+          UDID=$(WANT="$WANT" xcrun simctl list devices available -j | python3 -c "import json,sys,os; w=os.environ['WANT']; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k in d for x in d[k] if 'iPhone 1' in x['name'] and 'Pro' in x['name'] and (('Max' in x['name']) == (w == 'Max'))))")
           xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
           xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 || true
           APP=$(ls -d build/Build/Products/Debug-iphonesimulator/Albakov.app)
           xcrun simctl install "$UDID" "$APP"
           mkdir -p shots; i=0
+          if [ "$STORE" = "true" ]; then
+            # Только экраны покупателя; покупательница вымышленная (demo=buyer), панели управления нет
+            for S in / /menu /product/FIRST /catalog "/cart?demo=1" "/checkout?demo=1" "/account?demo=buyer" "/order/d1?demo=buyer" \
+                     "/account?tab=bonus&demo=buyer" "/account?tab=support&id=t1&demo=buyer" /gift /track /sizes; do
+              i=$((i+1))
+              xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -screen "$S" -gender men >/dev/null
+              sleep 10
+              xcrun simctl io "$UDID" screenshot "shots/$(printf %02d $i).png" >/dev/null 2>&1
+            done
+          else
           # 9–14: кабинет и панель на вымышленных данных (только сборка Debug, боевые заказы не создаются)
           for S in / /catalog "/catalog?cat=FIRSTCAT" /product/FIRST "/cart?demo=1" "/checkout?demo=1" /account /sizes \
                    "/account?demo=staff" "/order/d1?demo=staff" "/account?tab=bonus&demo=staff" "/admin?demo=staff" "/admin?s=orders&demo=staff" "/admin?s=support&id=t1&demo=staff" /gift /track "/admin?s=payment&demo=staff" "/admin?s=finance&demo=staff" "/admin?s=slider&demo=staff" "/admin?s=mail&demo=staff"; do
@@ -101,13 +119,16 @@ jobs:
             sleep 9
             xcrun simctl io "$UDID" screenshot "shots/$(printf %02d $i).png" >/dev/null 2>&1
           done
+          fi
       # Хранилище артефактов GitHub бывает переполнено — кладём снимки в ветку screens этого репозитория
-      - name: Сохранить снимки в ветку screens
+      - name: Сохранить снимки в ветку screens (для App Store — store-shots)
+        env:
+          STORE: ${{ inputs.store }}
         run: |
-          for f in shots/*.png; do sips -Z 1000 "$f" >/dev/null; done
-          cd shots && git init -q && git checkout -q -b screens
+          if [ "$STORE" = "true" ]; then B=store-shots; else B=screens; for f in shots/*.png; do sips -Z 1000 "$f" >/dev/null; done; fi
+          cd shots && git init -q && git checkout -q -b $B
           git -c user.name=ci -c user.email=ci@albakovofficial.ru add . && git -c user.name=ci -c user.email=ci@albakovofficial.ru commit -qm "Снимки ${{ github.sha }}"
-          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screens
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" $B
 
   testflight:
     name: TestFlight

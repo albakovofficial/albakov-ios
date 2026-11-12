@@ -132,6 +132,7 @@ final class Router: ObservableObject {
         case "catalog": reset(.catalog, to: (q["cat"] != nil || q["tag"] != nil) ? [.catalog(cat: q["cat"], tag: q["tag"], sale: false)] : [])
         case "sale": reset(.catalog, to: [.catalog(cat: nil, tag: nil, sale: true)])
         case "favorites": reset(.favorites)
+        case "menu": menuOpen = true
         case "cart": reset(.cart)
         case "checkout": reset(.cart, to: [.checkout])
         case "order" where parts.count > 1: reset(.account, to: [.orders, .order(parts[1])])
