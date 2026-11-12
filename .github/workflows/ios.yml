@@ -95,7 +95,7 @@ jobs:
           mkdir -p shots; i=0
           # 9–14: кабинет и панель на вымышленных данных (только сборка Debug, боевые заказы не создаются)
           for S in / /catalog "/catalog?cat=FIRSTCAT" /product/FIRST "/cart?demo=1" "/checkout?demo=1" /account /sizes \
-                   "/account?demo=staff" "/order/d1?demo=staff" "/account?tab=bonus&demo=staff" "/admin?demo=staff" "/admin?s=orders&demo=staff" "/admin?s=support&id=t1&demo=staff"; do
+                   "/account?demo=staff" "/order/d1?demo=staff" "/account?tab=bonus&demo=staff" "/admin?demo=staff" "/admin?s=orders&demo=staff" "/admin?s=support&id=t1&demo=staff" /gift /track "/admin?s=payment&demo=staff" "/admin?s=finance&demo=staff" "/admin?s=slider&demo=staff" "/admin?s=mail&demo=staff"; do
             i=$((i+1))
             xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -screen "$S" >/dev/null
             sleep 9
