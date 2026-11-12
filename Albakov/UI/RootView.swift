@@ -10,6 +10,7 @@ struct RootView: View {
             Color.white.ignoresSafeArea()
             if shop.loaded {
                 MainTabs().transition(.opacity)
+                    .overlay { if needGate { GenderGate().transition(.opacity) } }
             } else if let err = shop.loadError {
                 OfflineView(text: err) { Task { await shop.load() } }
             } else {
@@ -24,6 +25,12 @@ struct RootView: View {
             // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны
             if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty { if screen.contains("demo") { shop.demoCart() }; router.open(path: screen) } else { scheduleAsk() }
         }
+    }
+
+    // «Выберите раздел» — при первом входе, если оба раздела настроены (на снимках для проверки не показываем)
+    private var needGate: Bool {
+        !shop.gateDone && shop.gender == nil && shop.settings.gendersOpen.count > 1 && !(shop.settings.raw["gateway"]["enabled"].exists && !shop.settings.raw["gateway"]["enabled"].bool)
+            && (UserDefaults.standard.string(forKey: "screen") ?? "").isEmpty
     }
 
     // Окно «Включите уведомления»: при входе, пока не разрешены; «Не сейчас» — снова через 7 дней, не больше 3 раз
@@ -58,6 +65,21 @@ struct MainTabs: View {
                 .badge(shop.user?.supportUnread ?? 0)
         }
         .tint(Theme.ink)
+        .overlay { drawer }
+    }
+
+    // Меню ☰ выезжает слева поверх всего, как на сайте
+    private var drawer: some View {
+        ZStack(alignment: .leading) {
+            if router.menuOpen {
+                Color.black.opacity(0.35).ignoresSafeArea().onTapGesture { router.menuOpen = false }.transition(.opacity)
+                MenuDrawer().frame(width: min(UIScreen.main.bounds.width * 0.9, 380)).ignoresSafeArea(edges: .bottom)
+                    .shadow(color: .black.opacity(0.18), radius: 30, x: 10)
+                    .transition(.move(edge: .leading))
+                    .gesture(DragGesture().onEnded { if $0.translation.width < -60 { router.menuOpen = false } })
+            }
+        }
+        .animation(.timingCurve(0.2, 0.7, 0.2, 1, duration: 0.4), value: router.menuOpen)
     }
 
     // Повторное нажатие на вкладку — к её началу
@@ -67,7 +89,11 @@ struct MainTabs: View {
 
     private func stack<V: View>(_ t: Tab, @ViewBuilder _ root: () -> V) -> some View {
         NavigationStack(path: router.binding(t)) {
-            root().navigationDestination(for: Dest.self) { DestView(dest: $0) }
+            root()
+                .toolbar(.hidden, for: .navigationBar)
+                .safeAreaInset(edge: .top, spacing: 0) { SiteHeader(tab: t) }
+                .overlay(alignment: .bottomTrailing) { if [.home, .catalog, .favorites].contains(t) { ChatFab().padding(.trailing, 14).padding(.bottom, 14) } }
+                .navigationDestination(for: Dest.self) { DestView(dest: $0) }
         }
     }
 }

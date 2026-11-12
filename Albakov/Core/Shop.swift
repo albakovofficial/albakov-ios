@@ -26,6 +26,12 @@ final class Shop: ObservableObject {
     @Published var cart: [CartLine] = [] { didSet { saveCart() } }
     @Published var favorites: [String] = [] { didSet { saveFavorites() } }
     @Published var gender: String? = UserDefaults.standard.string(forKey: "gender") { didSet { UserDefaults.standard.set(gender, forKey: "gender") } }
+    /// Экран «Выберите раздел» уже пройден
+    @Published var gateDone = UserDefaults.standard.bool(forKey: "gateDone") { didSet { UserDefaults.standard.set(gateDone, forKey: "gateDone") } }
+    /// «Вы недавно смотрели» — до 12 товаров, новые первыми
+    @Published private(set) var recentIds: [String] = UserDefaults.standard.stringArray(forKey: "recent") ?? []
+    /// «Купить сейчас»: оформляется только эта вещь, корзина не меняется
+    @Published var buyNow: [CartLine]? = nil
 
     private var cartSync: Task<Void, Never>?
     private var favSync: Task<Void, Never>?
@@ -68,7 +74,7 @@ final class Shop: ObservableObject {
             if max(0, v) < bestPrice { bestPrice = max(0, v); best = pr }
         }
         let old = best != nil ? max(base, p.compareAt) : (p.compareAt > base ? p.compareAt : 0)
-        return Price(price: bestPrice, oldPrice: old > bestPrice ? old : 0)
+        return Price(price: bestPrice, oldPrice: old > bestPrice ? old : 0, promoTitle: best?.title ?? "", promoEnds: best?.endsAt ?? "")
     }
 
     /// Плашки карточки: «Новинка», «Скидка 15%», «Хит продаж» — тексты и цвета из панели.
@@ -102,6 +108,13 @@ final class Shop: ObservableObject {
         let h = hitIds.compactMap { id in visibleProducts.first { $0.id == id } }
         return h.isEmpty ? Array(visibleProducts.filter { $0.tags.contains("hit") }.prefix(10)) : Array(h.prefix(10))
     }
+    var activePromos: [Promotion] { promotions.filter { $0.inWindow(Date()) } }
+    /// Сколько бонусов придёт за покупку на эту сумму (как Pricing.bonusFor)
+    func bonusFor(_ amount: Int) -> Int { settings.bonusEnabled && settings.bonusPercent > 0 ? max(0, amount) * settings.bonusPercent / 100 : 0 }
+    func addRecent(_ id: String) { var r = recentIds.filter { $0 != id }; r.insert(id, at: 0); recentIds = Array(r.prefix(12)); UserDefaults.standard.set(recentIds, forKey: "recent") }
+    func clearRecent() { recentIds = []; UserDefaults.standard.removeObject(forKey: "recent") }
+    /// Самый низкий порог «Бесплатно от» среди способов доставки — для {free} в строке объявления
+    var freeFromMin: Int { settings.delivery.map(\.freeFrom).filter { $0 > 0 }.min() ?? 0 }
     var saleProducts: [Product] { visibleProducts.filter { price($0).oldPrice > 0 } }
     func sizeChart(_ id: String) -> SizeChart? { sizeCharts.first { $0.id == id } }
     func page(_ slug: String) -> Page? { pages.first { $0.slug == slug } }

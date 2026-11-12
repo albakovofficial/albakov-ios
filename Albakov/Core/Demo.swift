@@ -47,7 +47,7 @@ enum Demo {
     }
 
     private static var user: [String: Any] {
-        ["id": "demo", "firstName": "Анна", "lastName": "Смирнова", "phone": "79990000000", "email": "anna@example.com", "bonus": 450, "supportUnread": 1, "favorites": [], "cart": []]
+        ["id": "demo", "firstName": "Анна", "lastName": "Смирнова", "phone": "79990000000", "email": "anna@example.com", "bonus": 450, "supportUnread": 1, "createdAt": iso(-24 * 40), "favorites": [], "cart": []]
     }
     private static var firstName: String { products.first?["name"] as? String ?? "Футболка" }
     private static func iso(_ hours: Double) -> String { ISO8601DateFormatter().string(from: Date().addingTimeInterval(hours * 3600)) }

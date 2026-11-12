@@ -14,8 +14,10 @@ struct PColor: Identifiable, Hashable {
     let hex: String
     let images: [String]
     let sizes: [SizeStock]
+    let artKind: String, artTone: String
     init(_ j: JSON) {
         id = j["id"].str; name = j["name"].str; hex = j["hex"].str
+        artKind = j["art"]["kind"].string ?? "tee"; artTone = j["art"]["tone"].string ?? (j["hex"].string ?? "#3a3632")
         images = j["images"].array.compactMap { $0.string }.filter { !$0.hasPrefix("data:") }
         sizes = j["sizes"].array.map(SizeStock.init)
     }
@@ -27,12 +29,13 @@ struct Product: Identifiable, Hashable {
     let price: Int, compareAt: Int
     let tags: [String]
     let colors: [PColor]
-    let description: String, composition: String, care: String, fit: String
+    let description: String, composition: String, care: String
+    let fit: JSON, specs: JSON, look: [String]
     let sizeChartId: String
     let active: Bool
     let createdAt: String
     let sku: String
-    let preorder: Bool, preorderLimit: Int, preorderSold: Int, preorderText: String
+    let preorder: Bool, preorderLimit: Int, preorderSold: Int, preorderText: String, preorderShip: String
     let badgeText: [String: String], badgeOff: [String]
     let raw: JSON
 
@@ -44,16 +47,16 @@ struct Product: Identifiable, Hashable {
         tags = j["tags"].array.compactMap { $0.string }
         var cs = j["colors"].array.map(PColor.init)
         if cs.isEmpty {   // старый товар без цветов
-            let old: [String: Any] = ["id": "col1", "name": j["color"].string ?? "Основной", "images": j["images"].raw ?? [Any](), "sizes": j["sizes"].raw ?? [Any]()]
+            let old: [String: Any] = ["id": "col1", "art": j["art"].raw ?? [String: Any](), "name": j["color"].string ?? "Основной", "images": j["images"].raw ?? [Any](), "sizes": j["sizes"].raw ?? [Any]()]
             cs = [PColor(JSON(old))]
         }
         colors = cs
-        description = j["description"].str; composition = j["composition"].str; care = j["care"].str; fit = j["fit"].str
+        description = j["description"].str; composition = j["composition"].str; care = j["care"].str; fit = j["fit"]; specs = j["specs"]; look = j["look"].array.compactMap { $0.string }
         sizeChartId = j["sizeChartId"].str
         active = j["active"].exists ? j["active"].bool : true
         createdAt = j["createdAt"].str; sku = j["sku"].str
         preorder = j["preorder"].bool; preorderLimit = j["preorderLimit"].int ?? 0; preorderSold = j["preorderSold"].int ?? 0
-        preorderText = j["preorderText"].str
+        preorderText = j["preorderText"].str; preorderShip = j["preorderShip"].str
         badgeText = j["badgeText"].dict.compactMapValues { $0.string }
         badgeOff = j["badgeOff"].array.compactMap { $0.string }
     }
@@ -69,8 +72,11 @@ struct Product: Identifiable, Hashable {
 }
 
 struct Category: Identifiable, Hashable {
-    let id: String, name: String, slug: String, image: String, order: Int, gender: String
-    init(_ j: JSON) { id = j["id"].str; name = j["name"].str; slug = j["slug"].str; image = j["image"].str; order = j["order"].int ?? 0; gender = j["gender"].str }
+    let id: String, name: String, slug: String, image: String, order: Int, gender: String, artKind: String, artTone: String
+    init(_ j: JSON) {
+        id = j["id"].str; name = j["name"].str; slug = j["slug"].str; image = j["image"].str; order = j["order"].int ?? 0; gender = j["gender"].str
+        artKind = j["art"]["kind"].string ?? "tee"; artTone = j["art"]["tone"].string ?? "#3b3b3f"
+    }
 }
 
 struct Promotion {
@@ -98,15 +104,15 @@ struct Promotion {
     }
 }
 
-struct Price { let price: Int; let oldPrice: Int; var percent: Int { oldPrice > 0 ? Int((1 - Double(price) / Double(oldPrice)) * 100 + 0.5) : 0 } }
+struct Price { let price: Int; let oldPrice: Int; var promoTitle = ""; var promoEnds = ""; var percent: Int { oldPrice > 0 ? Int((1 - Double(price) / Double(oldPrice)) * 100 + 0.5) : 0 } }
 
 struct SizeChart: Identifiable {
     let id: String, name: String, columns: [String], rows: [[String]], note: String
     init(_ j: JSON) { id = j["id"].str; name = j["name"].str; columns = j["columns"].array.map { $0.str }; rows = j["rows"].array.map { $0.array.map { $0.str } }; note = j["note"].str }
 }
 
-struct Page: Identifiable { let id: String, slug: String, title: String, body: String, group: String
-    init(_ j: JSON) { id = j["id"].str; slug = j["slug"].str; title = j["title"].str; body = j["body"].str; group = j["group"].str }
+struct Page: Identifiable { let id: String, slug: String, title: String, body: String, group: String, inFooter: Bool
+    init(_ j: JSON) { id = j["id"].str; slug = j["slug"].str; title = j["title"].str; body = j["body"].str; group = j["group"].str; inFooter = !j["inFooter"].exists || j["inFooter"].bool }
 }
 
 struct DeliveryMethod: Identifiable, Hashable {
@@ -147,6 +153,7 @@ struct Settings {
     let badges: [String: (text: String, color: String)]
     let gendersOpen: [String: Bool]
     let exchangeDays: Int
+    let nav: [(label: String, link: String)]
     let raw: JSON
 
     init(_ j: JSON) {
@@ -170,17 +177,18 @@ struct Settings {
         for (k, v) in j["genders"].dict { g[k] = v["open"].exists ? v["open"].bool : true }
         gendersOpen = g
         exchangeDays = j["exchange"]["days"].int ?? 14
+        nav = j["nav"].array.map { (label: $0["label"].str, link: $0["link"].str) }.filter { !$0.label.isEmpty && !$0.link.isEmpty && $0.link != "#" }
     }
 }
 
 struct User {
-    let id: String, firstName: String, lastName: String, phone: String, email: String, bonus: Int, supportUnread: Int
+    let id: String, firstName: String, lastName: String, phone: String, email: String, bonus: Int, supportUnread: Int, createdAt: String
     let favorites: [String]
     let cart: [CartLine]
     init?(_ j: JSON) {
         guard let id = j["id"].string else { return nil }
         self.id = id; firstName = j["firstName"].str; lastName = j["lastName"].str; phone = j["phone"].str; email = j["email"].str
-        bonus = j["bonus"].int ?? 0; supportUnread = j["supportUnread"].int ?? 0
+        bonus = j["bonus"].int ?? 0; supportUnread = j["supportUnread"].int ?? 0; createdAt = j["createdAt"].str
         favorites = j["favorites"].array.compactMap { $0.string }
         cart = j["cart"].array.compactMap(CartLine.init)
     }
@@ -265,6 +273,14 @@ enum ISO {
 
 enum Fmt {
     private static let money: NumberFormatter = { let f = NumberFormatter(); f.numberStyle = .decimal; f.groupingSeparator = "\u{00A0}"; f.maximumFractionDigits = 0; return f }()
+    /// «ноября 2026» — для «С нами с ноября 2026»
+    static func monthYear(_ iso: String) -> String {
+        guard let d = ISO.date(iso) else { return "" }
+        let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.dateFormat = "LLLL yyyy"
+        let months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+        return months[Calendar.current.component(.month, from: d) - 1] + " " + String(Calendar.current.component(.year, from: d))
+    }
+    static func num(_ n: Int) -> String { money.string(from: NSNumber(value: n)) ?? "\(n)" }
     static func rub(_ n: Int) -> String { (money.string(from: NSNumber(value: n)) ?? "\(n)") + "\u{00A0}₽" }
     /// Заголовки из панели: «*слово*» на сайте выделяется без курсива — в приложении звёздочки просто убираем
     static func plain(_ s: String) -> String { s.replacingOccurrences(of: #"\*(.+?)\*"#, with: "$1", options: .regularExpression) }

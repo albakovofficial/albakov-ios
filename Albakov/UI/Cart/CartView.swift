@@ -1,6 +1,8 @@
 import SwiftUI
 
-// Корзина: цены и наличие считает сервер (POST /api/quote) — те же правила, что на сайте
+// Корзина как на сайте: заголовок с точкой, строки товаров, справа количество и «Удалить»,
+// ниже — карточка суммы с полосой «до бесплатной доставки», итогом, бонусами и «Оформить заказ».
+// Цены и наличие считает сервер (POST /api/quote) — те же правила, что на сайте.
 struct CartView: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
@@ -8,36 +10,50 @@ struct CartView: View {
     @State private var loading = false
 
     var body: some View {
-        Group {
-            if shop.cart.isEmpty {
-                ScrollView { EmptyState(icon: "bag", title: "Корзина пуста", text: "Загляните в каталог — там новая коллекция", button: "В каталог") { router.reset(.catalog) }.padding(.top, 60) }
-            } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(shop.cart) { line in CartRow(line: line, q: quoteLine(line)) }
-                    }.padding(.horizontal, Theme.gutter)
-                    VStack(spacing: 10) {
-                        sumRow("Товары", Fmt.rub(quote["baseTotal"].int ?? quote["subtotal"].int ?? 0))
-                        if let d = quote["saleDiscount"].int, d > 0 { sumRow("Скидка", "−" + Fmt.rub(d), Theme.danger) }
-                        Divider1()
-                        HStack { Text("Итого").font(Theme.font(18, .medium)); Spacer(); Text(Fmt.rub(quote["subtotal"].int ?? 0)).font(Theme.font(18, .medium)) }
-                        if let b = quote["bonusEarn"].int, b > 0 { Text("+\(b) бонусов за заказ").font(Theme.font(13)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .leading) }
-                        Text("Доставка и промокод — на следующем шаге").font(Theme.font(12.5)).foregroundStyle(Theme.dim).frame(maxWidth: .infinity, alignment: .leading)
-                    }.padding(Theme.gutter).padding(.bottom, 100)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                DotTitle(text: "Корзина", size: 34).padding(.horizontal, Theme.gutter).padding(.top, 22)
+                if shop.cart.isEmpty {
+                    EmptyState(icon: "bag", title: "В корзине пока пусто", text: "Загляните в каталог — там новая коллекция", button: "Перейти в каталог") { router.reset(.catalog) }
+                        .padding(.top, 22)
+                    RecentRow(exceptId: nil, tab: .cart).padding(.top, 40)
+                } else {
+                    VStack(spacing: 0) { ForEach(shop.cart) { line in CartRow(line: line, q: quoteLine(line)) } }
+                        .padding(.horizontal, Theme.gutter).padding(.top, 14)
+                    summary.padding(.horizontal, Theme.gutter).padding(.top, 24)
                 }
-                .overlay(alignment: .bottom) {
-                    PrimaryButton(title: "Оформить заказ", icon: "arrow.right", busy: loading, disabled: hasProblems) { router.push(.checkout, on: .cart) }
-                        .padding(.horizontal, Theme.gutter).padding(.vertical, 10).background(.ultraThinMaterial)
-                }
-            }
+            }.padding(.bottom, 40)
         }
-        .navigationTitle("Корзина").navigationBarTitleDisplayMode(.inline)
         .task(id: shop.cart) { await recalc() }
     }
 
+    private var summary: some View {
+        let sub = quote["subtotal"].int ?? 0, count = quote["count"].int ?? shop.cartCount
+        return VStack(alignment: .leading, spacing: 14) {
+            FreeShipBar(subtotal: sub)
+            row("\(count) \(Fmt.plural(count, "товар", "товара", "товаров"))", Fmt.rub(quote["baseTotal"].int ?? sub))
+            if let d = quote["saleDiscount"].int, d > 0 { row("Скидка по акциям", "−" + Fmt.rub(d), Theme.sale) }
+            Divider1()
+            HStack { Text("Итого").font(Theme.font(19)); Spacer(); Text(Fmt.rub(sub)).font(Theme.font(21, .light)) }
+            if let b = quote["bonusEarn"].int, b > 0 {
+                HStack(spacing: 8) {
+                    Text("Б").font(Theme.font(10, .semibold)).foregroundStyle(.white).frame(width: 17, height: 17).background(Circle().fill(Theme.ink))
+                    Text("Бонусы за заказ").font(Theme.font(14)).foregroundStyle(Theme.muted)
+                    Spacer()
+                    Text("+\(Fmt.num(b)) \(Fmt.plural(b, "бонус", "бонуса", "бонусов"))").font(Theme.font(14, .medium))
+                }
+            }
+            if let u = shop.user, u.bonus > 0, shop.settings.bonusEnabled {
+                Text("На бонусном счёте \(Fmt.num(u.bonus)) \(Fmt.plural(u.bonus, "бонус", "бонуса", "бонусов")) — спишете при оформлении").font(Theme.font(13)).foregroundStyle(Theme.muted)
+            }
+            PrimaryButton(title: "Оформить заказ", busy: loading, disabled: hasProblems) { shop.buyNow = nil; router.push(.checkout, on: .cart) }.padding(.top, 4)
+        }
+        .padding(22)
+        .background(RoundedRectangle(cornerRadius: 24).fill(Theme.surface)).hairline(RoundedRectangle(cornerRadius: 24), 0.06)
+    }
     private var hasProblems: Bool { quote["lines"].array.contains { $0["problem"].exists } }
     private func quoteLine(_ l: CartLine) -> JSON { quote["lines"].array.first { $0["productId"].str == l.productId && $0["colorId"].str == l.colorId && $0["size"].str == l.size } ?? JSON(nil) }
-    private func sumRow(_ t: String, _ v: String, _ c: Color = Theme.text) -> some View {
+    private func row(_ t: String, _ v: String, _ c: Color = Theme.text) -> some View {
         HStack { Text(t).font(Theme.font(15)).foregroundStyle(Theme.muted); Spacer(); Text(v).font(Theme.font(15)).foregroundStyle(c) }
     }
     private func recalc() async {
@@ -48,40 +64,74 @@ struct CartView: View {
     }
 }
 
+/// «Ещё 9 100 ₽ — и доставка бесплатно»: значок грузовика и полоса
+struct FreeShipBar: View {
+    let subtotal: Int
+    @EnvironmentObject private var shop: Shop
+    var body: some View {
+        let free = shop.freeFromMin
+        if free > 0 {
+            let left = max(0, free - subtotal)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "truck.box").font(.system(size: 15, weight: .light)).frame(width: 34, height: 34).background(Circle().fill(.white)).hairline(Circle())
+                    if left > 0 { (Text("Ещё ") + Text(Fmt.rub(left)).font(Theme.font(14.5, .semibold)) + Text(" — и доставка бесплатно")).font(Theme.font(14.5)) }
+                    else { Text("Доставка будет бесплатной").font(Theme.font(14.5, .medium)).foregroundStyle(Theme.ok) }
+                }
+                GeometryReader { g in
+                    ZStack(alignment: .leading) { Capsule().fill(Theme.surface2); Capsule().fill(Theme.ink).frame(width: g.size.width * min(1, CGFloat(subtotal) / CGFloat(free))) }
+                }.frame(height: 4)
+                Text("Бесплатно от \(Fmt.rub(free))").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
+            }
+            .padding(16).background(RoundedRectangle(cornerRadius: 18).fill(Color(hex: "#eef0f2"))).hairline(RoundedRectangle(cornerRadius: 18), 0.06)
+        }
+    }
+}
+
 struct CartRow: View {
     let line: CartLine
     let q: JSON
+    var compact = false
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
     var body: some View {
         let p = shop.product(line.productId)
         let c = p?.color(line.colorId)
-        HStack(alignment: .top, spacing: 14) {
-            Button { router.push(.product(line.productId), on: .cart) } label: {
-                RemoteImage(path: c?.images.first ?? p?.image ?? "").frame(width: 92, height: 122).clipShape(RoundedRectangle(cornerRadius: 14))
+        HStack(alignment: .top, spacing: 16) {
+            Button { router.push(.product(line.productId)) } label: {
+                ProductImage(path: c?.images.first ?? "", kind: c?.artKind ?? "tee", tone: c?.artTone ?? "#3a3632")
+                    .frame(width: compact ? 56 : 84, height: compact ? 72 : 112).background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 12))
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text(p?.name ?? q["name"].str).font(Theme.font(14.5)).lineLimit(2)
-                Text([c?.name, "размер " + line.size].compactMap { $0 }.joined(separator: " · ")).font(Theme.font(13)).foregroundStyle(Theme.muted)
-                if let pr = q["price"].int {
-                    HStack(spacing: 6) {
-                        Text(Fmt.rub(pr * line.qty)).font(Theme.font(15, .medium)).foregroundStyle(q["oldPrice"].int ?? 0 > 0 ? Theme.danger : Theme.text)
+                HStack(alignment: .top) {
+                    Text(p?.name ?? q["name"].str).font(Theme.font(compact ? 13.5 : 14.5)).lineLimit(2)
+                    Spacer(minLength: 8)
+                    if !compact { stepper }
+                }
+                Text(compact ? [c?.name, line.size].compactMap { $0 }.joined(separator: " · ") : "Цвет: \(c?.name ?? "") · Размер: \(line.size)").font(Theme.font(13)).foregroundStyle(Theme.muted)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if let pr = q["price"].int {
+                        Text(Fmt.rub(pr * line.qty)).font(Theme.font(15)).foregroundStyle((q["oldPrice"].int ?? 0) > 0 ? Theme.sale : Theme.text)
                         if let o = q["oldPrice"].int, o > 0 { Text(Fmt.rub(o * line.qty)).font(Theme.font(13)).strikethrough().foregroundStyle(Theme.dim) }
-                    }
-                } else if let p { PriceView(price: shop.price(p)) }
-                if let problem = q["problem"].string { Text(problem).font(Theme.font(12.5, .medium)).foregroundStyle(Theme.danger) }
-                HStack(spacing: 0) {
-                    stepBtn("minus") { shop.setQty(line, line.qty - 1) }
-                    Text("\(line.qty)").font(Theme.font(15, .medium)).frame(width: 34)
-                    stepBtn("plus") { shop.setQty(line, line.qty + 1) }
+                    } else if let p { PriceView(price: shop.price(p)) }
                     Spacer()
-                    Button { withAnimation { shop.setQty(line, 0) } } label: { Image(systemName: "trash").font(.system(size: 14)).foregroundStyle(Theme.dim) }
-                }.padding(.top, 4)
+                    if !compact { Button { withAnimation { shop.setQty(line, 0) } } label: { Text("Удалить").font(Theme.font(13.5)).foregroundStyle(Theme.muted) } }
+                }
+                if compact {
+                    HStack(spacing: 14) { stepper; Button { withAnimation { shop.setQty(line, 0) } } label: { Text("Убрать").font(Theme.font(13)).foregroundStyle(Theme.muted).underline() } }
+                }
+                if let problem = q["problem"].string { Text(problem).font(Theme.font(12.5, .medium)).foregroundStyle(Theme.danger) }
             }
         }
-        .padding(.vertical, 14).overlay(alignment: .bottom) { Divider1() }
+        .padding(.vertical, 16).overlay(alignment: .bottom) { Divider1() }
     }
-    private func stepBtn(_ icon: String, _ a: @escaping () -> Void) -> some View {
-        Button { Haptic.tap(); withAnimation { a() } } label: { Image(systemName: icon).font(.system(size: 12, weight: .medium)).frame(width: 34, height: 34).background(Circle().strokeBorder(Theme.line)) }.foregroundStyle(Theme.text)
+    private var stepper: some View {
+        HStack(spacing: 0) {
+            Button { Haptic.tap(); withAnimation { shop.setQty(line, line.qty - 1) } } label: { Image(systemName: "minus").frame(width: 30, height: 32) }
+            Text("\(line.qty)").font(Theme.font(15)).frame(minWidth: 20)
+            Button { Haptic.tap(); withAnimation { shop.setQty(line, line.qty + 1) } } label: { Image(systemName: "plus").frame(width: 30, height: 32) }
+        }
+        .font(.system(size: 10, weight: .light)).foregroundStyle(Theme.text)
+        .background(Capsule().fill(.white)).overlay(Capsule().strokeBorder(Theme.lineStrong))
     }
 }

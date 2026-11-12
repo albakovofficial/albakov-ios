@@ -1,232 +1,490 @@
 import SwiftUI
 
-// Главная: строка объявлений, слайдер, разделы женщинам/мужчинам, категории, новинки, хиты, скидки
+// Главная — как на сайте: слайдер, категории, новинки, хиты, «Вы недавно смотрели», бонусная программа,
+// акция, «Ателье», «Сервис» и подвал. Какие блоки показывать и их тексты — из панели (настройки главной).
 struct HomeView: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
+    private var h: JSON { shop.settings.raw["home"] }
+    private func show(_ k: String) -> Bool { !h[k].exists || h[k].bool }
+    private var gSub: String? { shop.gender.map { $0 == "women" ? "женщинам" : "мужчинам" } }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 34) {
-                VStack(spacing: 0) {
-                    if !shop.settings.announcement.isEmpty { Announcement(text: shop.settings.announcement) }
-                    GenderSwitch()
-                    if !slides.isEmpty { HeroSlider(slides: slides) }
-                }
-                if !shop.visibleCategories.isEmpty {
-                    VStack(alignment: .leading, spacing: 16) {
-                        SectionTitle(title: "Категории", action: "Весь каталог") { router.reset(.catalog) }
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(shop.visibleCategories) { c in
-                                    Button { router.push(.catalog(cat: c.id, tag: nil, sale: false), on: .home) } label: { CategoryCard(category: c) }.buttonStyle(Pressable())
-                                }
-                            }.padding(.horizontal, Theme.gutter)
+            VStack(spacing: 0) {
+                if !slides.isEmpty { HeroSlider(slides: slides) } else { hero }
+                VStack(spacing: 56) {
+                    if show("showCategories") && !shop.visibleCategories.isEmpty {
+                        VStack(alignment: .leading, spacing: 22) {
+                            SectionTitle(title: "Категории", action: "Весь каталог") { router.reset(.catalog) }
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(alignment: .top, spacing: 12) {
+                                    ForEach(shop.visibleCategories) { c in
+                                        Button { router.push(.catalog(cat: c.id, tag: nil, sale: false), on: .home) } label: { CategoryCard(category: c) }.buttonStyle(Pressable())
+                                    }
+                                }.padding(.horizontal, Theme.gutter).padding(.bottom, 4)
+                            }
                         }
                     }
+                    if show("showNew"), !newList.isEmpty {
+                        VStack(alignment: .leading, spacing: 22) {
+                            SectionTitle(title: "Новинки", sub: gSub, action: "Смотреть все") { router.push(.catalog(cat: nil, tag: "new", sale: false), on: .home) }
+                            ProductGrid(products: newList, tab: .home)
+                        }
+                    }
+                    if show("showHits"), !shop.hits.isEmpty {
+                        VStack(alignment: .leading, spacing: 22) {
+                            SectionTitle(title: "Хиты продаж", sub: gSub, action: "Смотреть все") { router.push(.catalog(cat: nil, tag: "hit", sale: false), on: .home) }
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(alignment: .top, spacing: 10) { ForEach(shop.hits) { ProductCard(product: $0, tab: .home).frame(width: 166) } }.padding(.horizontal, Theme.gutter)
+                            }
+                        }
+                    }
+                    RecentRow(exceptId: nil, tab: .home)
+                    if show("showBonus"), shop.settings.bonusEnabled, shop.settings.bonusPercent > 0 { BonusBand() }
+                    if show("showSale"), let ap = shop.activePromos.first { DealBand(promo: ap) }
+                    if show("showEditorial"), !h["editorialTitle"].str.isEmpty { AtelierBlock() }
+                    if show("showBenefits"), !h["benefits"].array.isEmpty { BenefitsBlock() }
+                    Footer()
                 }
-                row("Новинки", shop.newProducts, tag: "new")
-                row("Хиты продаж", shop.hits, tag: "hit")
-                row("Скидки", Array(shop.saleProducts.prefix(10)), sale: true)
-                Footer()
+                .padding(.top, 44)
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, 0)
         }
         .refreshable { await shop.load() }
-        .toolbar {
-            ToolbarItem(placement: .principal) { Image("Wordmark").resizable().scaledToFit().frame(width: 118) }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { router.push(.search, on: .home) } label: { Image(systemName: "magnifyingglass") }
-            }
-        }
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var slides: [Slide] { shop.settings.slides.filter { $0.gender.isEmpty || shop.gender == nil || $0.gender == shop.gender } }
-
-    @ViewBuilder
-    private func row(_ title: String, _ list: [Product], tag: String? = nil, sale: Bool = false) -> some View {
-        if !list.isEmpty {
-            VStack(alignment: .leading, spacing: 16) {
-                SectionTitle(title: title, action: "Все") { router.push(.catalog(cat: nil, tag: tag, sale: sale), on: .home) }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(alignment: .top, spacing: 12) {
-                        ForEach(list) { p in ProductCard(product: p, tab: .home).frame(width: 172) }
-                    }.padding(.horizontal, Theme.gutter)
-                }
-            }
-        }
+    // Если новинок мало — дополняем последними поступлениями, чтобы ряд не выглядел пустым (как на сайте)
+    private var newList: [Product] {
+        var n = shop.visibleProducts.filter { $0.tags.contains("new") }
+        if n.count < 4 { n = Array((n + shop.visibleProducts.filter { p in !n.contains(p) }.sorted { $0.createdAt > $1.createdAt }).prefix(4)) }
+        return Array(n.prefix(8))
+    }
+    // Без слайдов — обложка из настроек главной
+    private var hero: some View {
+        HeroSlider(slides: [Slide(JSON(["eyebrow": h["heroEyebrow"].str, "title": h["heroTitle"].str, "text": h["heroText"].str, "image": h["heroImage"].str,
+                                        "btn1": ["label": h["heroCta"].str, "link": h["heroLink"].string ?? "#/catalog"]]))])
     }
 }
 
-struct Announcement: View {
-    let text: String
-    @State private var i = 0
-    private var parts: [String] { text.components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
-    var body: some View {
-        let list = parts.isEmpty ? [text] : parts
-        Text(list[i % list.count])
-            .font(Theme.font(12)).kerning(0.3).foregroundStyle(.white.opacity(0.82)).lineLimit(1)
-            .frame(maxWidth: .infinity).padding(.vertical, 10).padding(.horizontal, 12)
-            .background(Theme.ink)
-            .id(i).transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .opacity))
-            .animation(.easeInOut(duration: 0.45), value: i)
-            .task { while list.count > 1 { try? await Task.sleep(nanoseconds: 3_500_000_000); i += 1 } }
-    }
-}
-
-struct GenderSwitch: View {
-    @EnvironmentObject private var shop: Shop
-    var body: some View {
-        let open = shop.settings.gendersOpen
-        if open.count > 1 {
-            HStack(spacing: 0) {
-                ForEach([("women", "Женщинам"), ("men", "Мужчинам")], id: \.0) { g in
-                    let on = shop.gender == g.0
-                    Button { withAnimation(.easeInOut(duration: 0.25)) { shop.gender = on ? nil : g.0 } } label: {
-                        VStack(spacing: 10) {
-                            HStack(alignment: .top, spacing: 3) {
-                                Text(g.1).font(Theme.font(15, on ? .medium : .regular)).foregroundStyle(on ? Theme.text : Theme.muted)
-                                if open[g.0] == false { Text("скоро").font(Theme.font(10)).foregroundStyle(Theme.dim) }
-                            }
-                            Rectangle().fill(on ? Theme.ink : .clear).frame(height: 1.5)
-                        }.padding(.top, 14)
-                    }.frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.horizontal, Theme.gutter)
-            .overlay(alignment: .bottom) { Divider1() }
-        }
-    }
-}
+// MARK: - Слайдер: на телефоне текст слева, картинка справа с белым переходом; снизу — номера с полосой времени
 
 struct HeroSlider: View {
     let slides: [Slide]
     @EnvironmentObject private var router: Router
+    @EnvironmentObject private var shop: Shop
     @State private var page = 0
+    @State private var progress: CGFloat = 0
+    private var interval: Double { max(3, shop.settings.raw["slider"]["interval"].double ?? 7) }
+    private var autoplay: Bool { !(shop.settings.raw["slider"]["autoplay"].exists && !shop.settings.raw["slider"]["autoplay"].bool) && slides.count > 1 }
 
     var body: some View {
-        TabView(selection: $page) {
-            ForEach(Array(slides.enumerated()), id: \.offset) { i, s in
-                ZStack(alignment: .bottomLeading) {
-                    RemoteImage(path: s.image)
-                    LinearGradient(colors: [.clear, .black.opacity(0.45)], startPoint: .center, endPoint: .bottom)
-                    VStack(alignment: .leading, spacing: 14) {
-                        if !s.eyebrow.isEmpty { Eyebrow(text: s.eyebrow) }
-                        Text(s.title).font(Theme.font(34, .light)).kerning(-1).foregroundStyle(.white).lineSpacing(-4)
-                        HStack(spacing: 14) {
-                            if !s.btn1.0.isEmpty {
-                                Button { router.open(path: s.btn1.1) } label: {
-                                    HStack(spacing: 10) { Text(s.btn1.0).font(Theme.font(14, .medium)); Image(systemName: "arrow.right").font(.system(size: 12, weight: .medium)) }
-                                        .foregroundStyle(Theme.ink).padding(.horizontal, 18).frame(height: 46).background(Capsule().fill(.white))
-                                }.buttonStyle(Pressable())
-                            }
-                            if !s.btn2.0.isEmpty {
-                                Button { router.open(path: s.btn2.1) } label: { Text(s.btn2.0).font(Theme.font(14, .medium)).foregroundStyle(.white).underline() }
-                            }
-                        }
+        ZStack(alignment: .bottom) {
+            TabView(selection: $page) {
+                ForEach(Array(slides.enumerated()), id: \.offset) { i, s in slide(s).tag(i) }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            if slides.count > 1 {
+                HStack(spacing: 8) {
+                    ForEach(slides.indices, id: \.self) { i in
+                        Button { withAnimation { page = i } } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(i + 1)").font(Theme.font(10, .medium)).kerning(0.8).foregroundStyle(Theme.text)
+                                ZStack(alignment: .leading) {
+                                    Rectangle().fill(Theme.lineStrong).frame(height: 1)
+                                    Rectangle().fill(LinearGradient(colors: [Theme.ink, Theme.accent], startPoint: .leading, endPoint: .trailing))
+                                        .frame(height: 2).scaleEffect(x: i == page ? (autoplay ? progress : 1) : 0, anchor: .leading)
+                                }
+                            }.frame(maxWidth: .infinity)
+                        }.buttonStyle(.plain)
                     }
-                    .padding(20).padding(.bottom, 26)
-                }
-                .tag(i)
+                }.padding(.horizontal, Theme.gutter).padding(.bottom, 22)
             }
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .frame(height: 470)
-        .overlay(alignment: .bottom) {
-            HStack(spacing: 6) {
-                ForEach(slides.indices, id: \.self) { i in Capsule().fill(.white.opacity(i == page ? 1 : 0.4)).frame(width: i == page ? 22 : 6, height: 3) }
-            }.padding(.bottom, 14).animation(.easeOut, value: page)
+        .frame(height: 362)
+        .overlay(alignment: .bottom) { Divider1() }
+        .onChange(of: page) { _ in restart() }
+        .onAppear(perform: restart)
+        .task(id: page) {
+            guard autoplay else { return }
+            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            if !Task.isCancelled { withAnimation(.easeInOut(duration: 0.8)) { page = (page + 1) % slides.count } }
         }
-        .task { while slides.count > 1 { try? await Task.sleep(nanoseconds: 7_000_000_000); withAnimation(.easeInOut(duration: 0.6)) { page = (page + 1) % slides.count } } }
+    }
+    private func restart() {
+        progress = 0
+        guard autoplay else { return }
+        withAnimation(.linear(duration: interval)) { progress = 1 }
+    }
+
+    private func slide(_ s: Slide) -> some View {
+        GeometryReader { g in
+            let mediaW = g.size.width * (1 / 2.35)
+            ZStack(alignment: .leading) {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    ProductImage(path: s.image, kind: "coat", tone: "#3d3d40").frame(width: mediaW).frame(maxHeight: .infinity)
+                        .overlay(LinearGradient(colors: [.white, .white.opacity(0)], startPoint: .leading, endPoint: UnitPoint(x: 0.28, y: 0.5)))
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    if !s.eyebrow.isEmpty { Eyebrow(text: s.eyebrow) }
+                    Text(s.title).font(Theme.font(26, .light)).kerning(-1.04).lineSpacing(-1).foregroundStyle(Theme.text).fixedSize(horizontal: false, vertical: true)
+                    if !s.text.isEmpty { Text(s.text).font(Theme.font(13.5)).foregroundStyle(Theme.muted).lineLimit(3) }
+                    if !s.btn1.0.isEmpty {
+                        Button { router.open(path: s.btn1.1) } label: {
+                            HStack(spacing: 12) { Text(s.btn1.0).font(Theme.font(14, .medium)).kerning(0.6).lineLimit(1); ArrowDot(size: 30) }
+                                .foregroundStyle(.white).padding(.leading, 16).padding(.trailing, 6).frame(height: 42)
+                                .background(Capsule().fill(Theme.dark)).shadow(color: Theme.dark.opacity(0.35), radius: 10, y: 8)
+                        }.buttonStyle(Pressable()).padding(.top, 4)
+                    }
+                    if !s.btn2.0.isEmpty { LinkButton(title: s.btn2.0, arrow: true) { router.open(path: s.btn2.1) } }
+                }
+                .frame(width: g.size.width - mediaW + 40, alignment: .leading)
+                .padding(.leading, Theme.gutter).padding(.bottom, 56).padding(.top, 20)
+            }
+        }
+        .clipped()
+    }
+}
+
+// MARK: - Категории: фото в мягкой подложке 24, название и кружок со стрелкой
+
+struct CategoryImage: View {
+    let category: Category
+    @EnvironmentObject private var shop: Shop
+    var body: some View {
+        let p = shop.visibleProducts.first { $0.categoryId == category.id }
+        if !category.image.isEmpty { RemoteImage(path: category.image) }
+        else if let p, !p.image.isEmpty { RemoteImage(path: p.image) }
+        else { ArtView(kind: category.artKind, tone: category.artTone) }
     }
 }
 
 struct CategoryCard: View {
     let category: Category
-    @EnvironmentObject private var shop: Shop
     var body: some View {
-        let img = category.image.isEmpty ? (shop.visibleProducts.first { $0.categoryId == category.id }?.image ?? "") : category.image
-        ZStack(alignment: .bottomLeading) {
-            RemoteImage(path: img)
-            LinearGradient(colors: [.clear, .black.opacity(0.4)], startPoint: .center, endPoint: .bottom)
-            Text(category.name).font(Theme.font(16, .medium)).foregroundStyle(.white).padding(14)
-        }
-        .frame(width: 150, height: 196).clipShape(RoundedRectangle(cornerRadius: 22))
+        VStack(alignment: .leading, spacing: 0) {
+            CategoryImage(category: category).frame(width: 159, height: 212)
+                .background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 24)).hairline(RoundedRectangle(cornerRadius: 24))
+            HStack(alignment: .top) {
+                Text(category.name).font(Theme.font(15.5)).foregroundStyle(Theme.text).lineLimit(2).multilineTextAlignment(.leading)
+                Spacer(minLength: 4)
+                Image(systemName: "arrow.right").font(.system(size: 12, weight: .light)).foregroundStyle(Theme.text)
+                    .frame(width: 32, height: 32).background(Circle().fill(Theme.surface)).hairline(Circle())
+            }.padding(.top, 14).padding(.horizontal, 4)
+        }.frame(width: 159)
     }
 }
 
-/// Карточка товара: фото, плашки, сердечко, название, цена
+// MARK: - Карточка товара (.card): фото в подложке 16, плашка с точкой, сердечко, название, раздел·цвет, кружки цветов, цена, бонусы
+
 struct ProductCard: View {
     let product: Product
     var tab: Tab? = nil
+    var bag = false
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
+    @State private var colorId: String?
 
     var body: some View {
-        Button { router.push(.product(product.id), on: tab) } label: {
-            VStack(alignment: .leading, spacing: 10) {
+        let c = product.color(colorId ?? product.colors.first(where: { $0.stock > 0 })?.id)
+        let pr = shop.price(product)
+        Button { router.push(.product(product.id + (colorId.map { "?color=" + $0 } ?? "")), on: tab) } label: {
+            VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topLeading) {
-                    Color.clear.aspectRatio(3 / 4, contentMode: .fit)
-                        .overlay(RemoteImage(path: product.image))
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                    VStack(alignment: .leading, spacing: 4) { ForEach(Array(shop.badges(product).enumerated()), id: \.offset) { Badge(text: $1.text, color: $1.color) } }.padding(10)
+                    Color.clear.aspectRatio(177 / 235, contentMode: .fit)
+                        .overlay(ProductImage(path: c.images.first ?? "", kind: c.artKind, tone: c.artTone))
+                        .background(Theme.photo)
+                        .clipShape(RoundedRectangle(cornerRadius: 16)).hairline(RoundedRectangle(cornerRadius: 16), 0.04)
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(shop.badges(product).prefix(2).enumerated()), id: \.offset) { _, b in Badge(text: b.text, color: b.color, filled: b.text.contains("%") || b.text.lowercased().contains("скидк")) }
+                    }.padding(10)
                     if !product.available {
-                        Text("Нет в наличии").font(Theme.font(11, .medium)).padding(.horizontal, 9).padding(.vertical, 5)
-                            .background(Capsule().fill(.white.opacity(0.92))).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(10)
+                        Text("Нет в наличии").font(Theme.font(10.5, .semibold)).foregroundStyle(Theme.text).padding(.horizontal, 9).padding(.vertical, 4)
+                            .background(Capsule().fill(.white.opacity(0.9))).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(10)
                     }
                 }
-                .overlay(alignment: .topTrailing) {
-                    Button { shop.toggleFavorite(product.id) } label: {
-                        Image(systemName: shop.isFavorite(product.id) ? "heart.fill" : "heart").font(.system(size: 15))
-                            .foregroundStyle(shop.isFavorite(product.id) ? Theme.danger : Theme.text)
-                            .frame(width: 34, height: 34).background(Circle().fill(.white.opacity(0.9)))
-                    }.padding(8)
+                .overlay(alignment: .topTrailing) { FavCircle(on: shop.isFavorite(product.id)) { shop.toggleFavorite(product.id) }.padding(8) }
+                .overlay(alignment: .bottomTrailing) {
+                    if bag && product.available {
+                        Button { router.push(.product(product.id), on: tab) } label: {
+                            Image(systemName: "bag").font(.system(size: 13)).foregroundStyle(Theme.text).frame(width: 32, height: 32).background(Circle().fill(.white.opacity(0.94))).hairline(Circle())
+                        }.padding(10)
+                    }
                 }
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(product.name).font(Theme.font(13.5)).foregroundStyle(Theme.text).lineLimit(2).multilineTextAlignment(.leading)
-                    PriceView(price: shop.price(product), size: 14)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(product.name).font(Theme.font(13.5, .medium)).foregroundStyle(Theme.text).lineLimit(2).multilineTextAlignment(.leading).lineSpacing(1).padding(.top, 14)
+                    Text([shop.category(product.categoryId)?.name ?? "", product.colors.count == 1 ? c.name : ""].filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(Theme.font(12.5)).foregroundStyle(Theme.muted).lineLimit(1).padding(.top, 6)
                     if product.colors.count > 1 {
-                        HStack(spacing: 4) { ForEach(product.colors.prefix(5)) { c in Circle().fill(Color(hex: c.hex.isEmpty ? "#ccc" : c.hex)).frame(width: 10, height: 10).overlay(Circle().strokeBorder(Theme.line)) } }
+                        HStack(spacing: 8) {
+                            ForEach(product.colors.prefix(5)) { col in
+                                Button { withAnimation(.easeOut(duration: 0.2)) { colorId = col.id } } label: {
+                                    Circle().fill(Color(hex: col.hex.isEmpty ? "#cccccc" : col.hex)).frame(width: 12, height: 12)
+                                        .overlay(Circle().strokeBorder(Color(red: 20 / 255, green: 20 / 255, blue: 22 / 255).opacity(0.16)))
+                                        .padding(2).overlay(Circle().strokeBorder(col.id == c.id ? Theme.ink : .clear, lineWidth: 1))
+                                }.buttonStyle(.plain)
+                            }
+                        }.padding(.top, 10)
                     }
-                }
+                    PriceView(price: pr, size: 14).padding(.top, 12)
+                    if shop.bonusFor(pr.price) > 0 { BonusPill(amount: shop.bonusFor(pr.price)).padding(.top, 10) }
+                }.padding(.horizontal, 4)
             }
         }
         .buttonStyle(Pressable())
     }
 }
 
-struct Footer: View {
+/// Две колонки карточек, как сетка сайта на телефоне
+struct ProductGrid: View {
+    let products: [Product]
+    var tab: Tab? = nil
+    var bag = false
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8, alignment: .top), GridItem(.flexible(), spacing: 8, alignment: .top)], spacing: 28) {
+            ForEach(products) { ProductCard(product: $0, tab: tab, bag: bag) }
+        }.padding(.horizontal, Theme.gutter)
+    }
+}
+
+// MARK: - «Вы недавно смотрели»
+
+struct RecentRow: View {
+    var exceptId: String?
+    var tab: Tab? = nil
+    @EnvironmentObject private var shop: Shop
+    var body: some View {
+        let list = shop.recentIds.filter { $0 != exceptId }.compactMap { id in shop.products.first { $0.id == id } }.prefix(10)
+        if list.count >= (exceptId == nil ? 2 : 1) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    DotTitle(text: "Вы недавно смотрели", size: 26)
+                    Spacer()
+                    Button { withAnimation { shop.clearRecent() } } label: { Text("Очистить").font(Theme.font(13)).foregroundStyle(Theme.muted) }
+                }.padding(.horizontal, Theme.gutter)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 10) { ForEach(Array(list)) { ProductCard(product: $0, tab: tab).frame(width: 140) } }.padding(.horizontal, Theme.gutter)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Бонусная программа: тёмная карта, заголовок, три шага и кнопка
+
+struct BonusBand: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Image("Wordmark").resizable().scaledToFit().frame(width: 120).colorInvert()
-            if !shop.settings.tagline.isEmpty { Text(shop.settings.tagline).font(Theme.font(13)).foregroundStyle(.white.opacity(0.7)) }
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(shop.pages.filter { $0.group != "legal" }) { p in
-                    Button { router.push(.page(p.slug), on: .home) } label: { Text(p.title).font(Theme.font(14)).foregroundStyle(.white.opacity(0.85)) }
-                }
-                Button { router.push(.sizes, on: .home) } label: { Text("Таблица размеров").font(Theme.font(14)).foregroundStyle(.white.opacity(0.85)) }
-                if shop.giftEnabled { Button { router.push(.gift, on: .home) } label: { Text("Подарочные сертификаты").font(Theme.font(14)).foregroundStyle(.white.opacity(0.85)) } }
-                Button { router.push(.track, on: .home) } label: { Text("Где мой заказ").font(Theme.font(14)).foregroundStyle(.white.opacity(0.85)) }
+        let h = shop.settings.raw["home"], pct = shop.settings.bonusPercent
+        let creditDone = shop.settings.raw["bonus"]["creditOn"].str == "done"
+        let title = Fmt.plain((h["bonusTitle"].string ?? "Возвращаем бонусами").replacingOccurrences(of: "{n}", with: "\(pct)"))
+        let steps = [("bag", "Покупайте", "\(pct)% от суммы заказа возвращаем бонусами"),
+                     ("cylinder.split.1x2", "Копите", "Бонусы приходят на счёт " + (creditDone ? "после получения заказа" : "после оплаты заказа")),
+                     ("creditcard", "Оплачивайте", "Тратьте на следующие покупки, хоть все сразу")]
+        VStack(alignment: .leading, spacing: 22) {
+            LoyalCard().padding(.horizontal, 4).padding(.top, 8)
+            if !h["bonusEyebrow"].str.isEmpty { Eyebrow(text: h["bonusEyebrow"].str) }
+            Text(title).font(Theme.font(44, .light)).kerning(-1.6).lineSpacing(-6).foregroundStyle(Theme.text).fixedSize(horizontal: false, vertical: true)
+            if !h["bonusText"].str.isEmpty {
+                HStack(spacing: 10) { Rectangle().fill(Theme.muted).frame(width: 16, height: 1); Text(h["bonusText"].str).font(Theme.font(15)).foregroundStyle(Theme.muted) }
             }
-            if !shop.settings.socials.isEmpty {
-                HStack(spacing: 10) {
-                    ForEach(shop.settings.socials) { s in
-                        Link(destination: URL(string: s.url)!) { Text(s.name).font(Theme.font(12.5, .medium)).foregroundStyle(.white).padding(.horizontal, 12).padding(.vertical, 8).background(Capsule().strokeBorder(.white.opacity(0.25))) }
+            VStack(spacing: 10) {
+                ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
+                    HStack(alignment: .top, spacing: 14) {
+                        Image(systemName: s.0).font(.system(size: 16, weight: .light)).foregroundStyle(.white)
+                            .frame(width: 40, height: 40).background(RoundedRectangle(cornerRadius: 12).fill(i == 0 ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Theme.dark)))
+                        VStack(alignment: .leading, spacing: 3) { Text(s.1).font(Theme.font(15.5, .medium)); Text(s.2).font(Theme.font(13.5)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true) }
+                        Spacer(minLength: 0)
+                        Text("\(i + 1)").font(Theme.font(11)).foregroundStyle(Theme.dim)
                     }
+                    .padding(16).background(RoundedRectangle(cornerRadius: 18).fill(.white)).shadow(color: Theme.ink.opacity(0.06), radius: 10, y: 6)
                 }
             }
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(shop.pages.filter { $0.group == "legal" }) { p in
-                    Button { router.push(.page(p.slug), on: .home) } label: { Text(p.title).font(Theme.font(12)).foregroundStyle(.white.opacity(0.55)) }
+            VStack(alignment: .leading, spacing: 12) {
+                if shop.user != nil {
+                    PrimaryButton(title: "Открыть бонусный счёт", arrow: true) { router.reset(.account, to: [.bonus]) }
+                } else {
+                    PrimaryButton(title: "Присоединиться", arrow: true) { router.reset(.account) }
+                    Text("Регистрация займёт минуту").font(Theme.font(13.5)).foregroundStyle(Theme.muted)
                 }
-                Text("© \(Calendar.current.component(.year, from: Date())) \(shop.settings.storeName)®").font(Theme.font(12)).foregroundStyle(.white.opacity(0.45))
             }
         }
-        .padding(24).frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.ink)
-        .clipShape(RoundedRectangle(cornerRadius: 28)).padding(.horizontal, 10)
+        .padding(18).padding(.bottom, 6)
+        .background(RoundedRectangle(cornerRadius: 26).fill(LinearGradient(colors: [Color(hex: "#fbf7f4"), Theme.surface], startPoint: .top, endPoint: .bottom)))
+        .hairline(RoundedRectangle(cornerRadius: 26), 0.06)
+        .padding(.horizontal, Theme.gutter)
+    }
+}
+
+/// Бонусная карта: тёмная, с отблеском, процент или баланс, имя владельца
+struct LoyalCard: View {
+    @EnvironmentObject private var shop: Shop
+    var body: some View {
+        let u = shop.user, pct = shop.settings.bonusPercent
+        ZStack(alignment: .topLeading) {
+            LinearGradient(colors: [Color(hex: "#2a2f36"), Color(hex: "#0d0e10")], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(colors: [.white.opacity(0.12), .clear, .white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            VStack(alignment: .leading) {
+                HStack { Image("Logo").resizable().scaledToFit().frame(width: 26).colorInvert(); Spacer(); Text("Бонусный счёт").font(Theme.font(12.5)).foregroundStyle(.white.opacity(0.6)) }
+                Spacer()
+                HStack(alignment: .top, spacing: 2) {
+                    Text("\(pct)").font(Theme.font(64, .light)).foregroundStyle(.white)
+                    Text("%").font(Theme.font(26, .light)).foregroundStyle(Theme.accentSoft).padding(.top, 8)
+                }
+                Spacer()
+                HStack {
+                    Text(u.map { $0.name } ?? "Ваше имя").font(Theme.font(13.5)).foregroundStyle(.white.opacity(0.75))
+                    Spacer()
+                    Text("\(u?.bonus ?? 0) \(Fmt.plural(u?.bonus ?? 0, "бонус", "бонуса", "бонусов"))").font(Theme.font(13.5, .medium)).foregroundStyle(.white.opacity(0.85))
+                }
+            }.padding(20)
+        }
+        .frame(height: 200).clipShape(RoundedRectangle(cornerRadius: 22))
+        .shadow(color: .black.opacity(0.3), radius: 22, y: 16)
+        .rotationEffect(.degrees(-2))
+    }
+}
+
+// MARK: - Акция: тёмная карточка со скидкой, сроком и кнопкой
+
+struct DealBand: View {
+    let promo: Promotion
+    @EnvironmentObject private var shop: Shop
+    @EnvironmentObject private var router: Router
+    var body: some View {
+        let off = promo.type == "percent" ? "−\(Int(promo.value))%" : "−" + Fmt.rub(Int(promo.value))
+        let cats = promo.scope == "categories" ? promo.categoryIds.compactMap { shop.category($0)?.name } : []
+        let scope = promo.scope == "all" ? "Весь каталог" : !cats.isEmpty ? cats.joined(separator: ", ") : "Избранные модели"
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("АКЦИЯ").font(Theme.font(11, .medium)).kerning(1.2).foregroundStyle(.white.opacity(0.7))
+                Spacer()
+                if !promo.endsAt.isEmpty { Text("до " + Fmt.date(ISO.date(promo.endsAt + "T12:00:00Z"))).font(Theme.font(12.5)).foregroundStyle(.white.opacity(0.7)) }
+            }
+            Text(off).font(Theme.font(72, .light)).kerning(-3).foregroundStyle(LinearGradient(colors: [Theme.accentSoft, Theme.accent], startPoint: .top, endPoint: .bottom))
+            Text(promo.title).font(Theme.font(24, .light)).foregroundStyle(.white)
+            Text(scope).font(Theme.font(14)).foregroundStyle(.white.opacity(0.65))
+            Button { router.push(.catalog(cat: nil, tag: nil, sale: true), on: .home) } label: {
+                HStack(spacing: 12) { Text("Смотреть товары").font(Theme.font(14, .medium)); ArrowDot(size: 34, dark: true) }
+                    .foregroundStyle(Theme.text).padding(.leading, 20).padding(.trailing, 7).frame(height: 48).background(Capsule().fill(.white))
+            }.buttonStyle(Pressable()).padding(.top, 6)
+        }
+        .padding(22).frame(maxWidth: .infinity, alignment: .leading)
+        .background(ZStack { Theme.dark; RadialGradient(colors: [Theme.accent.opacity(0.28), .clear], center: .topTrailing, startRadius: 0, endRadius: 260) })
+        .clipShape(RoundedRectangle(cornerRadius: 26))
+        .padding(.horizontal, Theme.gutter)
+    }
+}
+
+// MARK: - «Ателье»: фото в рамке с пунктиром, заголовок, текст и «О бренде»
+
+struct AtelierBlock: View {
+    @EnvironmentObject private var shop: Shop
+    @EnvironmentObject private var router: Router
+    var body: some View {
+        let h = shop.settings.raw["home"]
+        VStack(alignment: .leading, spacing: 20) {
+            ProductImage(path: h["editorialImage"].str, kind: h["editorialArt"]["kind"].string ?? "knit", tone: h["editorialArt"]["tone"].string ?? "#3a3a3d")
+                .frame(height: 450).clipShape(RoundedRectangle(cornerRadius: 22))
+                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.85), style: StrokeStyle(lineWidth: 1, dash: [5, 4])).padding(12))
+                .hairline(RoundedRectangle(cornerRadius: 22), 0.06)
+            if !h["editorialEyebrow"].str.isEmpty { Eyebrow(text: h["editorialEyebrow"].str) }
+            Text(h["editorialTitle"].str).font(Theme.font(40, .light)).kerning(-1.4).lineSpacing(-4).fixedSize(horizontal: false, vertical: true)
+            if !h["editorialText"].str.isEmpty { Text(h["editorialText"].str).font(Theme.font(16)).foregroundStyle(Theme.muted).lineSpacing(7) }
+            if shop.page("about") != nil {
+                Button { router.push(.page("about"), on: .home) } label: {
+                    HStack(spacing: 10) { Text("О бренде").font(Theme.font(15)); Image(systemName: "arrow.right").font(.system(size: 12, weight: .light)) }
+                        .foregroundStyle(Theme.text).padding(.horizontal, 20).frame(height: 46).background(Capsule().fill(Theme.surface)).hairline(Capsule(), 0.08)
+                }.buttonStyle(Pressable())
+            }
+        }.padding(.horizontal, Theme.gutter)
+    }
+}
+
+// MARK: - «Сервис»: карточки с цветным свечением и значком
+
+struct BenefitsBlock: View {
+    @EnvironmentObject private var shop: Shop
+    @EnvironmentObject private var router: Router
+    static let colors = ["delivery": "#1ab248", "quality": "#e8b84a", "fabric": "#c9925e", "fitting": "#ff8b74", "return": "#7b61ff", "payment": "#16b5a5", "gift": "#f0587c", "cash": "#22b45a", "pin": "#ff8b74", "style": "#c9925e", "gem": "#7b61ff", "spool": "#ff8b74", "mail": "#3e6bf0", "chat": "#16b5a5", "phone": "#1ab248"]
+    static let words: [(String, String)] = [("доставк|курьер|сдэк|отправ", "delivery"), ("качеств|гаранти|провер", "quality"), ("ткан|материал|шерст|кашемир|хлоп|шёлк|шелк|лён|трикотаж|пряж", "fabric"),
+                                            ("примерк|подош|примерить", "fitting"), ("возврат|обмен|вернуть", "return"), ("оплат|карт|рассроч|сплит|долям", "payment"), ("подар|упаков", "gift")]
+    static func icon(_ b: JSON) -> String {
+        let ic = b["icon"].str
+        if ic == "none" { return "" }
+        if colors[ic] != nil { return ic }
+        for t in [b["title"].str, b["text"].str] { for w in words where t.lowercased().range(of: w.0, options: .regularExpression) != nil { return w.1 } }
+        return ""
+    }
+    var body: some View {
+        let h = shop.settings.raw["home"]
+        VStack(alignment: .leading, spacing: 18) {
+            if !h["benefitsTitle"].str.isEmpty {
+                if !h["benefitsEyebrow"].str.isEmpty { Eyebrow(text: h["benefitsEyebrow"].str) }
+                DotTitle(text: h["benefitsTitle"].str, size: 30)
+            }
+            VStack(spacing: 10) {
+                ForEach(Array(h["benefits"].array.enumerated()), id: \.offset) { _, b in
+                    let ic = BenefitsBlock.icon(b)
+                    HStack(alignment: .top, spacing: 16) {
+                        if !ic.isEmpty { RemoteImage(path: "img/benefits/\(ic).webp", contentMode: .fit).frame(width: 84, height: 84) }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(b["title"].str).font(Theme.font(20, .light)).fixedSize(horizontal: false, vertical: true)
+                            if !b["text"].str.isEmpty { Text(b["text"].str).font(Theme.font(14.5)).foregroundStyle(Theme.muted).lineSpacing(4) }
+                            if !b["link"].str.isEmpty { Button { router.open(path: b["link"].str) } label: { Text((b["linkText"].string ?? "Подробнее") + " →").font(Theme.font(14)).foregroundStyle(Theme.text) } }
+                        }.padding(.vertical, 4)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(18)
+                    .background(ZStack {
+                        RoundedRectangle(cornerRadius: 22).fill(LinearGradient(colors: [.white, Theme.surface], startPoint: .top, endPoint: .bottom))
+                        if !ic.isEmpty { RoundedRectangle(cornerRadius: 22).fill(RadialGradient(colors: [Color(hex: BenefitsBlock.colors[ic] ?? "#cccccc").opacity(0.22), .clear], center: .leading, startRadius: 0, endRadius: 140)) }
+                    })
+                    .hairline(RoundedRectangle(cornerRadius: 22), 0.07)
+                }
+            }
+        }.padding(.horizontal, Theme.gutter)
+    }
+}
+
+// MARK: - Выбор раздела при первом входе (как экран «Выберите раздел» на сайте)
+
+struct GenderGate: View {
+    @EnvironmentObject private var shop: Shop
+    var body: some View {
+        let g = shop.settings.raw["gateway"]
+        VStack(spacing: 14) {
+            VStack(spacing: 12) {
+                HStack(alignment: .top, spacing: 2) { Image("Wordmark").resizable().scaledToFit().frame(width: 150); Text("®").font(.system(size: 6)) }
+                if !g["eyebrow"].str.isEmpty { Eyebrow(text: g["eyebrow"].str) }
+            }.padding(.top, 14)
+            ForEach([("women", "dress", "#4a4a4e"), ("men", "coat", "#2e2e31")], id: \.0) { k in
+                let c = g[k.0], closed = shop.settings.gendersOpen[k.0] == false
+                Button { choose(k.0) } label: {
+                    ZStack(alignment: .bottomLeading) {
+                        ProductImage(path: c["image"].str, kind: k.1, tone: k.2)
+                        LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(c["title"].string ?? (k.0 == "women" ? "Женщинам" : "Мужчинам")).font(Theme.font(36, .light)).kerning(-1).foregroundStyle(.white)
+                            if !c["text"].str.isEmpty { Text(c["text"].str).font(Theme.font(13.5)).foregroundStyle(.white.opacity(0.8)) }
+                            HStack(spacing: 8) { Text(closed ? "Скоро" : "Перейти").font(Theme.font(13.5)); Rectangle().frame(width: 24, height: 1) }
+                                .foregroundStyle(.white.opacity(0.9)).padding(.top, 6)
+                        }.padding(18)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).clipShape(RoundedRectangle(cornerRadius: 12))
+                }.buttonStyle(Pressable())
+            }
+            Button { choose("all") } label: { Text("Смотреть всю коллекцию").font(Theme.font(14)).foregroundStyle(Theme.text).padding(.bottom, 3).overlay(alignment: .bottom) { Rectangle().fill(Theme.lineStrong).frame(height: 1) } }
+                .padding(.vertical, 10)
+        }
+        .padding(.horizontal, 12)
+        .background(Color.white.ignoresSafeArea())
+    }
+    private func choose(_ g: String) {
+        Haptic.tap()
+        withAnimation(.easeInOut(duration: 0.5)) { shop.gender = g == "all" ? nil : g; shop.gateDone = true }
     }
 }

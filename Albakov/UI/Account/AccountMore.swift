@@ -20,7 +20,7 @@ struct BonusView: View {
                     let a = e["amount"].int ?? 0
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(label(e)).font(Theme.font(14.5))
+                            Text(BonusView.label(e)).font(Theme.font(14.5))
                             Text(Fmt.date(ISO.date(e["at"].str))).font(Theme.font(12)).foregroundStyle(Theme.muted)
                         }
                         Spacer()
@@ -35,7 +35,7 @@ struct BonusView: View {
             _ = try? await API.shared.raw("POST", "me/bonus-seen")
         }
     }
-    private func label(_ e: JSON) -> String {
+    static func label(_ e: JSON) -> String {
         let n = e["orderNumber"].str
         switch e["type"].str {
         case "earn": return "Начислено за заказ" + (n.isEmpty ? "" : " № " + n)

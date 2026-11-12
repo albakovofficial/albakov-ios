@@ -58,6 +58,7 @@ final class Router: ObservableObject {
     static let shared = Router()
 
     @Published var tab: Tab = .home
+    @Published var menuOpen = false
     @Published var home: [Dest] = []
     @Published var catalog: [Dest] = []
     @Published var favorites: [Dest] = []
