@@ -17,6 +17,8 @@ final class PushManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private(set) var token: String?
+    // Сейчас на экране системный вопрос «Разрешить уведомления?» — заставку защиты данных не показываем
+    private(set) var prompting = false
 
     private override init() { super.init() }
 
@@ -31,7 +33,9 @@ final class PushManager: NSObject, UNUserNotificationCenterDelegate {
                 self.sendStatus("granted")
                 DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
             default:
+                DispatchQueue.main.async { self.prompting = true }
                 center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                    DispatchQueue.main.async { self.prompting = false }
                     self.sendStatus(granted ? "granted" : "denied")
                     if granted {
                         DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }

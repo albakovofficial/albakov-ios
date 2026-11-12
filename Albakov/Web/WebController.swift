@@ -1,16 +1,19 @@
 import SwiftUI
 import WebKit
+import Network
 
 // Один WKWebView на всё приложение: магазин, мост с сайтом (window.AlbakovApp) и правила переходов.
 final class WebController: NSObject, ObservableObject {
     static let shared = WebController()
 
     let webView: WKWebView
-    @Published var firstLoadDone = false
+    @Published var ready = false      // магазин отрисован — заставку можно убирать
     @Published var failed = false
 
     private var started = false
     private var lastURL: URL?
+    private var readyTimer: Timer?
+    private let network = NWPathMonitor()
 
     static var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
@@ -40,7 +43,21 @@ final class WebController: NSObject, ObservableObject {
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.keyboardDismissMode = .interactive
         // «Потянуть вниз — обновить» делает сам сайт (мягко, без белого экрана) — системный жест не добавляем.
+        // Отладка через Safari — только в отладочной сборке: в TestFlight и App Store страницу снаружи не посмотреть.
         if #available(iOS 16.4, *) { webView.isInspectable = isDebug }
+
+        // Связь вернулась, а на экране «Нет соединения» — открываем магазин сами
+        network.pathUpdateHandler = { [weak self] path in
+            guard path.status == .satisfied else { return }
+            DispatchQueue.main.async { if self?.failed == true { self?.retry() } }
+        }
+        network.start(queue: DispatchQueue(label: "ru.albakovofficial.network", qos: .utility))
+    }
+
+    // Сайт прислал «ready» (магазин отрисован) — заставка уходит. Запасной вариант — через 4 с после загрузки страницы.
+    func markReady() {
+        readyTimer?.invalidate(); readyTimer = nil
+        if !ready { ready = true }
     }
 
     private var isDebug: Bool {
@@ -126,7 +143,9 @@ extension WebController: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         failed = false
-        if !firstLoadDone { firstLoadDone = true }
+        if !ready && readyTimer == nil {
+            readyTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in self?.markReady() }
+        }
         PushManager.shared.resendToken()   // магазин загрузился — отдаём ему адрес устройства для push
     }
 
@@ -184,9 +203,11 @@ extension WebController: WKUIDelegate {
 // MARK: - Сообщения от сайта
 extension WebController: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
-        // Только со своих страниц: чужая страница (оплата, банк) не может звать приложение.
-        guard let origin = message.frameInfo.request.url, Router.shared.isInternal(origin) else { return }
+        guard let body = message.body as? [String: Any], let type = body["type"] as? String, type.count < 40 else { return }
+        // Только главная страница магазина по https: чужая страница (оплата, банк) и встроенные рамки звать приложение не могут.
+        let origin = message.frameInfo.securityOrigin
+        guard message.frameInfo.isMainFrame, origin.protocol == "https",
+              let url = URL(string: "https://" + origin.host), Router.shared.isInternal(url) else { return }
         Bridge.handle(type: type, body: body)
     }
 }

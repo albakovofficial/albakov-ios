@@ -5,6 +5,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = PushManager.shared
+        // Магазин начинает загружаться сразу при запуске, пока iOS рисует первый экран
+        WebController.shared.start(Router.shared.baseURL)
         // Уведомления уже разрешены — обновляем адрес устройства (Apple может его сменить).
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }

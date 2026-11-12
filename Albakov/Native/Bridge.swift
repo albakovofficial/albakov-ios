@@ -7,6 +7,8 @@ import UserNotifications
 enum Bridge {
     static func handle(type: String, body: [String: Any]) {
         switch type {
+        case "ready":
+            WebController.shared.markReady()   // сайт отрисовал магазин — убираем заставку
         case "share":
             share(body)
         case "haptic":
@@ -68,17 +70,23 @@ enum Bridge {
     }
 }
 
-// Виброотклик: лёгкий щелчок на кнопках, «успех» после заказа и т. п.
+// Виброотклик: лёгкий щелчок на кнопках, «успех» после заказа и т. п. Генераторы создаются один раз.
 enum Haptics {
+    private static let notify = UINotificationFeedbackGenerator()
+    private static let select = UISelectionFeedbackGenerator()
+    private static let light = UIImpactFeedbackGenerator(style: .light)
+    private static let medium = UIImpactFeedbackGenerator(style: .medium)
+    private static let heavy = UIImpactFeedbackGenerator(style: .heavy)
+
     static func play(_ style: String) {
         switch style {
-        case "success": UINotificationFeedbackGenerator().notificationOccurred(.success)
-        case "warning": UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        case "error": UINotificationFeedbackGenerator().notificationOccurred(.error)
-        case "selection": UISelectionFeedbackGenerator().selectionChanged()
-        case "medium": UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        case "heavy": UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-        default: UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        case "success": notify.notificationOccurred(.success)
+        case "warning": notify.notificationOccurred(.warning)
+        case "error": notify.notificationOccurred(.error)
+        case "selection": select.selectionChanged()
+        case "medium": medium.impactOccurred()
+        case "heavy": heavy.impactOccurred()
+        default: light.impactOccurred()
         }
     }
 }

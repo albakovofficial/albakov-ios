@@ -3,14 +3,15 @@ import SwiftUI
 struct RootView: View {
     @ObservedObject private var web = WebController.shared
     @EnvironmentObject private var router: Router
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         ZStack {
             Color("LaunchBackground").ignoresSafeArea()
             AlbakovWebView(controller: web)
-                .ignoresSafeArea(edges: .bottom)   // сверху — под строкой состояния, как у значка на экране «Домой»; снизу сайт сам учитывает полоску (viewport-fit=cover)
-                .opacity(web.firstLoadDone ? 1 : 0)
-            if !web.firstLoadDone && !web.failed {
+                .ignoresSafeArea(edges: .bottom)   // сверху — под строкой состояния; снизу сайт сам учитывает полоску (viewport-fit=cover)
+                .opacity(web.ready ? 1 : 0)
+            if !web.ready && !web.failed {
                 SplashView()
                     .transition(.opacity)
             }
@@ -18,8 +19,13 @@ struct RootView: View {
                 OfflineView { web.retry() }
                     .transition(.opacity)
             }
+            // Защита данных: в переключателе приложений и пока приложение не на экране — только знак ALBAKOV,
+            // без заказов, адресов и кабинета. Не закрываем, пока iPhone спрашивает разрешение на уведомления.
+            if phase != .active && !PushManager.shared.prompting {
+                PrivacyCover()
+            }
         }
-        .animation(.easeOut(duration: 0.3), value: web.firstLoadDone)
+        .animation(.easeOut(duration: 0.35), value: web.ready)
         .animation(.easeOut(duration: 0.2), value: web.failed)
         .onAppear { web.start(router.baseURL) }
         .onReceive(router.$pendingURL.compactMap { $0 }) { url in
@@ -29,21 +35,55 @@ struct RootView: View {
     }
 }
 
-// Пока магазин открывается: знак AV на белом и тонкий индикатор.
-struct SplashView: View {
+// Знак AV и надпись ALBAKOV — как в шапке сайта, под ними тонкая линия загрузки.
+// Своей заставки у сайта в приложении нет: эта держится, пока магазин не будет готов.
+struct BrandMark: View {
     var body: some View {
-        VStack(spacing: 28) {
+        VStack(spacing: 22) {
             Image("Logo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 96, height: 96)
-            ProgressView()
-                .tint(Color("AccentColor"))
+                .frame(width: 84, height: 84)
+            HStack(alignment: .top, spacing: 2) {
+                Image("Wordmark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 150)
+                Text("®")
+                    .font(.system(size: 6, weight: .regular))
+                    .foregroundStyle(Color("AccentColor").opacity(0.85))
+                    .offset(y: -3)
+            }
         }
     }
 }
 
-// Нет связи: понятный экран и кнопка «Повторить» вместо белой страницы.
+struct SplashView: View {
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        VStack(spacing: 28) {
+            BrandMark()
+            ZStack(alignment: .leading) {
+                Rectangle().fill(Color("AccentColor").opacity(0.12))
+                Rectangle().fill(Color("AccentColor")).frame(width: 150 * progress)
+            }
+            .frame(width: 150, height: 1)
+        }
+        .onAppear { withAnimation(.timingCurve(0.25, 0.7, 0.3, 1, duration: 2.6)) { progress = 0.82 } }
+    }
+}
+
+struct PrivacyCover: View {
+    var body: some View {
+        ZStack {
+            Color("LaunchBackground").ignoresSafeArea()
+            BrandMark()
+        }
+    }
+}
+
+// Нет связи: понятный экран и кнопка «Повторить». Связь вернулась — магазин откроется сам.
 struct OfflineView: View {
     let retry: () -> Void
 
@@ -56,7 +96,7 @@ struct OfflineView: View {
                 .background(Circle().fill(Color("AccentColor").opacity(0.06)))
             Text("Нет соединения")
                 .font(.system(size: 22, weight: .regular))
-            Text("Проверьте интернет и попробуйте ещё раз.")
+            Text("Проверьте интернет — магазин откроется сам, как только связь появится.")
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
