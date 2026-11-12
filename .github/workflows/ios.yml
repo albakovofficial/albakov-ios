@@ -1,0 +1,169 @@
+# Сборка приложения ALBAKOV для iPhone на GitHub (Mac не нужен).
+# 1) Каждый push в main и каждый pull request — проверочная сборка под симулятор, без подписи.
+# 2) Тег V1.0.1 (или v1.0.1) либо ручной запуск с галочкой «TestFlight» — подписанная сборка и выгрузка в App Store Connect.
+#    Нужны секреты репозитория: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (см. README.md).
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*', 'V*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: 'Выгрузить сборку в TestFlight'
+        type: boolean
+        default: false
+      runner:
+        description: 'Mac на GitHub (если macos-26 долго нет — попробуйте macos-15 или macos-15-intel, там тоже есть Xcode 26)'
+        type: choice
+        options: [macos-26, macos-15, macos-15-intel]
+        default: macos-26
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Сборка (симулятор)
+    # Для выгрузки в TestFlight отдельная проверочная сборка не нужна: архив и так всё собирает (и Mac на GitHub бывает в дефиците).
+    if: ${{ !startsWith(github.ref, 'refs/tags/') && !(github.event_name == 'workflow_dispatch' && inputs.testflight) }}
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Выбрать Xcode 26
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: Создать проект Xcode (XcodeGen)
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Собрать
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Albakov.xcodeproj -scheme Albakov -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Лог сборки
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+
+  testflight:
+    name: TestFlight
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.testflight)
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 45
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверить секреты
+        run: |
+          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            if [ -z "${!v}" ]; then echo "::error::Нет секрета $v (Settings → Secrets and variables → Actions)"; exit 1; fi
+          done
+
+      - name: Выбрать Xcode 26
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: Создать проект Xcode (XcodeGen)
+        run: |
+          brew install xcodegen
+          TEAM_ID="$APPLE_TEAM_ID" xcodegen generate
+
+      - name: Ключ App Store Connect и номер версии
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          echo "ASC_KEY_PATH=$KEY" >> "$GITHUB_ENV"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#[vV]}"
+          else
+            VERSION=$(grep -E 'MARKETING_VERSION:' project.yml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
+          plutil -replace teamID -string "$APPLE_TEAM_ID" ci/ExportOptions.plist
+          echo "Версия $VERSION, сборка ${{ github.run_number }}"
+
+      # Архив подписываем «для себя» (ad-hoc, с нашими entitlements): обычная подпись разработчика требует
+      # зарегистрированного iPhone, а для TestFlight она и не нужна. Настоящую подпись App Store ставит экспорт ниже.
+      - name: Архив
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Albakov.xcodeproj -scheme Albakov -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Albakov.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_SPECIFIER="" \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD" 2>&1 | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          grep -q "ARCHIVE SUCCEEDED" archive.log
+          APPDIR="$RUNNER_TEMP/Albakov.xcarchive/Products/Applications/Albakov.app"
+          plutil -extract UIDeviceFamily json -o - "$APPDIR/Info.plist" | grep -qx '\[1\]' || { echo "::error::Сборка не только для iPhone (UIDeviceFamily)"; plutil -p "$APPDIR/Info.plist" | grep -A3 UIDeviceFamily; exit 1; }
+          echo "Entitlements архива:"; codesign -d --entitlements - --xml "$RUNNER_TEMP/Albakov.xcarchive/Products/Applications/Albakov.app" | plutil -p - || true
+
+      - name: Подписать для App Store (сертификат и профиль — через ключ API)
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Albakov.xcarchive" \
+            -exportOptionsPlist ci/ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee export.log | grep -E "error|EXPORT (SUCCEEDED|FAILED)" || true
+          grep -q "EXPORT SUCCEEDED" export.log
+          IPA=$(ls "$RUNNER_TEMP"/export/*.ipa | head -1)
+          echo "IPA=$IPA" >> "$GITHUB_ENV"
+          rm -rf "$RUNNER_TEMP/ipa" && mkdir "$RUNNER_TEMP/ipa" && unzip -q "$IPA" -d "$RUNNER_TEMP/ipa"
+          APP=$(ls -d "$RUNNER_TEMP"/ipa/Payload/*.app)
+          codesign -dvv "$APP" 2>&1 | grep -E "Authority|TeamIdentifier" || true
+          codesign -d --entitlements - --xml "$APP" > ent.plist; plutil -p ent.plist
+          plutil -extract aps-environment raw ent.plist | grep -q production || { echo "::error::В подписанной сборке нет push (aps-environment=production)"; exit 1; }
+
+      - name: Выгрузить в App Store Connect
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys && cp "$ASC_KEY_PATH" ~/.appstoreconnect/private_keys/
+          xcrun altool --upload-app -t ios -f "$IPA" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee upload.log
+          grep -qiE "UPLOAD SUCCEEDED|No errors uploading" upload.log
+          echo "Сборка $VERSION ($BUILD) отправлена. Через 10–30 минут она появится в App Store Connect → TestFlight."
+
+      - name: Логи
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-logs
+          path: |
+            archive.log
+            export.log
+            upload.log
+
+      - name: Удалить ключ
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8 ~/.appstoreconnect/private_keys/AuthKey_*.p8
