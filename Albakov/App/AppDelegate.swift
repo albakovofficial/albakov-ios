@@ -5,21 +5,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = PushManager.shared
-        // Магазин начинает загружаться сразу при запуске, пока iOS рисует первый экран
-        WebController.shared.start(Router.shared.baseURL)
         // Уведомления уже разрешены — обновляем адрес устройства (Apple может его сменить).
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        UNUserNotificationCenter.current().getNotificationSettings { s in
+            guard s.authorizationStatus == .authorized || s.authorizationStatus == .provisional else { return }
             DispatchQueue.main.async { application.registerForRemoteNotifications() }
         }
+        PushManager.shared.refreshStatus()
+        // Данные магазина начинают загружаться сразу при запуске
+        Task { @MainActor in await Shop.shared.load() }
         return true
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         PushManager.shared.didRegister(deviceToken: deviceToken)
-    }
-
-    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        WebController.shared.send(["type": "push.error", "message": error.localizedDescription])
     }
 }

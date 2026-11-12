@@ -1,53 +1,35 @@
 # ALBAKOV для iPhone
 
-Приложение интернет-магазина [albakovofficial.ru](https://albakovofficial.ru) для App Store.
-SwiftUI + WKWebView: магазин внутри приложения плюс то, чего у сайта в браузере нет, — push-уведомления Apple
-(заказ в пути, ждёт в пункте выдачи, ответ поддержки; сотрудникам — новые заказы и вопросы), системное «Поделиться»,
-виброотклик, число на значке, ссылки albakovofficial.ru сразу в приложении, пароли из «Связки ключей», экран «Нет соединения».
+Родное приложение интернет-магазина ALBAKOV (SwiftUI). Экраны рисует приложение, данные — товары, цены, корзина,
+заказы, оплата, кабинет и панель — берёт с того же сервера, что и сайт albakovofficial.ru (`/api/…`).
 
 - Bundle ID: `ru.albakovofficial.app`, название «ALBAKOV», iPhone, iOS 16+, светлая тема, портрет.
-- Заставка — своя (знак AV и ALBAKOV, как в шапке сайта): держится, пока сайт не пришлёт `ready`, заставки сайта в приложении нет.
-- Защита данных: мост принимает команды только от главной страницы albakovofficial.ru по https; отладка страницы снаружи — только в отладочной сборке; лишних фоновых режимов нет.
-- Связь пропала — экран «Нет соединения», вернулась — магазин открывается сам.
-- Mac не нужен: проект собирается на GitHub Actions (Xcode 26 — App Store принимает только сборки Xcode 26 / iOS 26 SDK).
-- Файла `.xcodeproj` в репозитории нет — его создаёт [XcodeGen](https://github.com/yonaskolb/XcodeGen) из `project.yml`.
-- Оплата — как на сайте (ЮKassa): вещи — физический товар, покупки через Apple для них не нужны (правило App Store 3.1.5(a)).
-  Страницы оплаты и проверки карты в банке открываются внутри приложения, после оплаты покупатель возвращается в магазин.
+- Шрифт Montserrat (OFL) — `Albakov/Resources/Fonts`, сделан из шрифтов сайта.
+- Сборка без Mac: GitHub Actions (Xcode 26), проект из `project.yml` (XcodeGen).
 
 ## Устройство
 
 ```
-project.yml                     описание проекта (XcodeGen)
-Albakov/App/                    точка входа, Router (ссылки, push, albakov://), заставка и «Нет соединения»
-Albakov/Web/WebController.swift WKWebView, правила переходов, мост window.AlbakovApp
-Albakov/Native/                 Bridge (команды сайта), PushManager (APNs), Haptics
-Albakov/Resources/              Info.plist, entitlements, PrivacyInfo.xcprivacy, иконка и цвета
-ci/ExportOptions.plist          настройки выгрузки в App Store Connect
-.github/workflows/ios.yml       сборка и выгрузка в TestFlight
-BRIDGE.md                       как сайт и приложение общаются
+Albakov/App/            точка входа, Router (вкладки, переходы, ссылки albakovofficial.ru и push), AppDelegate
+Albakov/Core/           API (запросы к серверу, куки сессии), модели, Shop (товары, цены, корзина, избранное, вход), PushManager (APNs)
+Albakov/UI/Common/      стиль: шрифты, цвета, кнопки, поля, картинки с кэшем
+Albakov/UI/Home/        главная: объявления, слайдер, разделы, категории, новинки, хиты, скидки
+Albakov/UI/Catalog/     каталог, фильтры, поиск, избранное, карточка товара, страницы, таблица размеров
+Albakov/UI/Cart/        корзина, оформление: СДЭК (город, пункт выдачи), оплата ЮKassa в окне приложения
+Albakov/UI/Account/     вход и регистрация (код из письма), заказы, обмен и возврат, бонусы, поддержка, профиль, уведомления
+Albakov/UI/Admin/       панель: заказы, поддержка, товары и остатки (и фото), покупатели и бонусы, push и рассылка, журнал
 ```
 
 ## Сборка
 
-- **Каждый push в `main`** — проверочная сборка под симулятор (без подписи). Ошибки — во вкладке Actions.
-- **Выпуск в TestFlight** — Actions → iOS → Run workflow → галочка «TestFlight» (или тег `V1.0.1` — номер версии берётся из тега).
-  Номер сборки = номер запуска, растёт сам. Если Mac с `macos-26` долго не находится — выберите `macos-15-intel`.
+- **Каждый push в `main`** — проверочная сборка под симулятор.
+- **TestFlight** — Actions → iOS → Run workflow → «TestFlight» (или тег `V2.0.1`). Номер сборки растёт сам.
+- Секреты: `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`.
 
-## Что нужно один раз
+## Связь с сервером
 
-1. **Секреты GitHub** — репозиторий → Settings → Secrets and variables → Actions → New repository secret:
-   `APPLE_TEAM_ID` (Membership details в developer.apple.com), `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (весь текст файла `.p8`
-   ключа App Store Connect API с ролью Admin).
-2. **App ID** — developer.apple.com → Identifiers → `ru.albakovofficial.app` с Push Notifications и Associated Domains.
-3. **Карточка приложения** — App Store Connect → Apps → «+» → New App: iOS, «ALBAKOV», русский, Bundle ID `ru.albakovofficial.app`.
-4. **Ключ APNs для push** — developer.apple.com → Keys → «+» → Apple Push Notifications service. Файл `.p8`, Key ID и Team ID
-   вводятся на сайте: панель → «Push-уведомления» → «Приложение iPhone» (не в этот репозиторий). С ключом сайт сам отдаёт
-   файл Universal Links `https://albakovofficial.ru/.well-known/apple-app-site-association`.
-
-## Перед отправкой на проверку
-
-- Скриншоты iPhone 6,9" (1320×2868 или 1290×2796) — 3–10 штук.
-- Политика конфиденциальности (есть на сайте), анкета «App Privacy», возрастной рейтинг.
-- Тестовый аккаунт для проверяющего — в App Review Information.
-- В заметках для проверяющего перечислить нативные функции (push о заказе, «Поделиться», Universal Links, виброотклик) —
-  это снижает риск отказа по правилу 4.2 «сайт в обёртке».
+- Вход — куки `sid`, как в браузере; сотрудник с нового устройства подтверждает вход кодом из письма.
+- Цены на карточках считаются как на сайте (акции, старая цена); итог корзины и заказа — сервер (`/api/quote`, `/api/orders`).
+- Оплата: сервер отдаёт ссылку ЮKassa, она открывается в окне приложения; возврат на albakovofficial.ru закрывает окно.
+- Push: адрес устройства — `POST /api/push/subscribe { apns: { token, env }, scope }`; нажатие открывает экран по полю `url`.
+- Ссылки albakovofficial.ru (Universal Links) открывают нужный экран: товар, заказ, поддержку, раздел панели.
