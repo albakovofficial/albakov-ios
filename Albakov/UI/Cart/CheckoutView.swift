@@ -366,7 +366,7 @@ struct CityPicker: View {
             .navigationTitle("Город").navigationBarTitleDisplayMode(.inline)
             .task(id: q) {
                 guard q.count >= 2 else { list = []; return }
-                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard (try? await Task.sleep(nanoseconds: 300_000_000)) != nil else { return }
                 do {
                     let r = try await API.shared.json("GET", "cdek/cities", query: ["q": q])
                     list = r["cities"].array.map { CdekCity(code: $0["code"].int ?? 0, city: $0["city"].str, region: $0["region"].str) }; error = nil

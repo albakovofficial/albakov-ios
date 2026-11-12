@@ -19,7 +19,8 @@ struct Announcement: View {
                 .background(Theme.dark, ignoresSafeAreaEdges: [])
                 .id(i).transition(.opacity)
                 .animation(.easeInOut(duration: 0.45), value: i)
-                .task(id: list.count) { while list.count > 1 { try? await Task.sleep(nanoseconds: 3_500_000_000); i += 1 } }
+                // Ждём и листаем, пока строка на экране; ушла с экрана — цикл заканчивается, а не крутится вхолостую
+                .task(id: list.count) { while list.count > 1, (try? await Task.sleep(nanoseconds: 3_500_000_000)) != nil { i += 1 } }
         }
     }
 }

@@ -370,7 +370,7 @@ struct AdminAuditView: View {
         .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Номер заказа, товар, слово")
         .navigationTitle("Журнал действий").navigationBarTitleDisplayMode(.inline)
         .task(id: q) {
-            try? await Task.sleep(nanoseconds: q.isEmpty ? 0 : 300_000_000)
+            guard (try? await Task.sleep(nanoseconds: q.isEmpty ? 0 : 300_000_000)) != nil else { return }
             if let r = try? await API.shared.json("GET", "admin/audit", query: q.isEmpty ? [:] : ["q": q]) { items = r["items"].array }
         }
     }
