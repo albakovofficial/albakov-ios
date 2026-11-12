@@ -151,7 +151,10 @@ struct OrderRefundSection: View {
 struct OrderCdekSection: View {
     let o: JSON
     @ObservedObject private var admin = Admin.shared
-    @State private var w = "", l = "", wd = "", h = ""
+    @State private var w = ""
+    @State private var l = ""
+    @State private var wd = ""
+    @State private var h = ""
     @State private var busy = false
     @State private var error: String?
     @State private var pdf: URL?
