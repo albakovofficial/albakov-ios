@@ -299,7 +299,7 @@ struct UpdateSheet: View {
                 }
             }
             Text("Вышло обновление").font(Theme.font(26, .light))
-            Text("Обновите приложение, чтобы всё работало как надо: исправления и новое уже в App Store.").font(Theme.font(15)).foregroundStyle(Theme.muted)
+            Text("Обновите приложение, чтобы всё работало как надо.\nНовая версия уже в App Store.").font(Theme.font(15)).foregroundStyle(Theme.muted)
             if !info.notes.isEmpty {
                 ScrollView {
                     Text(info.notes).font(Theme.font(14)).foregroundStyle(Theme.text).frame(maxWidth: .infinity, alignment: .leading)
