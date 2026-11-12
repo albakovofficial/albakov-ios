@@ -2,30 +2,7 @@ import SwiftUI
 
 // Шапка, меню, кнопка «Написать нам» и подвал — как на сайте в телефоне.
 
-/// Строка над шапкой: части через «·» сменяются по очереди; {free} — порог бесплатной доставки
-struct Announcement: View {
-    @EnvironmentObject private var shop: Shop
-    @State private var i = 0
-    private var parts: [String] {
-        let t = shop.settings.announcement.replacingOccurrences(of: "{free}", with: shop.freeFromMin > 0 ? Fmt.rub(shop.freeFromMin) : "")
-        return t.components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-    }
-    var body: some View {
-        let list = parts
-        if !list.isEmpty {
-            Text(list[i % list.count])
-                .font(Theme.font(12)).kerning(0.24).foregroundStyle(.white.opacity(0.78)).lineLimit(1).minimumScaleFactor(0.85)
-                .frame(maxWidth: .infinity).frame(height: 38).padding(.horizontal, 12)
-                .background(Theme.dark, ignoresSafeAreaEdges: [])
-                .id(i).transition(.opacity)
-                .animation(.easeInOut(duration: 0.45), value: i)
-                // Ждём и листаем, пока строка на экране; ушла с экрана — цикл заканчивается, а не крутится вхолостую
-                .task(id: list.count) { while list.count > 1, (try? await Task.sleep(nanoseconds: 3_500_000_000)) != nil { i += 1 } }
-        }
-    }
-}
-
-/// Шапка: ☰, знак ALBAKOV по центру, поиск, избранное, корзина со счётчиком; под ней — «Женщинам / Мужчинам»
+/// Шапка: ☰, знак ALBAKOV по центру, поиск, избранное, корзина со счётчиком; под ней — разделы
 struct SiteHeader: View {
     var tab: Tab
     var genders = true
@@ -33,7 +10,6 @@ struct SiteHeader: View {
     @EnvironmentObject private var router: Router
     var body: some View {
         VStack(spacing: 0) {
-            Announcement()
             HStack(spacing: 0) {
                 icon("line.3.horizontal") { router.menuOpen = true }
                 Spacer()
@@ -68,7 +44,7 @@ struct SiteHeader: View {
     }
 }
 
-/// «Женщинам / Мужчинам» под шапкой: выбранный — чёрный текст и линия снизу; закрытый раздел — с пометкой «скоро»
+/// Разделы под шапкой и в меню: выбранный — цветом раздела; закрытый — с пометкой «скоро». Повторное нажатие — вся коллекция
 struct GenderTabs: View {
     var drawer = false
     @EnvironmentObject private var shop: Shop
@@ -77,43 +53,47 @@ struct GenderTabs: View {
         let open = shop.settings.gendersOpen
         if open.count > 1 {
             if drawer {
-                HStack(spacing: 4) {
-                    ForEach([("women", "Женщинам"), ("men", "Мужчинам")], id: \.0) { g in
-                        let on = shop.gender == g.0
-                        Button { pick(g.0) } label: {
-                            Text(g.1).font(Theme.font(15)).foregroundStyle(on ? .white : Theme.muted)
-                                .frame(maxWidth: .infinity).frame(height: 46).background(Capsule().fill(on ? Theme.ink : .clear))
+                HStack(spacing: 3) {
+                    ForEach(Sections.all, id: \.key) { g in
+                        let on = shop.gender == g.key
+                        Button { pick(g.key) } label: {
+                            VStack(spacing: 1) {
+                                Text(g.name).font(Theme.font(13.5, on ? .medium : .regular)).foregroundStyle(on ? .white : Theme.muted)
+                                if open[g.key] == false { Text("скоро").font(Theme.font(9)).foregroundStyle(on ? .white.opacity(0.8) : Theme.dim) }
+                            }
+                            .frame(maxWidth: .infinity).frame(height: 44)
+                            .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Color.clear)))
+                            .shadow(color: on ? Theme.accent.opacity(0.35) : .clear, radius: 8, y: 6)
                         }.buttonStyle(.plain)
                     }
                 }.padding(4).background(Capsule().fill(Theme.surface))
             } else {
                 HStack(spacing: 0) {
-                    ForEach([("women", "Женщинам"), ("men", "Мужчинам")], id: \.0) { g in
-                        let on = shop.gender == g.0
-                        Button { pick(g.0) } label: {
+                    ForEach(Sections.all, id: \.key) { g in
+                        let on = shop.gender == g.key
+                        Button { pick(g.key) } label: {
                             HStack(alignment: .top, spacing: 3) {
-                                Text(g.1).font(Theme.font(14)).kerning(0.56).foregroundStyle(on ? Theme.text : Theme.muted)
-                                if open[g.0] == false { Text("скоро").font(Theme.font(9)).foregroundStyle(Theme.dim).offset(y: -3) }
+                                Text(g.name).font(Theme.font(14)).kerning(0.4).foregroundStyle(on ? Theme.accent : Theme.muted)
+                                if open[g.key] == false { Text("скоро").font(Theme.font(9)).foregroundStyle(on ? Theme.accent : Theme.dim).offset(y: -3) }
                             }
                             .padding(.vertical, 12)
-                            .overlay(alignment: .bottom) { Rectangle().fill(Theme.ink).frame(height: 1).scaleEffect(x: on ? 1 : 0, anchor: .leading).padding(.bottom, 0) }
+                            .overlay(alignment: .bottom) { Rectangle().fill(Theme.accent).frame(height: 1.5).scaleEffect(x: on ? 1 : 0, anchor: .leading) }
                             .frame(maxWidth: .infinity)
                         }.buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, Theme.gutter)
-                .animation(.timingCurve(0.2, 0.7, 0.2, 1, duration: 0.35), value: shop.gender)
             }
         }
     }
     private func pick(_ g: String) {
         Haptic.tap()
-        withAnimation(.easeInOut(duration: 0.25)) { shop.gender = g }
         router.menuOpen = false
+        withAnimation(.easeInOut(duration: 0.25)) { shop.gender = shop.gender == g ? nil : g }
     }
 }
 
-/// Меню ☰: выезжает слева. Панель для сотрудников, раздел, быстрые кнопки, категории, плитки разделов, соцсети, документы
+/// Меню ☰: выезжает слева. Панель для сотрудников, раздел, быстрые кнопки, плитки разделов, соцсети, документы
 struct MenuDrawer: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
@@ -131,10 +111,11 @@ struct MenuDrawer: View {
                 if shop.isStaff {
                     Button { go { router.reset(.account, to: [.admin]) } } label: {
                         HStack(spacing: 12) {
-                            IconTile(icon: "square.grid.2x2", size: 40, fill: .white.opacity(0.12), tint: .white)
-                            VStack(alignment: .leading, spacing: 1) { Text("Панель управления").font(Theme.font(15, .medium)); Text("Заказы, товары, финансы").font(Theme.font(12)).opacity(0.7) }
+                            IconTile(icon: "square.grid.2x2", size: 40, fill: .white).shadow(color: .black.opacity(0.08), radius: 8, y: 4)
+                            VStack(alignment: .leading, spacing: 1) { Text("Панель управления").font(Theme.font(15, .medium)); Text("Заказы, товары, финансы").font(Theme.font(12)).foregroundStyle(Theme.dim) }
                             Spacer(); Image(systemName: "arrow.right").font(.system(size: 13))
-                        }.foregroundStyle(.white).padding(12).background(RoundedRectangle(cornerRadius: 18).fill(Theme.dark))
+                        }.foregroundStyle(Theme.text).padding(12)
+                        .background(RoundedRectangle(cornerRadius: 20).fill(Theme.tile)).hairline(RoundedRectangle(cornerRadius: 20), 0.06)
                     }.buttonStyle(Pressable())
                 }
                 GenderTabs(drawer: true)
@@ -142,26 +123,6 @@ struct MenuDrawer: View {
                     quick("person", "Кабинет") { router.reset(.account) }
                     quick("heart", "Избранное", count: shop.favorites.count) { router.reset(.favorites) }
                     quick("shippingbox", "Мой заказ") { router.push(.track, on: .account) }
-                }
-                let cats = shop.visibleCategories
-                if !cats.isEmpty {
-                    HStack {
-                        Text("КАТЕГОРИИ").font(Theme.font(11.5, .medium)).kerning(1.2).foregroundStyle(Theme.muted)
-                        Spacer()
-                        LinkButton(title: "Весь каталог") { go { router.reset(.catalog) } }
-                    }
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(alignment: .top, spacing: 10) {
-                            ForEach(cats) { c in
-                                Button { go { router.reset(.catalog, to: [.catalog(cat: c.id, tag: nil, sale: false)]) } } label: {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        CategoryImage(category: c).frame(width: 116, height: 144).clipShape(RoundedRectangle(cornerRadius: 14))
-                                        Text(c.name).font(Theme.font(14)).foregroundStyle(Theme.text).lineLimit(2).multilineTextAlignment(.leading).frame(width: 116, alignment: .leading)
-                                    }
-                                }.buttonStyle(Pressable())
-                            }
-                        }
-                    }
                 }
                 tiles
                 if !shop.settings.socials.isEmpty {
@@ -180,12 +141,12 @@ struct MenuDrawer: View {
                             let d = MenuDrawer.doc(p)
                             Button { go { router.push(.page(p.slug), on: .home) } } label: {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    IconTile(icon: d.icon, size: 30, fill: .white)
-                                    Spacer(minLength: 4)
+                                    IconTile(icon: d.icon, size: 36, fill: .white).shadow(color: .black.opacity(0.08), radius: 8, y: 5)
+                                    Spacer(minLength: 10)
                                     Text(d.title).font(Theme.font(14.5, .medium)).foregroundStyle(Theme.text).lineLimit(1).minimumScaleFactor(0.8)
                                     Text(d.sub).font(Theme.font(11.5)).foregroundStyle(Theme.muted).lineLimit(2).multilineTextAlignment(.leading)
                                 }.padding(12).frame(maxWidth: .infinity, minHeight: 122, alignment: .topLeading)
-                                .background(RoundedRectangle(cornerRadius: 16).fill(RadialGradient(colors: [Color(hex: "#ffe9df"), Theme.surface], center: .topTrailing, startRadius: 0, endRadius: 90)))
+                                .background(RoundedRectangle(cornerRadius: 18).fill(Theme.tile).overlay(RoundedRectangle(cornerRadius: 18).fill(RadialGradient(colors: [Theme.accent.opacity(0.10), .clear], center: .topTrailing, startRadius: 0, endRadius: 90))))
                             }.buttonStyle(Pressable())
                         }
                     }
@@ -198,7 +159,7 @@ struct MenuDrawer: View {
         .background(Color.white)
     }
 
-    // Пункты меню плитками: первые четыре — квадратами по два, остальные — на всю ширину; «Акции» — тёмная плитка
+    // Пункты меню плитками: первые четыре — квадратами по два, остальные — на всю ширину; «Акции» — плитка цвета раздела
     private var tiles: some View {
         var items = shop.settings.nav.map { (label: $0.label, link: $0.link) }
         if shop.giftEnabled { items.append((label: "Подарочные сертификаты", link: "#/gift")) }
@@ -217,14 +178,22 @@ struct MenuDrawer: View {
             Group {
                 if wide {
                     HStack(spacing: 16) { Image(systemName: MenuDrawer.icon(link)).font(.system(size: 19, weight: .light)); Text(label).font(Theme.font(16)); Spacer() }
-                        .padding(.horizontal, 18).frame(height: 60)
+                        .padding(.horizontal, 18).frame(height: 62)
                 } else {
-                    VStack(alignment: .leading) { Image(systemName: MenuDrawer.icon(link)).font(.system(size: 19, weight: .light)); Spacer(); Text(label).font(Theme.font(16)) }
-                        .padding(16).frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        if sale { IconTile(icon: MenuDrawer.icon(link), size: 34, fill: .white.opacity(0.16), tint: .white) }
+                        else { Image(systemName: MenuDrawer.icon(link)).font(.system(size: 19, weight: .light)) }
+                        Spacer()
+                        Text(label).font(Theme.font(16, sale ? .medium : .regular))
+                        if sale { Text("Скидки на коллекцию").font(Theme.font(11.5)).opacity(0.85) }
+                    }
+                    .padding(16).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
                 }
             }
             .foregroundStyle(sale ? .white : Theme.text)
-            .background(RoundedRectangle(cornerRadius: 18).fill(sale ? Theme.dark : Theme.surface))
+            .background(RoundedRectangle(cornerRadius: 22).fill(sale ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Theme.tile)))
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(sale ? .clear : Theme.ink.opacity(0.06), lineWidth: 1))
+            .shadow(color: sale ? Theme.accent.opacity(0.35) : .clear, radius: 14, y: 10)
         }.buttonStyle(Pressable())
     }
     private func quick(_ icon: String, _ t: String, count: Int = 0, _ a: @escaping () -> Void) -> some View {
@@ -251,7 +220,7 @@ struct MenuDrawer: View {
         switch p.slug {
         case "offer": return ("Оферта", "Условия покупки", "doc.text")
         case "privacy": return ("Политика", "Ваши данные", "lock.shield")
-        case "consent": return ("Согласие", "На обработку данных", "checkmark.circle")
+        case "consent": return ("Согласие", "На обработку данных", "checkmark.seal")
         default: return (p.title, "", "doc.text")
         }
     }
@@ -286,16 +255,16 @@ struct SocialIcon: View {
     }
 }
 
-/// Круглая чёрная кнопка «Написать нам» в правом нижнем углу — как на сайте
+/// Круглая кнопка «Написать нам» цвета раздела в правом нижнем углу — как на сайте
 struct ChatFab: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
     var body: some View {
         Button { Haptic.tap(); router.reset(.account, to: shop.user == nil ? [] : [.support]) } label: {
             Image(systemName: "text.bubble").font(.system(size: 18, weight: .light)).foregroundStyle(.white)
-                .frame(width: 50, height: 50).background(Circle().fill(Theme.dark)).shadow(color: .black.opacity(0.28), radius: 12, y: 8)
+                .frame(width: 50, height: 50).background(Circle().fill(Theme.accentGradient)).shadow(color: Theme.accent.opacity(0.35), radius: 12, y: 8)
                 .overlay(alignment: .topTrailing) {
-                    if let n = shop.user?.supportUnread, n > 0 { Circle().fill(Theme.accent).frame(width: 12, height: 12).overlay(Circle().strokeBorder(.white, lineWidth: 2)) }
+                    if let n = shop.user?.supportUnread, n > 0 { Circle().fill(Color.white).frame(width: 12, height: 12).overlay(Circle().strokeBorder(Theme.accent, lineWidth: 3)) }
                 }
         }.buttonStyle(Pressable()).accessibilityLabel("Написать нам")
     }
@@ -372,8 +341,8 @@ struct Footer: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             ZStack {
-                Theme.dark
-                RadialGradient(colors: [Color(hex: "#ff9a5c").opacity(0.22), .clear], center: .topLeading, startRadius: 0, endRadius: 320)
+                Theme.night
+                RadialGradient(colors: [Theme.accentSoft.opacity(0.22), .clear], center: .topLeading, startRadius: 0, endRadius: 320)
                 RadialGradient(colors: [Color(hex: "#3a4250").opacity(0.35), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 360)
             }
         )

@@ -173,7 +173,7 @@ struct ProductView: View {
         let after = shop.settings.raw["bonus"]["creditOn"].str == "done" ? "после получения" : "после оплаты"
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Text("Б").font(Theme.font(10.5, .semibold)).foregroundStyle(.white).frame(width: 18, height: 18).background(Circle().fill(Theme.ink))
+                Text("Б").font(Theme.font(10.5, .semibold)).foregroundStyle(.white).frame(width: 18, height: 18).background(Circle().fill(Theme.accent))
                 Text("+\(Fmt.num(n)) \(Fmt.plural(n, "бонус", "бонуса", "бонусов"))").font(Theme.font(15, .medium))
             }
             Text("за покупку · 1 бонус = 1 ₽. Начислим на бонусный счёт \(after), потратить можно на следующие покупки — хоть все сразу." + (shop.user == nil ? " Нужен личный кабинет" : ""))
@@ -201,7 +201,7 @@ struct ProductView: View {
             }
             Text("Размеры, которых нет в наличии, можно заказать заранее. Если не успеем к сроку — напишем и вернём деньги, если захотите.").font(Theme.font(13.5)).foregroundStyle(Theme.muted)
         }
-        .padding(16).background(RoundedRectangle(cornerRadius: 18).fill(Color(hex: "#fff6f1"))).hairline(RoundedRectangle(cornerRadius: 18), 0.06)
+        .padding(16).background(RoundedRectangle(cornerRadius: 18).fill(Theme.tint)).hairline(RoundedRectangle(cornerRadius: 18), 0.06)
     }
     private func shipDate(_ p: Product) -> String {
         Fmt.date(ISO.date(p.preorderShip + "T12:00:00Z")).replacingOccurrences(of: #" \d{4}$"#, with: "", options: .regularExpression)

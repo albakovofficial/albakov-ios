@@ -151,7 +151,7 @@ struct CheckoutView: View {
                 Toggle(isOn: $useBonus) { VStack(alignment: .leading, spacing: 2) { Text("Списать бонусы").font(Theme.font(15)); Text("На счёте \(Fmt.num(u.bonus))").font(Theme.font(12.5)).foregroundStyle(Theme.muted) } }.tint(Theme.ink)
             } else if shop.user == nil, let b = quote["bonusEarn"].int, b > 0 {
                 HStack(spacing: 10) {
-                    Text("Б").font(Theme.font(10, .semibold)).foregroundStyle(.white).frame(width: 18, height: 18).background(Circle().fill(Theme.ink))
+                    Text("Б").font(Theme.font(10, .semibold)).foregroundStyle(.white).frame(width: 18, height: 18).background(Circle().fill(Theme.accent))
                     Text("Войдите — и получите +\(Fmt.num(b)) \(Fmt.plural(b, "бонус", "бонуса", "бонусов")) за этот заказ").font(Theme.font(14))
                 }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(Rectangle().fill(.white)).onTapGesture { router.reset(.account) }
             }
@@ -238,7 +238,7 @@ struct CheckoutView: View {
             if paidInFull { Text("Заказ полностью оплачен \(giftUsed > 0 && (quote["bonusUsed"].int ?? 0) > 0 ? "сертификатом и бонусами" : giftUsed > 0 ? "подарочным сертификатом" : "бонусами") — платить ничего не нужно.").font(Theme.font(13)).foregroundStyle(Theme.ok).frame(maxWidth: .infinity, alignment: .leading) }
             if let b = earn, b > 0 {
                 HStack(spacing: 8) {
-                    Text("Б").font(Theme.font(10, .semibold)).foregroundStyle(.white).frame(width: 17, height: 17).background(Circle().fill(Theme.ink))
+                    Text("Б").font(Theme.font(10, .semibold)).foregroundStyle(.white).frame(width: 17, height: 17).background(Circle().fill(Theme.accent))
                     Text("Бонусы за заказ").font(Theme.font(14)).foregroundStyle(Theme.muted); Spacer()
                     Text("+\(Fmt.num(b)) \(Fmt.plural(b, "бонус", "бонуса", "бонусов"))").font(Theme.font(14, .medium))
                 }
@@ -324,7 +324,7 @@ struct Option: View {
                     if !sub.isEmpty { Text(sub).font(Theme.font(13.5)).foregroundStyle(Theme.muted).multilineTextAlignment(.leading) }
                     if let trailing {
                         Text(trailing).font(Theme.font(14, .medium)).foregroundStyle(selected ? .white : Theme.text)
-                            .padding(.horizontal, 12).padding(.vertical, 5).background(Capsule().fill(selected ? Theme.ink : Theme.surface)).padding(.top, 4)
+                            .padding(.horizontal, 12).padding(.vertical, 5).background(Capsule().fill(selected ? Theme.accent : Theme.surface)).padding(.top, 4)
                     }
                 }
                 Spacer(minLength: 0)

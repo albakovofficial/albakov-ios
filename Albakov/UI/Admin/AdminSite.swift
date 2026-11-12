@@ -124,7 +124,7 @@ struct AdminSlider: View {
     private func set(_ k: String, _ v: Any, _ msg: String) { var c = cfg; c[k] = v; Task { _ = await SlideKit.save(c, msg) } }
     private func pills(_ x: JSON) -> String {
         var p = [x["layout"].str == "full" ? "Фото на весь экран" : "Фото справа"]
-        if !x["gender"].str.isEmpty { p.append(x["gender"].str == "women" ? "Только «Женщинам»" : "Только «Мужчинам»") }
+        if !x["gender"].str.isEmpty { p.append("Только «\(Sections.name(x["gender"].str))»") }
         if let pr = admin.data["promotions"].array.first(where: { $0["id"].str == x["promotionId"].str }) { p.append("Акция: " + pr["title"].str) }
         if !x["code"].str.isEmpty { p.append("Промокод " + x["code"].str) }
         return p.joined(separator: " · ")
@@ -149,7 +149,7 @@ private struct SlideEdit: View {
         let codes = [("", "Без промокода")] + d["promocodes"].array.map { ($0["code"].str, $0["code"].str + ($0["active"].bool ? "" : " (выключен)") + ($0["note"].str.isEmpty ? "" : " — " + $0["note"].str)) }
         return [.section("Основное"), FDef(k: "active", label: "Показывать слайд на сайте", kind: .bool),
                 FDef(k: "layout", label: "Макет", kind: .select([("split", "Фото справа, текст слева"), ("full", "Фото на весь экран, текст поверх")])),
-                FDef(k: "gender", label: "Для какого раздела", kind: .select([("", "Всем покупателям"), ("women", "Только «Женщинам»"), ("men", "Только «Мужчинам»")])),
+                FDef(k: "gender", label: "Для какого раздела", kind: .select([("", "Всем покупателям")] + Sections.all.map { ($0.key, "Только «\($0.name)»") })),
                 .section("Текст"), FDef(k: "eyebrow", label: "Надзаголовок", hint: "Маленькая строка над заголовком"),
                 FDef(k: "title", label: "Заголовок", kind: .area(2), hint: "Новая строка — перенос. *Слово в звёздочках* — курсивом."),
                 FDef(k: "text", label: "Текст", kind: .area(3)),
@@ -418,7 +418,7 @@ struct AdminStaff: View {
                 ForEach(list.indices, id: \.self) { i in
                     let x = list[i]
                     HStack(spacing: 12) {
-                        Text(initials(x["name"].str)).font(Theme.font(13, .medium)).foregroundStyle(.white).frame(width: 38, height: 38).background(Circle().fill(Theme.ink))
+                        Text(initials(x["name"].str)).font(Theme.font(13, .medium)).foregroundStyle(.white).frame(width: 38, height: 38).background(Circle().fill(Theme.accent))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(x["name"].str.isEmpty ? "Без имени" : x["name"].str).font(Theme.font(15, .medium))
                             Text(Fmt.phone(x["phone"].str) + (x["email"].str.isEmpty ? "" : " · " + x["email"].str)).font(Theme.font(12)).foregroundStyle(Theme.muted)

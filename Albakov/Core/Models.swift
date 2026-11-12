@@ -68,7 +68,8 @@ struct Product: Identifiable, Hashable {
     var stock: Int { colors.reduce(0) { $0 + $1.stock } }
     var preorderLeft: Int { !preorder ? 0 : preorderLimit > 0 ? max(0, preorderLimit - preorderSold) : Int.max }
     var available: Bool { stock > 0 || preorderLeft > 0 }
-    func forGender(_ g: String?) -> Bool { g == nil || gender.isEmpty || gender == "unisex" || gender == g }
+    /// «Унисекс» — взрослые разделы: в детском только детские товары (как Pricing.forGender на сайте)
+    func forGender(_ g: String?) -> Bool { g == nil || gender == g || (g != "kids" && (gender.isEmpty || gender == "unisex")) }
 }
 
 struct Category: Identifiable, Hashable {
@@ -142,8 +143,14 @@ struct Slide: Identifiable {
 
 struct Social: Identifiable, Hashable { let name: String; let url: String; var id: String { url } }
 
+/// Разделы магазина (13.63): женщинам, мужчинам, детям
+enum Sections {
+    static let all: [(key: String, name: String)] = [("women", "Женщинам"), ("men", "Мужчинам"), ("kids", "Детям")]
+    static func name(_ g: String?) -> String { all.first { $0.key == g }?.name ?? "Вся коллекция" }
+}
+
 struct Settings {
-    let storeName: String, tagline: String, announcement: String
+    let storeName: String, tagline: String
     let phone: String, email: String, hours: String, address: String, appStore: String
     let socials: [Social]
     let delivery: [DeliveryMethod]
@@ -158,7 +165,7 @@ struct Settings {
 
     init(_ j: JSON) {
         raw = j
-        storeName = j["storeName"].string ?? "ALBAKOV"; tagline = j["tagline"].str; announcement = j["announcement"].str
+        storeName = j["storeName"].string ?? "ALBAKOV"; tagline = j["tagline"].str
         let c = j["contacts"]
         phone = c["phone"].str; email = c["email"].str; hours = c["hours"].str; address = c["address"].str; appStore = c["appStore"].str
         socials = j["socials"].array.map { Social(name: $0["name"].str, url: $0["url"].str) }.filter { $0.url.hasPrefix("http") && URL(string: $0.url) != nil }

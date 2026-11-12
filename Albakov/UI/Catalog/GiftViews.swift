@@ -142,7 +142,7 @@ struct GiftView: View {
     private var card: some View {
         ZStack(alignment: .bottomLeading) {
             LinearGradient(colors: [Color(hex: "#2a3036"), Theme.ink], startPoint: .topLeading, endPoint: .bottomTrailing)
-            RadialGradient(colors: [Color(hex: "#ff9a5c").opacity(0.45), .clear], center: .topTrailing, startRadius: 0, endRadius: 240)
+            RadialGradient(colors: [Theme.accentSoft.opacity(0.45), .clear], center: .topTrailing, startRadius: 0, endRadius: 240)
             VStack(alignment: .leading, spacing: 8) {
                 Image("Wordmark").resizable().scaledToFit().frame(width: 96).colorInvert()
                 Spacer()
@@ -161,7 +161,7 @@ struct GiftView: View {
     private func chip(_ t: String, on: Bool, _ a: @escaping () -> Void) -> some View {
         Button { Haptic.tap(); a() } label: {
             Text(t).font(Theme.font(14, .medium)).foregroundStyle(on ? .white : Theme.text).padding(.horizontal, 16).frame(height: 40)
-                .background(Capsule().fill(on ? Theme.ink : .white)).overlay(Capsule().strokeBorder(on ? Theme.ink : Theme.line))
+                .background(Capsule().fill(on ? Theme.accent : .white)).overlay(Capsule().strokeBorder(on ? Theme.accent : Theme.line))
         }
     }
     private func legal(_ t: String, _ slug: String) -> some View {

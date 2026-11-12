@@ -10,11 +10,20 @@ enum AdminSections {
         ("promotions", "Акции", "tag"), ("promocodes", "Промокоды", "ticket"), ("bonus", "Бонусы", "sparkles"),
         ("exchange", "Обмен и возвраты", "arrow.left.arrow.right"), ("customers", "Покупатели", "person.2"), ("mail", "Почта", "envelope"),
         ("analytics", "Аналитика", "chart.line.uptrend.xyaxis"), ("finance", "Финансы", "rublesign.circle"), ("gifts", "Подарочные сертификаты", "gift"),
-        ("sections", "Разделы: женщинам / мужчинам", "person.2.wave.2"), ("brand", "Логотип и название", "a.square"), ("slider", "Слайдер на главной", "rectangle.on.rectangle"),
+        ("sections", "Разделы", "person.2.wave.2"), ("brand", "Логотип и название", "a.square"), ("slider", "Слайдер на главной", "rectangle.on.rectangle"),
         ("home", "Главная страница", "house"), ("pages", "Страницы", "doc.text"), ("menu", "Меню, контакты, соцсети", "line.3.horizontal"),
         ("payment", "Оплата и доставка", "creditcard"), ("push", "Push-уведомления", "bell.badge"), ("staff", "Сотрудники", "person.badge.key"),
         ("audit", "Журнал действий", "list.bullet.rectangle"), ("settings", "Настройки", "gearshape")
     ]
+    /// Группы разделов на рабочем столе: продажи, каталог, маркетинг, цифры, витрина, управление (как GROUPS на сайте)
+    static let groups: [[String]] = [["orders", "support", "exchange", "customers"], ["products", "categories", "sizeCharts", "sections"],
+        ["promotions", "promocodes", "bonus", "gifts", "mail", "push"], ["overview", "analytics", "finance"],
+        ["home", "slider", "brand", "menu", "pages"], ["payment", "staff", "audit", "settings"]]
+    static func group(_ k: String) -> Int { groups.firstIndex { $0.contains(k) } ?? 5 }
+    /// Короткое название для значка
+    static func short(_ k: String, _ title: String) -> String {
+        ["exchange": "Обмен и возврат", "gifts": "Сертификаты", "brand": "Логотип", "slider": "Слайдер", "home": "Главная", "menu": "Меню и контакты", "push": "Push", "audit": "Журнал"][k] ?? title
+    }
     static let perms: [String: [String]] = [
         "overview": [], "orders": ["orders"], "support": ["orders"], "exchange": ["orders"], "customers": ["orders", "marketing"], "gifts": ["orders", "marketing"],
         "products": ["content"], "categories": ["content"], "sizeCharts": ["content"], "promotions": ["content", "marketing"], "promocodes": ["content", "marketing"],
@@ -68,7 +77,7 @@ enum AdminSections {
     // MARK: Общие варианты
     @MainActor static var catOpts: [(String, String)] { Admin.shared.data["categories"].array.map { ($0["id"].str, $0["name"].str) } }
     @MainActor static var prodOpts: [(String, String)] { Admin.shared.data["products"].array.map { ($0["id"].str, $0["name"].str) } }
-    static let genderOpts = [("", "Определять по товарам"), ("women", "Женщинам"), ("men", "Мужчинам"), ("unisex", "В обоих разделах")]
+    static let genderOpts = [("", "Определять по товарам"), ("women", "Женщинам"), ("men", "Мужчинам"), ("kids", "Детям"), ("unisex", "Женщинам и мужчинам")]
     static func today() -> String { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f.string(from: Date()) }
 
     // MARK: - Категории
@@ -78,7 +87,7 @@ enum AdminSections {
             itemTitle: { $0["name"].str },
             itemSub: { c in
                 let n = Admin.shared.data["products"].array.filter { $0["categoryId"].str == c["id"].str }.count
-                return ["women": "Женщинам", "men": "Мужчинам", "unisex": "Оба раздела"][c["gender"].str, default: "По товарам"] + " · порядок \(c["order"].int ?? 0) · товаров \(n)"
+                return ["women": "Женщинам", "men": "Мужчинам", "kids": "Детям", "unisex": "Женщинам и мужчинам"][c["gender"].str, default: "По товарам"] + " · порядок \(c["order"].int ?? 0) · товаров \(n)"
             },
             thumb: { c in AnyView(Group { if c["image"].str.isEmpty { ArtView(kind: c["art"]["kind"].string ?? "tee", tone: c["art"]["tone"].string ?? "#3b3b3f") } else { RemoteImage(path: c["image"].str) } }) },
             sort: { ($0["order"].int ?? 0) < ($1["order"].int ?? 0) },
@@ -215,9 +224,7 @@ enum AdminSections {
     static var homeForm: some View {
         let icons: [(String, String)] = [("auto", "Иконка: по тексту"), ("delivery", "Доставка — грузовик"), ("quality", "Качество — медаль"), ("fabric", "Ткани — стопка тканей"), ("fitting", "Примерка — футболка"), ("return", "Возврат — коробка"), ("payment", "Оплата — карты"), ("gift", "Подарок / бонусы"), ("cash", "Наличные"), ("pin", "Метка на карте"), ("style", "Стиль — вешалка"), ("gem", "Индивидуальность — камень"), ("spool", "Производство — катушка"), ("mail", "Почта — конверт"), ("chat", "Чат — облачка"), ("phone", "Телефон"), ("none", "Без иконки")]
         return SettingsForm(title: "Главная страница", sub: "Тексты, картинки и блоки главной. Выделить слово в заголовке: *слово*. Перенос строки — Enter.",
-            defs: [.section("Верхняя строка"),
-                   FDef(k: "announcement", label: "Объявление над шапкой", hint: "Пусто — строка скрыта. {free} — подставится сумма бесплатной доставки. Части через « · » сменяются по очереди"),
-                   .section("Первый экран — когда слайдер выключен"),
+            defs: [.section("Первый экран — когда слайдер выключен"),
                    FDef(k: "heroEyebrow", label: "Надзаголовок"), FDef(k: "heroCta", label: "Текст кнопки"), FDef(k: "heroTitle", label: "Заголовок", kind: .area(2)),
                    FDef(k: "heroText", label: "Подзаголовок", kind: .area(2)), FDef(k: "heroLink", label: "Ссылка кнопки", hint: "Например, #/catalog или #/catalog?cat=outerwear"),
                    FDef(k: "heroImage", label: "Фото первого экрана", kind: .image),
@@ -235,49 +242,39 @@ enum AdminSections {
                    FDef(k: "benefits", label: "Преимущества", kind: .rows([FDef(k: "title", label: "Заголовок"), FDef(k: "text", label: "Описание", kind: .area(2)), FDef(k: "icon", label: "Иконка", kind: .select(icons)), FDef(k: "link", label: "Ссылка (необязательно)"), FDef(k: "linkText", label: "Текст ссылки")])),
                    .section("Блок о бренде"),
                    FDef(k: "editorialEyebrow", label: "Надзаголовок"), FDef(k: "editorialTitle", label: "Заголовок"), FDef(k: "editorialText", label: "Текст", kind: .area(4)), FDef(k: "editorialImage", label: "Фото", kind: .image)],
-            getObj: { s in var o = (s["home"] as? [String: Any]) ?? [:]; o["announcement"] = s["announcement"] ?? ""; return o },
+            getObj: { s in (s["home"] as? [String: Any]) ?? [:] },
             apply: { s, o in
-                var h = (s["home"] as? [String: Any]) ?? [:]; s["announcement"] = o["announcement"] ?? ""
-                for (k, v) in o where k != "announcement" { h[k] = v }
+                var h = (s["home"] as? [String: Any]) ?? [:]
+                for (k, v) in o { h[k] = v }
                 s["home"] = h; return nil
             })
     }
 
+    /// Разделы «Женщинам», «Мужчинам», «Детям» (13.63): открыт ли раздел и страница «скоро появится» с фото
     static var sectionsForm: some View {
-        let G = [("women", "Женщинам", "Woman"), ("men", "Мужчинам", "Man")]
         var defs: [FDef] = []
-        for x in G {
-            defs.append(.section("Раздел «\(x.1)»"))
-            defs.append(FDef(k: "open" + x.2, label: "Раздел открыт", kind: .bool, hint: "Если выключить, его товары пропадут из каталога, а покупатель увидит страницу «скоро появится»"))
-            defs.append(FDef(k: "soonTitle" + x.2, label: "Заголовок страницы «скоро»", kind: .area(2), hint: "Enter — перенос строки, *слово* — курсивом"))
-            defs.append(FDef(k: "soonText" + x.2, label: "Текст страницы «скоро»", kind: .area(2)))
+        for x in Sections.all {
+            defs.append(.section("Раздел «\(x.name)»"))
+            defs.append(FDef(k: "open_" + x.key, label: "Раздел открыт", kind: .bool, hint: "Если выключить, его товары пропадут из каталога, а покупатель увидит страницу «скоро появится»"))
+            defs.append(FDef(k: "title_" + x.key, label: "Заголовок страницы «скоро»", kind: .area(2), hint: "Enter — перенос строки, *слово* — курсивом"))
+            defs.append(FDef(k: "text_" + x.key, label: "Текст страницы «скоро»", kind: .area(2)))
+            defs.append(FDef(k: "image_" + x.key, label: "Фото страницы «скоро»", kind: .image, hint: "Вертикальное фото"))
         }
-        defs += [.section("Экран выбора при первом заходе"),
-                 FDef(k: "gwEnabled", label: "Показывать экран «Женщинам / Мужчинам» при первом заходе", kind: .bool, hint: "Покупатель видит его один раз. Закрытый раздел отмечается словом «Скоро»"),
-                 FDef(k: "gwEyebrow", label: "Надпись над выбором"),
-                 FDef(k: "gwWomanTitle", label: "Женщинам — заголовок"), FDef(k: "gwWomanText", label: "Женщинам — подпись"), FDef(k: "gwWomanImage", label: "Женщинам — фото", kind: .image, hint: "Вертикальное фото. Оно же — фон страницы «скоро»"),
-                 FDef(k: "gwManTitle", label: "Мужчинам — заголовок"), FDef(k: "gwManText", label: "Мужчинам — подпись"), FDef(k: "gwManImage", label: "Мужчинам — фото", kind: .image)]
-        return SettingsForm(title: "Разделы: женщинам / мужчинам", sub: "Здесь можно закрыть раздел, пока в нём нет одежды, и настроить экран выбора раздела. У каждого товара раздел задаётся полем «Для кого».",
+        return SettingsForm(title: "Разделы", sub: "Здесь можно закрыть раздел, пока в нём нет одежды. У каждого товара раздел задаётся полем «Для кого».",
             defs: defs,
             getObj: { s in
-                var o: [String: Any] = [:]; let gs = JSON(s["genders"]), gw = JSON(s["gateway"])
-                for x in G {
-                    let c = gs[x.0], w = gw[x.0]
-                    o["open" + x.2] = !(c["open"].exists && !c["open"].bool); o["soonTitle" + x.2] = c["title"].str; o["soonText" + x.2] = c["text"].str
-                    o["gw" + x.2 + "Title"] = w["title"].str; o["gw" + x.2 + "Text"] = w["text"].str; o["gw" + x.2 + "Image"] = w["image"].str
+                var o: [String: Any] = [:]; let gs = JSON(s["genders"])
+                for x in Sections.all {
+                    let c = gs[x.key]
+                    o["open_" + x.key] = !(c["open"].exists && !c["open"].bool); o["title_" + x.key] = c["title"].str; o["text_" + x.key] = c["text"].str; o["image_" + x.key] = c["image"].str
                 }
-                o["gwEnabled"] = !(gw["enabled"].exists && !gw["enabled"].bool); o["gwEyebrow"] = gw["eyebrow"].str
                 return o
             },
             apply: { s, o in
-                if !(o["openWoman"] as? Bool ?? true) && !(o["openMan"] as? Bool ?? true) { return "Оставьте открытым хотя бы один раздел" }
-                var gs: [String: Any] = [:], gw: [String: Any] = ["enabled": o["gwEnabled"] ?? true, "eyebrow": o["gwEyebrow"] ?? ""]
-                for x in G {
-                    gs[x.0] = ["open": o["open" + x.2] ?? true, "title": o["soonTitle" + x.2] ?? "", "text": o["soonText" + x.2] ?? ""]
-                    let t = (o["gw" + x.2 + "Title"] as? String) ?? ""
-                    gw[x.0] = ["title": t.isEmpty ? x.1 : t, "text": o["gw" + x.2 + "Text"] ?? "", "image": o["gw" + x.2 + "Image"] ?? ""]
-                }
-                s["genders"] = gs; s["gateway"] = gw; return nil
+                if !Sections.all.contains(where: { o["open_" + $0.key] as? Bool ?? true }) { return "Оставьте открытым хотя бы один раздел" }
+                var gs: [String: Any] = [:]
+                for x in Sections.all { gs[x.key] = ["open": o["open_" + x.key] ?? true, "title": o["title_" + x.key] ?? "", "text": o["text_" + x.key] ?? "", "image": o["image_" + x.key] ?? ""] }
+                s["genders"] = gs; return nil
             })
     }
 

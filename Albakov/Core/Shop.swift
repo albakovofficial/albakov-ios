@@ -25,9 +25,7 @@ final class Shop: ObservableObject {
     @Published private(set) var isStaff = false
     @Published var cart: [CartLine] = [] { didSet { saveCart() } }
     @Published var favorites: [String] = [] { didSet { saveFavorites() } }
-    @Published var gender: String? = UserDefaults.standard.string(forKey: "gender") { didSet { UserDefaults.standard.set(gender, forKey: "gender") } }
-    /// Экран «Выберите раздел» уже пройден
-    @Published var gateDone = UserDefaults.standard.bool(forKey: "gateDone") { didSet { UserDefaults.standard.set(gateDone, forKey: "gateDone") } }
+    @Published var gender: String? = UserDefaults.standard.string(forKey: "gender") { didSet { UserDefaults.standard.set(gender, forKey: "gender"); Palette.section = gender } }
     /// «Вы недавно смотрели» — до 12 товаров, новые первыми
     @Published private(set) var recentIds: [String] = UserDefaults.standard.stringArray(forKey: "recent") ?? []
     /// «Купить сейчас»: оформляется только эта вещь, корзина не меняется
@@ -39,6 +37,8 @@ final class Shop: ObservableObject {
     private init() {
         if let d = UserDefaults.standard.data(forKey: "cart"), let c = try? JSONDecoder().decode([CartLine].self, from: d) { cart = c }
         favorites = UserDefaults.standard.stringArray(forKey: "favorites") ?? []
+        Palette.section = gender
+        UserDefaults.standard.removeObject(forKey: "gateDone") // экрана выбора раздела больше нет
     }
 
     // MARK: Загрузка
@@ -98,7 +98,9 @@ final class Shop: ObservableObject {
         guard cart.isEmpty, let p = products.first(where: { $0.stock > 0 }), let c = p.colors.first(where: { $0.stock > 0 }), let sz = c.sizes.first(where: { $0.stock > 0 }) else { return }
         add(p, color: c.id, size: sz.size)
     }
-    var visibleProducts: [Product] { products.filter { $0.forGender(gender) } }
+    /// Раздел закрыт в панели («скоро появится»): его товары не показываются, на главной — страница «скоро»
+    func closed(_ g: String?) -> Bool { g.map { settings.gendersOpen[$0] == false } ?? false }
+    var visibleProducts: [Product] { products.filter { $0.forGender(gender) && !closed($0.gender) } }
     var visibleCategories: [Category] {
         let ids = Set(visibleProducts.map(\.categoryId))
         return categories.filter { ids.contains($0.id) }

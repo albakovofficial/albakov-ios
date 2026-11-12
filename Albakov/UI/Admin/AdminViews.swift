@@ -21,41 +21,126 @@ final class Admin: ObservableObject {
     }
 }
 
+/// Рабочий стол панели (13.63, вариант C): сводка дня цветом раздела, ежедневное — крупными карточками, остальное — значками по 4 в ряд
 struct AdminHomeView: View {
     @EnvironmentObject private var router: Router
     @StateObject private var admin = Admin.shared
+    @State private var find = ""
+    private static let work = ["orders", "support", "products", "exchange"]
     var body: some View {
-        List {
-            if let e = admin.error { Text(e).font(Theme.font(14)).foregroundStyle(Theme.danger) }
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    DotTitle(text: "Панель управления", size: 26)
-                    Text(admin.roleName).font(Theme.font(13)).foregroundStyle(Theme.muted)
-                }.padding(.vertical, 6)
-                if admin.can("orders") {
-                    let o = admin.orders
-                    let today = o.filter { Calendar.current.isDateInToday($0.createdAt ?? .distantPast) && $0.status != "canceled" }
-                    HStack(spacing: 8) {
-                        AdminStat(title: "Сегодня", value: "\(today.count)", sub: Fmt.rub(today.reduce(0) { $0 + $1.total }))
-                        AdminStat(title: "Новые", value: "\(o.filter { $0.status == "new" }.count)", sub: "ждут сборки")
-                        AdminStat(title: "В пути", value: "\(o.filter { $0.status == "shipped" }.count)", sub: "у СДЭК")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if let e = admin.error { Text(e).font(Theme.font(14)).foregroundStyle(Theme.danger) }
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").font(.system(size: 15, weight: .light)).foregroundStyle(Theme.dim)
+                    TextField("Найти раздел", text: $find).font(Theme.font(15)).textInputAutocapitalization(.never).autocorrectionDisabled()
+                }.padding(.horizontal, 14).frame(height: 44).background(RoundedRectangle(cornerRadius: 14).fill(.white)).hairline(RoundedRectangle(cornerRadius: 14), 0.07)
+                if find.isEmpty {
+                    if admin.can("orders") { summary }
+                    ForEach(admin.data["problems"].array.indices, id: \.self) { i in
+                        Text(admin.data["problems"].array[i]["title"].str + ". " + admin.data["problems"].array[i]["text"].str).font(Theme.font(13)).foregroundStyle(Theme.warn)
                     }
                 }
-                ForEach(admin.data["problems"].array.indices, id: \.self) { i in
-                    Text(admin.data["problems"].array[i]["title"].str + ". " + admin.data["problems"].array[i]["text"].str).font(Theme.font(13)).foregroundStyle(Theme.warn)
+                let w = Self.work.filter { AdminSections.can($0) && match($0) }
+                if !w.isEmpty {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                        ForEach(w, id: \.self) { k in workCard(k) }
+                    }
                 }
-            }
-            Section {
-                ForEach(AdminSections.list.filter { AdminSections.can($0.key) }, id: \.key) { s in
-                    item(s.title, s.icon, s.key == "orders" ? .adminOrders : s.key == "support" ? .adminSupport : s.key == "customers" ? .adminCustomers : s.key == "push" ? .adminPush : s.key == "audit" ? .adminAudit : s.key == "products" ? .adminProducts : .adminSection(s.key), badge: badge(s.key))
+                let rest = AdminSections.list.filter { AdminSections.can($0.key) && !Self.work.contains($0.key) && match($0.key) }
+                if !rest.isEmpty {
+                    Text("ВСЕ РАЗДЕЛЫ").font(Theme.font(11, .semibold)).kerning(1.3).foregroundStyle(Theme.dim).padding(.top, 8).padding(.leading, 4)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 14) {
+                        ForEach(rest, id: \.key) { s in
+                            Button { router.push(dest(s.key), on: .account) } label: {
+                                VStack(spacing: 6) {
+                                    chip(s.key, s.icon, 46)
+                                    Text(AdminSections.short(s.key, s.title)).font(Theme.font(11)).foregroundStyle(Theme.text).multilineTextAlignment(.center).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                                }.frame(maxWidth: .infinity)
+                            }.buttonStyle(Pressable())
+                        }
+                    }
+                    .padding(.vertical, 16).padding(.horizontal, 6).background(RoundedRectangle(cornerRadius: 22).fill(.white)).hairline(RoundedRectangle(cornerRadius: 22), 0.06)
                 }
+                if !find.isEmpty && w.isEmpty && rest.isEmpty { Text("Такого раздела нет").font(Theme.font(14)).foregroundStyle(Theme.dim).padding(.top, 8) }
             }
+            .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 40)
         }
+        .background(Color(hex: "#f6f7f9"))
         .navigationTitle("Панель")
         .navigationBarTitleDisplayMode(.inline)
         .overlay { if admin.loading && !admin.data.exists { ProgressView() } }
         .task { await admin.load() }
         .refreshable { await admin.load() }
+    }
+    private func match(_ k: String) -> Bool {
+        let q = find.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty, let s = AdminSections.list.first(where: { $0.key == k }) else { return true }
+        return (s.title + " " + AdminSections.short(k, s.title)).lowercased().contains(q)
+    }
+    /// Сводка дня: заказы и сумма за сегодня, новые, в пути
+    private var summary: some View {
+        let o = admin.orders
+        let today = o.filter { Calendar.current.isDateInToday($0.createdAt ?? .distantPast) && $0.status != "canceled" }
+        return Button { router.push(.adminOrders, on: .account) } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) { Text("Сегодня").font(Theme.font(18, .medium)); Spacer(); Text(admin.roleName).font(Theme.font(12.5)).opacity(0.75) }
+                HStack(spacing: 8) {
+                    kpi("\(today.count)", "\(Fmt.plural(today.count, "заказ", "заказа", "заказов")) · \(Fmt.rub(today.reduce(0) { $0 + $1.total }))")
+                    kpi("\(o.filter { $0.status == "new" }.count)", "новых, ждут сборки")
+                    kpi("\(o.filter { $0.status == "shipped" }.count)", "в пути у СДЭК")
+                }
+            }
+            .foregroundStyle(.white).padding(16)
+            .background(RoundedRectangle(cornerRadius: 24).fill(Theme.accentGradient).overlay(RoundedRectangle(cornerRadius: 24).fill(RadialGradient(colors: [.white.opacity(0.14), .clear], center: .topLeading, startRadius: 0, endRadius: 240))))
+            .shadow(color: Theme.accent.opacity(0.35), radius: 16, y: 10)
+        }.buttonStyle(Pressable())
+    }
+    private func kpi(_ v: String, _ l: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) { Text(v).font(Theme.font(24)); Text(l).font(Theme.font(10.5)).opacity(0.78).lineLimit(2).fixedSize(horizontal: false, vertical: true) }
+            .padding(10).frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading).background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.1)))
+    }
+    private func workCard(_ k: String) -> some View {
+        let s = AdminSections.list.first(where: { $0.key == k })!
+        let n = badge(k)
+        let sub: String = {
+            switch k {
+            case "orders": return n > 0 ? "\(n) \(Fmt.plural(n, "новый", "новых", "новых"))" : "новых нет"
+            case "support": return n > 0 ? "\(n) \(Fmt.plural(n, "вопрос", "вопроса", "вопросов"))" : "вопросов нет"
+            case "products": return n > 0 ? "\(n) ждут поступления" : "\(admin.products.filter { !$0["active"].exists || $0["active"].bool }.count) в продаже"
+            default: return n > 0 ? "\(n) \(Fmt.plural(n, "заявка", "заявки", "заявок"))" : "заявок нет"
+            }
+        }()
+        return Button { router.push(dest(k), on: .account) } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                chip(k, s.icon, 40).padding(.bottom, 10)
+                Text(AdminSections.short(k, s.title)).font(Theme.font(15, .medium)).foregroundStyle(Theme.text)
+                Text(sub).font(Theme.font(12)).foregroundStyle(Theme.dim)
+            }
+            .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 20).fill(.white)).hairline(RoundedRectangle(cornerRadius: 20), 0.06)
+            .overlay(alignment: .topTrailing) {
+                if n > 0 { Text("\(n)").font(Theme.font(11.5, .semibold)).foregroundStyle(.white).padding(.horizontal, 6).frame(minWidth: 22, minHeight: 22).background(Capsule().fill(Theme.accentGradient)).padding(12) }
+            }
+        }.buttonStyle(Pressable())
+    }
+    /// Значок раздела на плашке цвета группы: продажи — цвет раздела, каталог и управление — графит, маркетинг и витрина — небесный
+    private func chip(_ k: String, _ icon: String, _ size: CGFloat) -> some View {
+        let g = AdminSections.group(k)
+        let fill = g == 0 ? Theme.tint : g == 2 || g == 4 ? Color(hex: "#e9f3fc") : Color(hex: "#eff0f2")
+        let tint = g == 0 ? Theme.accent : g == 2 || g == 4 ? Color(hex: "#3f86cc") : Color(hex: "#25272b")
+        return IconTile(icon: icon, size: size, fill: fill, tint: tint)
+    }
+    private func dest(_ k: String) -> Dest {
+        switch k {
+        case "orders": return .adminOrders
+        case "support": return .adminSupport
+        case "customers": return .adminCustomers
+        case "push": return .adminPush
+        case "audit": return .adminAudit
+        case "products": return .adminProducts
+        default: return .adminSection(k)
+        }
     }
     private func badge(_ k: String) -> Int {
         switch k {
@@ -64,16 +149,6 @@ struct AdminHomeView: View {
         case "exchange": return admin.data["orders"].array.flatMap { $0["requests"].array }.filter { ["new", "received"].contains($0["status"].str) }.count
         case "products": return admin.data["waitlist"].array.filter { $0["status"].str == "waiting" }.count
         default: return 0
-        }
-    }
-    private func item(_ t: String, _ icon: String, _ d: Dest, badge: Int = 0) -> some View {
-        Button { router.push(d, on: .account) } label: {
-            HStack(spacing: 14) {
-                Image(systemName: icon).font(.system(size: 16, weight: .light)).frame(width: 24)
-                Text(t).font(Theme.font(15.5)); Spacer()
-                if badge > 0 { Text("\(badge)").font(Theme.font(12, .semibold)).foregroundStyle(.white).padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(Theme.accent)) }
-                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Theme.dim)
-            }.foregroundStyle(Theme.text)
         }
     }
 }

@@ -2,11 +2,29 @@ import SwiftUI
 import UIKit
 
 // Фирменный стиль ALBAKOV — один в один как на сайте (public/css/app.css): белый фон, светло-серые подложки,
-// чёрные капсулы с белым кружком-стрелкой, тонкие заголовки Montserrat с оранжевой точкой, плашки с цветной точкой.
+// капсулы цвета раздела с белым кружком-стрелкой, тонкие заголовки Montserrat с точкой цвета раздела.
+
+/// Цвет раздела (13.63, как на сайте): женщинам — бордо, мужчинам — чёрный, детям — небесный; без раздела — чёрный.
+/// Меняется вместе с разделом (Shop.gender); экраны перерисовываются целиком (RootView, .id)
+enum Palette {
+    static var section: String?
+    /// светлый край, основной (текст и плашки с белым текстом), тёмный край перехода
+    static var colors: [Color] {
+        switch section {
+        case "women": return [Color(hex: "#a8384b"), Color(hex: "#821f35"), Color(hex: "#5f1424")]
+        case "kids": return [Color(hex: "#7cbdf0"), Color(hex: "#2f78c4"), Color(hex: "#2f72b8")]
+        default: return [Color(hex: "#4a4d53"), Color(hex: "#25272b"), Color(hex: "#0e0f11")]
+        }
+    }
+    /// светлая подложка значков
+    static var tint: Color { section == "women" ? Color(hex: "#f8ecee") : section == "kids" ? Color(hex: "#e9f3fc") : Color(hex: "#eff0f2") }
+}
+
 enum Theme {
     static let ink = Color(hex: "#121417")          // текст и главные элементы
     static let text = Color(hex: "#121417")
-    static let dark = Color(hex: "#0d0e10")         // главные кнопки, полоса объявления, подвал
+    static var dark: Color { Palette.colors[1] }    // главные кнопки — цвет раздела
+    static let night = Color(hex: "#0d0e10")        // подвал и кнопка чата
     static let muted = Color(hex: "#464b52")        // холодный графит
     static let dim = Color(hex: "#666c74")
     static let line = Color(hex: "#e3e6ea")
@@ -14,14 +32,17 @@ enum Theme {
     static let surface = Color(hex: "#f3f4f6")      // подложки фото и блоков
     static let surface2 = Color(hex: "#e8eaed")
     static let paper = Color.white
-    static let accent = Color(hex: "#ff5a3c")       // точка в заголовках, счётчик корзины
-    static let accentSoft = Color(hex: "#ff9a5c")
+    static var accent: Color { Palette.colors[1] }  // цвет раздела: точка в заголовках, счётчики, выделение
+    static var accentSoft: Color { Palette.colors[0] }
+    static var tint: Color { Palette.tint }
     static let ok = Color(hex: "#3e6847")
     static let warn = Color(hex: "#7a5c16")
     static let danger = Color(hex: "#9e3b30")
     static let sale = Color(hex: "#d8452f")         // цена со скидкой
     static let gutter: CGFloat = 16
-    static let accentGradient = LinearGradient(colors: [accentSoft, accent], startPoint: .top, endPoint: .bottom)
+    static var accentGradient: LinearGradient { LinearGradient(colors: Palette.colors, startPoint: .topLeading, endPoint: .bottomTrailing) }
+    /// светло-серые плитки с лёгким переходом
+    static let tile = LinearGradient(colors: [Color(hex: "#f8f9fa"), Color(hex: "#eef0f2")], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let photo = LinearGradient(colors: [Color(hex: "#f6f7f8"), Color(hex: "#eceef1")], startPoint: .top, endPoint: .bottom)
 
     static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
@@ -36,20 +57,7 @@ enum Theme {
     }
 
     static func setupAppearance() {
-        let ui = UIFont(name: "Montserrat-Medium", size: 10.5) ?? .systemFont(ofSize: 10.5)
-        let ink = UIColor(red: 0.07, green: 0.08, blue: 0.09, alpha: 1), grey = UIColor(red: 0.4, green: 0.42, blue: 0.45, alpha: 1)
-        let tab = UITabBarAppearance(); tab.configureWithDefaultBackground()
-        tab.backgroundColor = UIColor.white.withAlphaComponent(0.94)
-        tab.shadowColor = UIColor(red: 0.89, green: 0.9, blue: 0.92, alpha: 1)
-        for item in [tab.stackedLayoutAppearance, tab.inlineLayoutAppearance, tab.compactInlineLayoutAppearance] {
-            item.normal.titleTextAttributes = [.font: ui, .foregroundColor: grey]
-            item.selected.titleTextAttributes = [.font: ui, .foregroundColor: ink]
-            item.normal.iconColor = grey; item.selected.iconColor = ink
-            item.normal.badgeBackgroundColor = UIColor(red: 1, green: 0.35, blue: 0.24, alpha: 1)
-            item.normal.badgeTextAttributes = [.font: UIFont(name: "Montserrat-SemiBold", size: 10) ?? .systemFont(ofSize: 10), .foregroundColor: UIColor.white]
-        }
-        UITabBar.appearance().standardAppearance = tab
-        UITabBar.appearance().scrollEdgeAppearance = tab
+        let ink = UIColor(red: 0.07, green: 0.08, blue: 0.09, alpha: 1)
         let nav = UINavigationBarAppearance(); nav.configureWithOpaqueBackground()
         nav.backgroundColor = .white
         nav.shadowColor = UIColor(red: 0.89, green: 0.9, blue: 0.92, alpha: 1)
@@ -107,7 +115,7 @@ struct ArrowDot: View {
 
 // MARK: - Кнопки
 
-/// Главная кнопка сайта (.btn): чёрная капсула, 14 medium, разрядка .06em; со стрелкой — белый кружок справа
+/// Главная кнопка сайта (.btn): капсула цвета раздела, 14 medium, разрядка .06em; со стрелкой — белый кружок справа
 struct PrimaryButton: View {
     let title: String
     var icon: String? = nil
@@ -127,8 +135,8 @@ struct PrimaryButton: View {
             .frame(maxWidth: .infinity).frame(height: height)
             .overlay(alignment: .trailing) { if arrow && !busy { ArrowDot(size: height - 18).padding(.trailing, 9) } }
             .foregroundStyle(.white)
-            .background(Capsule().fill(Theme.dark.opacity(disabled ? 0.4 : 1)))
-            .shadow(color: Theme.dark.opacity(disabled ? 0 : 0.3), radius: 12, y: 10)
+            .background(Capsule().fill(Theme.accentGradient).opacity(disabled ? 0.4 : 1))
+            .shadow(color: Theme.accent.opacity(disabled ? 0 : 0.3), radius: 12, y: 10)
         }
         .buttonStyle(Pressable())
         .disabled(busy || disabled)
@@ -195,7 +203,7 @@ struct Pressable: ButtonStyle {
     }
 }
 
-/// Капсула-переключатель (.chip): размеры, суммы, фильтры; выбранная — с тенью и чёрной рамкой
+/// Капсула-переключатель (.chip): размеры, суммы, фильтры; выбранная — с тенью и рамкой цвета раздела
 struct Chip: View {
     let title: String
     var on = false
@@ -208,8 +216,8 @@ struct Chip: View {
             Text(title).font(Theme.font(14)).kerning(0.56).lineLimit(1)
                 .foregroundStyle(on && dark ? .white : out ? Theme.dim : Theme.text)
                 .padding(.horizontal, 14).frame(minWidth: 48).frame(height: height)
-                .background(Capsule().fill(on && dark ? Theme.ink : on ? .white : Theme.surface))
-                .overlay(Capsule().strokeBorder(on ? Theme.ink : Theme.ink.opacity(0.07), lineWidth: on ? 1.2 : 1))
+                .background(Capsule().fill(on && dark ? Theme.accent : on ? .white : Theme.surface))
+                .overlay(Capsule().strokeBorder(on ? Theme.accent : Theme.ink.opacity(0.07), lineWidth: on ? 1.2 : 1))
                 .overlay(out ? Rectangle().fill(Theme.dim.opacity(0.7)).frame(height: 1).rotationEffect(.degrees(-22)).padding(.horizontal, 10) : nil)
                 .shadow(color: Theme.dark.opacity(on ? 0.25 : 0), radius: 8, y: 6)
         }.buttonStyle(Pressable())
@@ -326,7 +334,7 @@ struct BonusPill: View {
     let amount: Int
     var body: some View {
         HStack(spacing: 6) {
-            Text("Б").font(Theme.font(10.5, .semibold)).foregroundStyle(.white).frame(width: 18, height: 18).background(Circle().fill(Theme.ink))
+            Text("Б").font(Theme.font(10.5, .semibold)).foregroundStyle(.white).frame(width: 18, height: 18).background(Circle().fill(Theme.accent))
             Text("+\(Fmt.num(amount)) \(Fmt.plural(amount, "бонус", "бонуса", "бонусов"))").font(Theme.font(12.5)).kerning(0.2).foregroundStyle(Theme.text)
         }
         .padding(.leading, 4).padding(.trailing, 10).padding(.vertical, 4)
@@ -416,7 +424,7 @@ struct Field: View {
             .keyboardType(keyboard).textContentType(content).textInputAutocapitalization(capitalization).autocorrectionDisabled(keyboard != .default)
             .padding(.horizontal, 16).frame(minHeight: 50)
             .background(RoundedRectangle(cornerRadius: 14).fill(focused ? .white : Theme.surface))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(focused ? Theme.ink : .clear, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(focused ? Theme.accent : .clear, lineWidth: 1))
             .animation(.easeOut(duration: 0.15), value: focused)
         }
     }
@@ -447,7 +455,7 @@ struct Segmented: View {
                 Button { withAnimation(.easeOut(duration: 0.2)) { value = it.0 } } label: {
                     Text(it.1).font(Theme.font(14)).foregroundStyle(value == it.0 ? .white : Theme.muted)
                         .padding(.horizontal, 14).frame(height: 38)
-                        .background(Capsule().fill(value == it.0 ? Theme.ink : .clear))
+                        .background(Capsule().fill(value == it.0 ? Theme.accent : .clear))
                 }.buttonStyle(.plain)
             }
         }
@@ -476,7 +484,7 @@ struct EmptyState: View {
             if let button, let action { PrimaryButton(title: button, action: action).frame(maxWidth: 230).padding(.top, 6) }
         }
         .padding(.horizontal, 24).padding(.vertical, 34).frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 24).fill(RadialGradient(colors: [Color(hex: "#fff6f1"), Theme.surface], center: .top, startRadius: 0, endRadius: 320)))
+        .background(RoundedRectangle(cornerRadius: 24).fill(RadialGradient(colors: [Theme.tint, Theme.surface], center: .top, startRadius: 0, endRadius: 320)))
         .hairline(RoundedRectangle(cornerRadius: 24), 0.06)
         .padding(.horizontal, Theme.gutter)
     }

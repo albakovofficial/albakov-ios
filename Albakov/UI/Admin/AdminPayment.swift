@@ -107,7 +107,7 @@ struct AdminPayment: View {
             stateLine(state, ok)
         }
         .padding(16).softCard(20)
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(on.wrappedValue ? Theme.ink : .clear, lineWidth: 1.2))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(on.wrappedValue ? Theme.accent : .clear, lineWidth: 1.2))
     }
     private func menuPick(_ title: String, _ opts: [(Int, String)], _ v: Binding<Int>) -> some View {
         VStack(alignment: .leading, spacing: 6) {

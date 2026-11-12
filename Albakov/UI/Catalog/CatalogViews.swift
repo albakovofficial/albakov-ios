@@ -74,7 +74,7 @@ struct CatalogPage: View {
             VStack(alignment: .leading, spacing: 0) {
                 Crumbs(items: [("Главная", { router.reset(.home) }), ("Каталог", root ? nil : { router.reset(.catalog) })] + (category.map { [($0.name, nil)] } ?? []))
                     .padding(.top, 18)
-                Eyebrow(text: shop.gender == "women" ? "Женщинам" : shop.gender == "men" ? "Мужчинам" : "Вся коллекция").padding(.horizontal, Theme.gutter).padding(.top, 18)
+                Eyebrow(text: Sections.name(shop.gender)).padding(.horizontal, Theme.gutter).padding(.top, 18)
                 DotTitle(text: title, size: 32).padding(.horizontal, Theme.gutter).padding(.top, 14)
                 Text("\(items.count) \(Fmt.plural(items.count, "товар", "товара", "товаров"))").font(Theme.font(14)).foregroundStyle(Theme.muted)
                     .padding(.horizontal, Theme.gutter).padding(.top, 18)
@@ -144,8 +144,8 @@ struct FilterSheet: View {
                 VStack(alignment: .leading, spacing: 26) {
                     group("Раздел") {
                         item("Вся коллекция", shop.products.count, on: shop.gender == nil) { shop.gender = nil }
-                        ForEach([("women", "Женщинам"), ("men", "Мужчинам")], id: \.0) { g in
-                            item(g.1, shop.products.filter { $0.forGender(g.0) }.count, on: shop.gender == g.0) { shop.gender = g.0 }
+                        ForEach(Sections.all.filter { !shop.closed($0.key) }, id: \.key) { g in
+                            item(g.name, shop.products.filter { $0.forGender(g.key) }.count, on: shop.gender == g.key) { shop.gender = g.key }
                         }
                     }
                     group("Категория") {
@@ -176,7 +176,7 @@ struct FilterSheet: View {
                                     Button { if on { f.colors.remove(k) } else { f.colors.insert(k) } } label: {
                                         HStack(spacing: 8) { Circle().fill(Color(hex: c.hex.isEmpty ? "#cccccc" : c.hex)).frame(width: 16, height: 16).overlay(Circle().strokeBorder(Theme.ink.opacity(0.15))); Text(c.name).font(Theme.font(13.5)) }
                                             .foregroundStyle(Theme.text).padding(.horizontal, 12).frame(height: 38)
-                                            .background(Capsule().fill(on ? .white : Theme.surface)).overlay(Capsule().strokeBorder(on ? Theme.ink : .clear))
+                                            .background(Capsule().fill(on ? .white : Theme.surface)).overlay(Capsule().strokeBorder(on ? Theme.accent : .clear))
                                     }
                                 }
                             }

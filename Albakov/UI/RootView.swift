@@ -9,8 +9,8 @@ struct RootView: View {
         ZStack {
             Color.white.ignoresSafeArea()
             if shop.loaded {
-                MainTabs().transition(.opacity)
-                    .overlay { if needGate { GenderGate().transition(.opacity) } }
+                // Цвет раздела меняется вместе с разделом — экраны перерисовываются (переходы во вкладках хранит Router)
+                MainTabs().id(shop.gender ?? "all").transition(.opacity)
             } else if let err = shop.loadError {
                 OfflineView(text: err) { Task { await shop.load() } }
             } else {
@@ -25,12 +25,6 @@ struct RootView: View {
             // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны
             if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty { if screen.contains("demo") { shop.demoCart() }; router.open(path: screen) } else { scheduleAsk() }
         }
-    }
-
-    // «Выберите раздел» — при первом входе, если оба раздела настроены (на снимках для проверки не показываем)
-    private var needGate: Bool {
-        !shop.gateDone && shop.gender == nil && shop.settings.gendersOpen.count > 1 && !(shop.settings.raw["gateway"]["enabled"].exists && !shop.settings.raw["gateway"]["enabled"].bool)
-            && (UserDefaults.standard.string(forKey: "screen") ?? "").isEmpty
     }
 
     // Окно «Включите уведомления»: при входе, пока не разрешены; «Не сейчас» — снова через 7 дней, не больше 3 раз
@@ -51,20 +45,15 @@ struct MainTabs: View {
 
     var body: some View {
         TabView(selection: tabBinding) {
-            stack(.home) { HomeView() }
-                .tabItem { Label("Главная", systemImage: "house") }.tag(Tab.home)
-            stack(.catalog) { CatalogRootView() }
-                .tabItem { Label("Каталог", systemImage: "square.grid.2x2") }.tag(Tab.catalog)
-            stack(.favorites) { FavoritesView() }
-                .tabItem { Label("Избранное", systemImage: "heart") }.tag(Tab.favorites)
-            stack(.cart) { CartView() }
-                .tabItem { Label("Корзина", systemImage: "bag") }.tag(Tab.cart)
-                .badge(shop.cartCount)
-            stack(.account) { AccountView() }
-                .tabItem { Label("Кабинет", systemImage: "person") }.tag(Tab.account)
-                .badge(shop.user?.supportUnread ?? 0)
+            stack(.home) { HomeView() }.tag(Tab.home)
+            stack(.catalog) { CatalogRootView() }.tag(Tab.catalog)
+            stack(.favorites) { FavoritesView() }.tag(Tab.favorites)
+            stack(.cart) { CartView() }.tag(Tab.cart)
+            stack(.account) { AccountView() }.tag(Tab.account)
         }
         .tint(Theme.ink)
+        // Своё нижнее меню (13.63): белая капсула, выбранная вкладка — пилюля цвета раздела
+        .safeAreaInset(edge: .bottom, spacing: 0) { AppTabBar(selection: tabBinding) }
         .overlay { drawer }
     }
 
@@ -91,10 +80,50 @@ struct MainTabs: View {
         NavigationStack(path: router.binding(t)) {
             root()
                 .toolbar(.hidden, for: .navigationBar)
+                .toolbar(.hidden, for: .tabBar)
                 .safeAreaInset(edge: .top, spacing: 0) { SiteHeader(tab: t) }
                 .overlay(alignment: .bottomTrailing) { if [.home, .catalog, .favorites].contains(t) { ChatFab().padding(.trailing, 14).padding(.bottom, 14) } }
-                .navigationDestination(for: Dest.self) { DestView(dest: $0) }
+                .navigationDestination(for: Dest.self) { DestView(dest: $0).toolbar(.hidden, for: .tabBar) }
         }
+    }
+}
+
+/// Нижнее меню (вариант A): значки тонкие; выбранная вкладка — пилюля цвета раздела с подписью; счётчик корзины и ответов поддержки
+struct AppTabBar: View {
+    @Binding var selection: Tab
+    @EnvironmentObject private var shop: Shop
+    private let items: [(Tab, String, String)] = [(.home, "Главная", "house"), (.catalog, "Каталог", "square.grid.2x2"), (.favorites, "Избранное", "heart"), (.cart, "Корзина", "bag"), (.account, "Кабинет", "person")]
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items, id: \.0) { it in
+                let on = selection == it.0
+                let n = it.0 == .cart ? shop.cartCount : it.0 == .account ? (shop.user?.supportUnread ?? 0) : 0
+                Button { Haptic.tap(); selection = it.0 } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: it.2).font(.system(size: 19, weight: .light))
+                        if on { Text(it.1).font(Theme.font(13, .medium)).lineLimit(1).fixedSize() }
+                    }
+                    .foregroundStyle(on ? .white : Theme.text)
+                    .padding(.horizontal, on ? 15 : 0).frame(minWidth: 46).frame(height: 46)
+                    .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Color.clear)))
+                    .shadow(color: on ? Theme.accent.opacity(0.35) : .clear, radius: 8, y: 6)
+                    .overlay(alignment: .topTrailing) {
+                        if n > 0 {
+                            Text("\(n)").font(Theme.font(10, .semibold)).foregroundStyle(.white).padding(.horizontal, 4).frame(minWidth: 17, minHeight: 17)
+                                .background(Capsule().fill(Theme.accentGradient)).overlay(Capsule().strokeBorder(.white, lineWidth: 1.5)).offset(x: on ? 0 : 4, y: -2)
+                        }
+                    }
+                    .frame(maxWidth: on ? nil : .infinity)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(it.1)
+            }
+        }
+        .padding(6)
+        .background(Capsule().fill(.white).shadow(color: Theme.ink.opacity(0.18), radius: 16, y: 8))
+        .overlay(Capsule().strokeBorder(Theme.ink.opacity(0.07), lineWidth: 1))
+        .padding(.horizontal, 12).padding(.bottom, 4)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selection)
     }
 }
 
@@ -201,7 +230,7 @@ struct NotificationMock: View {
     var body: some View {
         ZStack {
             LinearGradient(colors: [Color(hex: "#2a3036"), Color(hex: "#0d0e10")], startPoint: .topLeading, endPoint: .bottomTrailing)
-            RadialGradient(colors: [Color(hex: "#ff9a5c").opacity(0.38), .clear], center: .topTrailing, startRadius: 0, endRadius: 220)
+            RadialGradient(colors: [Theme.accentSoft.opacity(0.38), .clear], center: .topTrailing, startRadius: 0, endRadius: 220)
             VStack(spacing: 14) {
                 Text(Date(), style: .time).font(.system(size: 44, weight: .light)).foregroundStyle(.white.opacity(0.92))
                 VStack(alignment: .leading, spacing: 6) {

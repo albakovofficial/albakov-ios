@@ -37,7 +37,7 @@ struct CartView: View {
             HStack { Text("Итого").font(Theme.font(19)); Spacer(); Text(Fmt.rub(sub)).font(Theme.font(21, .light)) }
             if let b = quote["bonusEarn"].int, b > 0 {
                 HStack(spacing: 8) {
-                    Text("Б").font(Theme.font(10, .semibold)).foregroundStyle(.white).frame(width: 17, height: 17).background(Circle().fill(Theme.ink))
+                    Text("Б").font(Theme.font(10, .semibold)).foregroundStyle(.white).frame(width: 17, height: 17).background(Circle().fill(Theme.accent))
                     Text("Бонусы за заказ").font(Theme.font(14)).foregroundStyle(Theme.muted)
                     Spacer()
                     Text("+\(Fmt.num(b)) \(Fmt.plural(b, "бонус", "бонуса", "бонусов"))").font(Theme.font(14, .medium))
@@ -79,7 +79,7 @@ struct FreeShipBar: View {
                     else { Text("Доставка будет бесплатной").font(Theme.font(14.5, .medium)).foregroundStyle(Theme.ok) }
                 }
                 GeometryReader { g in
-                    ZStack(alignment: .leading) { Capsule().fill(Theme.surface2); Capsule().fill(Theme.ink).frame(width: g.size.width * min(1, CGFloat(subtotal) / CGFloat(free))) }
+                    ZStack(alignment: .leading) { Capsule().fill(Theme.surface2); Capsule().fill(Theme.accent).frame(width: g.size.width * min(1, CGFloat(subtotal) / CGFloat(free))) }
                 }.frame(height: 4)
                 Text("Бесплатно от \(Fmt.rub(free))").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
             }

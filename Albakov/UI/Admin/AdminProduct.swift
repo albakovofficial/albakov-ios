@@ -63,7 +63,7 @@ enum AdminProduct {
                 FDef(k: "name", label: "Название"),
                 FDef(k: "sku", label: "Артикул", hint: "Заполнится сам: ALB-0001, ALB-0002… Можно указать свой — латиница, цифры, дефис"),
                 FDef(k: "categoryId", label: "Категория", kind: .select(AdminSections.catOpts)),
-                FDef(k: "gender", label: "Для кого", kind: .select([("women", "Женщинам"), ("men", "Мужчинам"), ("unisex", "Унисекс — в обоих разделах")])),
+                FDef(k: "gender", label: "Для кого", kind: .select([("women", "Женщинам"), ("men", "Мужчинам"), ("kids", "Детям"), ("unisex", "Унисекс — женщинам и мужчинам")])),
                 FDef(k: "sizeChartId", label: "Размерная сетка", kind: .select([("", "Без таблицы размеров")] + Admin.shared.data["sizeCharts"].array.map { ($0["id"].str, $0["name"].str) })),
                 FDef(k: "price", label: "Цена, ₽", kind: .number, hint: "Одна для всех цветов"),
                 FDef(k: "compareAt", label: "Старая цена, ₽", kind: .number, hint: "Если больше цены — показывается зачёркнутой. 0 — скидки нет"),
@@ -295,7 +295,7 @@ struct SpecsEditor: View {
     private func chip(_ t: String, on: Bool, icon: String? = nil, _ a: @escaping () -> Void) -> some View {
         Button(action: a) {
             HStack(spacing: 5) { if let icon { Image(systemName: icon).font(.system(size: 11)) }; Text(t).font(Theme.font(12.5)) }
-                .foregroundStyle(on ? .white : Theme.text).padding(.horizontal, 11).frame(height: 32).background(Capsule().fill(on ? Theme.ink : Theme.surface))
+                .foregroundStyle(on ? .white : Theme.text).padding(.horizontal, 11).frame(height: 32).background(Capsule().fill(on ? Theme.accent : Theme.surface))
         }.buttonStyle(.plain)
     }
 }
@@ -359,7 +359,7 @@ struct WaitingForProduct: View {
             HStack(spacing: 10) {
                 Image(systemName: "bell").font(.system(size: 14, weight: .light))
                 Text("Ждут поступления: \(w.count) \(Fmt.plural(w.count, "человек", "человека", "человек")). Как только остаток станет больше нуля, им уйдёт письмо.").font(Theme.font(13.5))
-            }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(RoundedRectangle(cornerRadius: 14).fill(Color(hex: "#fff6f1")))
+            }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(RoundedRectangle(cornerRadius: 14).fill(Theme.tint))
         }
     }
 }

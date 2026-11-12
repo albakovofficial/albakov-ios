@@ -198,7 +198,7 @@ struct FitCheckCard: View {
                         Text("Чтобы вещь села именно так, как задумано, рекомендуем свериться с подбором: укажите рост и вес — подскажем ваш размер и как он сядет.").font(Theme.font(14)).foregroundStyle(Theme.muted).lineSpacing(3)
                         Button(action: onFind) {
                             HStack { Text("Подобрать размер").font(Theme.font(14, .medium)); Spacer(); ArrowDot(size: 26) }
-                                .foregroundStyle(.white).padding(.leading, 20).padding(.trailing, 9).frame(height: 44).background(Capsule().fill(Theme.ink))
+                                .foregroundStyle(.white).padding(.leading, 20).padding(.trailing, 9).frame(height: 44).background(Capsule().fill(Theme.accentGradient))
                         }.buttonStyle(Pressable()).padding(.top, 6)
                         if Fit.canCompare(product) { Button("Сравнить со своей футболкой", action: onCompare).font(Theme.font(13.5)).foregroundStyle(Theme.text).padding(.top, 2) }
                     }
@@ -296,7 +296,7 @@ struct FitCompareSheet: View {
                                 Text(diff(r.w - wv, "Ширина", "шире", "уже")).font(Theme.font(13))
                                 Spacer()
                                 Text(r.size == best.size ? "ближе всего" : diff(r.l - lv, "Длина", "длиннее", "короче")).font(Theme.font(13)).foregroundStyle(r.size == best.size ? Theme.ok : Theme.muted)
-                            }.padding(12).background(RoundedRectangle(cornerRadius: 12).fill(r.size == best.size ? .white : Theme.surface)).overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(r.size == best.size ? Theme.ink : .clear))
+                            }.padding(12).background(RoundedRectangle(cornerRadius: 12).fill(r.size == best.size ? .white : Theme.surface)).overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(r.size == best.size ? Theme.accent : .clear))
                         }
                     }
                     PrimaryButton(title: "Выбрать размер \(best.size)") { dismiss(); onPick(best.size) }
@@ -454,7 +454,7 @@ struct LookSection: View {
                                 FlowRow(spacing: 6) {
                                     ForEach(avail, id: \.size) { z in
                                         let on = (sizes[x.id] ?? (avail.count == 1 ? avail[0].size : nil)) == z.size
-                                        Button { sizes[x.id] = z.size } label: { Text(z.size).font(Theme.font(12.5)).foregroundStyle(on ? .white : Theme.text).padding(.horizontal, 10).frame(height: 30).background(Capsule().fill(on ? Theme.ink : Theme.surface)) }
+                                        Button { sizes[x.id] = z.size } label: { Text(z.size).font(Theme.font(12.5)).foregroundStyle(on ? .white : Theme.text).padding(.horizontal, 10).frame(height: 30).background(Capsule().fill(on ? Theme.accent : Theme.surface)) }
                                     }
                                 }
                                 Button(off.contains(x.id) ? "Вернуть в образ" : "Убрать из образа") { if off.contains(x.id) { off.remove(x.id) } else { off.insert(x.id) } }.font(Theme.font(12.5)).foregroundStyle(Theme.muted)

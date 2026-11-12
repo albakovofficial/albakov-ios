@@ -7,9 +7,13 @@ struct HomeView: View {
     @EnvironmentObject private var router: Router
     private var h: JSON { shop.settings.raw["home"] }
     private func show(_ k: String) -> Bool { !h[k].exists || h[k].bool }
-    private var gSub: String? { shop.gender.map { $0 == "women" ? "женщинам" : "мужчинам" } }
+    private var gSub: String? { shop.gender.map { Sections.name($0).lowercased() } }
 
     var body: some View {
+        if shop.closed(shop.gender) { SoonView() } else { content }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(spacing: 0) {
                 if !slides.isEmpty { HeroSlider(slides: slides) } else { hero }
@@ -450,41 +454,29 @@ struct BenefitsBlock: View {
     }
 }
 
-// MARK: - Выбор раздела при первом входе (как экран «Выберите раздел» на сайте)
+// MARK: - Раздел закрыт: «…коллекция скоро появится» (как soonPage на сайте)
 
-struct GenderGate: View {
+struct SoonView: View {
     @EnvironmentObject private var shop: Shop
     var body: some View {
-        let g = shop.settings.raw["gateway"]
-        VStack(spacing: 14) {
-            VStack(spacing: 12) {
-                HStack(alignment: .top, spacing: 2) { Image("Wordmark").resizable().scaledToFit().frame(width: 150); Text("®").font(.system(size: 6)) }
-                if !g["eyebrow"].str.isEmpty { Eyebrow(text: g["eyebrow"].str) }
-            }.padding(.top, 14)
-            ForEach([("women", "dress", "#4a4a4e"), ("men", "coat", "#2e2e31")], id: \.0) { k in
-                let c = g[k.0], closed = shop.settings.gendersOpen[k.0] == false
-                Button { choose(k.0) } label: {
-                    ZStack(alignment: .bottomLeading) {
-                        ProductImage(path: c["image"].str, kind: k.1, tone: k.2)
-                        LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(c["title"].string ?? (k.0 == "women" ? "Женщинам" : "Мужчинам")).font(Theme.font(36, .light)).kerning(-1).foregroundStyle(.white)
-                            if !c["text"].str.isEmpty { Text(c["text"].str).font(Theme.font(13.5)).foregroundStyle(.white.opacity(0.8)) }
-                            HStack(spacing: 8) { Text(closed ? "Скоро" : "Перейти").font(Theme.font(13.5)); Rectangle().frame(width: 24, height: 1) }
-                                .foregroundStyle(.white.opacity(0.9)).padding(.top, 6)
-                        }.padding(18)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity).clipShape(RoundedRectangle(cornerRadius: 12))
-                }.buttonStyle(Pressable())
+        let g = shop.gender ?? ""
+        let c = shop.settings.raw["genders"][g]
+        let title = (c["title"].string ?? "\(Sections.name(g)) — скоро").replacingOccurrences(of: "*", with: "")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                ProductImage(path: c["image"].str, kind: g == "women" ? "dress" : g == "kids" ? "tee" : "coat", tone: g == "kids" ? "#5aa6e6" : "#3d3d40")
+                    .frame(height: 300).frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: 26))
+                Eyebrow(text: Sections.name(g)).padding(.top, 6)
+                Text(title).font(Theme.font(34, .light)).kerning(-1.2).foregroundStyle(Theme.text).fixedSize(horizontal: false, vertical: true)
+                if !c["text"].str.isEmpty { Text(c["text"].str).font(Theme.font(15)).foregroundStyle(Theme.muted).lineSpacing(4) }
+                ForEach(Sections.all.filter { $0.key != g && !shop.closed($0.key) }, id: \.key) { x in
+                    PrimaryButton(title: "Смотреть «\(x.name)»", arrow: true) { withAnimation { shop.gender = x.key } }
+                }
+                LinkButton(title: "Вся коллекция") { withAnimation { shop.gender = nil } }
             }
-            Button { choose("all") } label: { Text("Смотреть всю коллекцию").font(Theme.font(14)).foregroundStyle(Theme.text).padding(.bottom, 3).overlay(alignment: .bottom) { Rectangle().fill(Theme.lineStrong).frame(height: 1) } }
-                .padding(.vertical, 10)
+            .padding(.horizontal, Theme.gutter).padding(.top, 20).padding(.bottom, 40)
+            Footer()
         }
-        .padding(.horizontal, 12)
-        .background(Color.white.ignoresSafeArea())
-    }
-    private func choose(_ g: String) {
-        Haptic.tap()
-        withAnimation(.easeInOut(duration: 0.5)) { shop.gender = g == "all" ? nil : g; shop.gateDone = true }
+        .refreshable { await shop.load() }
     }
 }

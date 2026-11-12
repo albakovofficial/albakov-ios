@@ -155,7 +155,7 @@ struct ChatView: View {
                     .padding(.horizontal, 14).padding(.vertical, 11).background(RoundedRectangle(cornerRadius: 20).fill(Theme.surface))
                 Button(action: send) {
                     Group { if busy { ProgressView().tint(.white) } else { Image(systemName: "arrow.up").font(.system(size: 15, weight: .semibold)) } }
-                        .foregroundStyle(.white).frame(width: 40, height: 40).background(Circle().fill(Theme.ink.opacity(draft.isEmpty ? 0.3 : 1)))
+                        .foregroundStyle(.white).frame(width: 40, height: 40).background(Circle().fill(Theme.accent.opacity(draft.isEmpty ? 0.3 : 1)))
                 }.disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || busy)
             }
             .padding(.horizontal, Theme.gutter).padding(.vertical, 8).background(.ultraThinMaterial)
