@@ -276,7 +276,7 @@ struct OrderView: View {
                     }
                     info("Доставка", [o.deliveryName, o.city, o.address].filter { !$0.isEmpty }.joined(separator: "\n"))
                     info("Получатель", [o.customerName, Fmt.phone(o.phone), o.email].filter { !$0.isEmpty }.joined(separator: "\n"))
-                    info("Оплата", (o.payMethod == "online" ? "Онлайн" : o.payMethod == "cod" ? "При получении" : "Бонусами или сертификатом") + " · " + (o.paid ? "оплачен" : o.payStatus == "refunded" ? "деньги возвращены" : "не оплачен"))
+                    info("Оплата", "\(o.payMethodText) · \(o.payStatusText)")
                     VStack(spacing: 8) {
                         line("Товары", Fmt.rub(o.subtotal))
                         if o.saleDiscount + o.promoDiscount > 0 { line("Скидка", "−" + Fmt.rub(o.saleDiscount + o.promoDiscount)) }

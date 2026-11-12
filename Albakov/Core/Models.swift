@@ -232,6 +232,18 @@ struct Order: Identifiable, Hashable {
     static let statusRu = ["new": "Принят", "processing": "Собирается", "shipped": "В пути", "done": "Получен", "canceled": "Отменён", "returned": "Возврат"]
     static let statusAdminRu = ["new": "Новый", "processing": "Собирается", "shipped": "Передан в доставку", "done": "Выполнен", "canceled": "Отменён", "returned": "Возврат"]
     var statusText: String { Order.statusRu[status] ?? status }
+    var payMethodText: String {
+        switch payMethod {
+        case "online": return "Онлайн"
+        case "cod": return "При получении"
+        default: return "Бонусами или сертификатом"
+        }
+    }
+    var payStatusText: String {
+        if paid { return "оплачен" }
+        if payStatus == "refunded" { return "деньги возвращены" }
+        return "не оплачен"
+    }
     var paid: Bool { payStatus == "paid" }
 }
 

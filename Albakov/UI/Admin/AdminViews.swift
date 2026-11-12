@@ -121,7 +121,7 @@ struct AdminOrderView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack { Text("№ \(o.number)").font(Theme.font(26, .light)); Spacer(); StatusPill(status: o.status, admin: true) }
                         Text(Fmt.date(o.createdAt, time: true)).font(Theme.font(13)).foregroundStyle(Theme.muted)
-                        Text(Fmt.rub(o.total) + " · " + (o.payMethod == "online" ? "онлайн" : o.payMethod == "cod" ? "при получении" : o.payMethod) + " · " + (o.paid ? "оплачен" : "не оплачен"))
+                        Text("\(Fmt.rub(o.total)) · \(o.payMethodText.lowercased()) · \(o.payStatusText)")
                             .font(Theme.font(14, .medium)).foregroundStyle(o.paid || o.payMethod == "cod" ? Theme.text : Theme.danger)
                     }.padding(.vertical, 4)
                     Menu {
