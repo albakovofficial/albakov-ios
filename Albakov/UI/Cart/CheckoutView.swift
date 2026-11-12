@@ -7,11 +7,15 @@ struct CheckoutView: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
 
-    @State private var firstName = "", lastName = "", phone = "", email = ""
+    @State private var firstName = ""
+    @State private var lastName = ""
+    @State private var phone = ""
+    @State private var email = ""
     @State private var deliveryId = ""
     @State private var city: CdekCity?
     @State private var point: CdekPoint?
-    @State private var cityText = "", address = ""
+    @State private var cityText = ""
+    @State private var address = ""
     @State private var payment = "online"
     @State private var code = ""
     @State private var appliedCode = ""

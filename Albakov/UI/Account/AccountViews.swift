@@ -70,8 +70,13 @@ struct AuthView: View {
     @EnvironmentObject private var shop: Shop
     enum Mode { case login, register, forgot }
     @State private var mode: Mode = .login
-    @State private var login = "", password = ""
-    @State private var firstName = "", lastName = "", phone = "", email = "", consent = false
+    @State private var login = ""
+    @State private var password = ""
+    @State private var firstName = ""
+    @State private var lastName = ""
+    @State private var phone = ""
+    @State private var email = ""
+    @State private var consent = false
     @State private var busy = false
     @State private var error: String?
     @State private var code: CodeStep?

@@ -414,7 +414,9 @@ struct BonusGrantSheet: View {
 struct AdminPushView: View {
     @State private var r = JSON(nil)
     @State private var prefs: [String: Bool] = [:]
-    @State private var title = "", text = "", link = "/catalog"
+    @State private var title = ""
+    @State private var text = ""
+    @State private var link = "/catalog"
     @State private var busy = false
     @State private var error: String?
     @State private var armed = false

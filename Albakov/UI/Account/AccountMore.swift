@@ -185,7 +185,12 @@ struct TicketView: View {
 
 struct ProfileView: View {
     @EnvironmentObject private var shop: Shop
-    @State private var firstName = "", lastName = "", phone = "", email = "", current = "", newPassword = ""
+    @State private var firstName = ""
+    @State private var lastName = ""
+    @State private var phone = ""
+    @State private var email = ""
+    @State private var current = ""
+    @State private var newPassword = ""
     @State private var busy = false
     @State private var error: String?
     var body: some View {
