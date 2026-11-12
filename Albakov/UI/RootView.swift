@@ -122,11 +122,13 @@ struct DestView: View {
         case .adminOrder(let id): AdminOrderView(id: id)
         case .adminSupport: AdminSupportView()
         case .adminTicket(let id): AdminTicketView(id: id)
-        case .adminProducts: AdminProductsView()
-        case .adminProduct(let id): AdminProductView(id: id)
+        case .adminProducts: CollectionList(cfg: AdminProduct.cfg)
+        case .adminProduct(let id): CollectionEdit(cfg: AdminProduct.cfg, id: id)
         case .adminPush: AdminPushView()
         case .adminAudit: AdminAuditView()
         case .adminCustomers: AdminCustomersView()
+        case .adminSection(let k): AdminSections.view(k)
+        case .adminItem(let k, let id): AdminSections.item(k, id)
         }
     }
 }

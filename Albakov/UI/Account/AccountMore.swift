@@ -8,8 +8,8 @@ struct BonusView: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("\(shop.user?.bonus ?? 0)").font(Theme.font(46, .light))
-                    Text("бонусов на счёте · 1 бонус = 1 ₽").font(Theme.font(13.5)).foregroundStyle(Theme.muted)
+                    LoyalCard().padding(.vertical, 12)
+                    Text("\(shop.user?.bonus ?? 0) \(Fmt.plural(shop.user?.bonus ?? 0, "бонус", "бонуса", "бонусов")) на счёте · 1 бонус = 1 ₽").font(Theme.font(14)).foregroundStyle(Theme.muted)
                     Text("Начисляем \(shop.settings.bonusPercent)% с каждой покупки" + (shop.settings.bonusOnlineExtra > 0 ? " и ещё \(shop.settings.bonusOnlineExtra)% при оплате онлайн" : "") + ". Списать можно при оформлении следующего заказа.")
                         .font(Theme.font(13.5)).foregroundStyle(Theme.muted).padding(.top, 4)
                 }.padding(.vertical, 8)

@@ -312,7 +312,7 @@ struct OrderView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 8) {
                         StatusPill(status: o.status)
-                        Text("Заказ № \(o.number)").font(Theme.font(28, .light))
+                        DotTitle(text: "Заказ № \(o.number)", size: 32)
                         Text("от \(Fmt.date(o.createdAt))").font(Theme.font(14)).foregroundStyle(Theme.muted)
                     }
                     OrderSteps(status: o.status)
@@ -325,7 +325,7 @@ struct OrderView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(o.items.enumerated()), id: \.offset) { _, it in
                             HStack(alignment: .top, spacing: 12) {
-                                RemoteImage(path: it.image).frame(width: 64, height: 84).clipShape(RoundedRectangle(cornerRadius: 12))
+                                ProductImage(path: it.image, kind: "tee", tone: "#3a3632").frame(width: 64, height: 84).background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 12))
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(it.name).font(Theme.font(14.5))
                                     Text([it.color, "размер " + it.size, it.qty > 1 ? "\(it.qty) шт." : ""].filter { !$0.isEmpty }.joined(separator: " · ")).font(Theme.font(12.5)).foregroundStyle(Theme.muted)
@@ -334,9 +334,13 @@ struct OrderView: View {
                             }.padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading).overlay(alignment: .bottom) { Divider1() }
                         }
                     }
-                    info("Доставка", [o.deliveryName, o.city, o.address].filter { !$0.isEmpty }.joined(separator: "\n"))
-                    info("Получатель", [o.customerName, Fmt.phone(o.phone), o.email].filter { !$0.isEmpty }.joined(separator: "\n"))
-                    info("Оплата", "\(o.payMethodText) · \(o.payStatusText)")
+                    VStack(alignment: .leading, spacing: 16) {
+                        info("Доставка", [o.deliveryName, o.city, o.address].filter { !$0.isEmpty }.joined(separator: "\n"))
+                        Divider1()
+                        info("Получатель", [o.customerName, Fmt.phone(o.phone), o.email].filter { !$0.isEmpty }.joined(separator: "\n"))
+                        Divider1()
+                        info("Оплата", "\(o.payMethodText) · \(o.payStatusText)")
+                    }.padding(18).softCard(20)
                     VStack(spacing: 8) {
                         line("Товары", Fmt.rub(o.subtotal + o.saleDiscount))
                         if o.saleDiscount + o.promoDiscount > 0 { line("Скидка", "−" + Fmt.rub(o.saleDiscount + o.promoDiscount)) }
@@ -344,9 +348,9 @@ struct OrderView: View {
                         if o.giftUsed > 0 { line("Подарочный сертификат", "−" + Fmt.rub(o.giftUsed)) }
                         line("Доставка", o.deliveryPrice == 0 ? "Бесплатно" : Fmt.rub(o.deliveryPrice))
                         Divider1()
-                        HStack { Text("Итого").font(Theme.font(18, .medium)); Spacer(); Text(Fmt.rub(o.total)).font(Theme.font(18, .medium)) }
+                        HStack(alignment: .firstTextBaseline) { Text("Итого").font(Theme.font(19)); Spacer(); Text(Fmt.rub(o.total)).font(Theme.font(23, .light)) }
                         if o.bonusEarn > 0 { Text("+\(o.bonusEarn) бонусов после получения").font(Theme.font(12.5)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .leading) }
-                    }.padding(16).background(RoundedRectangle(cornerRadius: 18).fill(Theme.surface))
+                    }.padding(20).background(RoundedRectangle(cornerRadius: 24).fill(Theme.surface)).hairline(RoundedRectangle(cornerRadius: 24), 0.06)
                     if o.requestOk {
                         GhostButton(title: "Обменять размер или вернуть", icon: "arrow.left.arrow.right") { request = true }
                     } else if !o.requestWhy.isEmpty && o.status == "done" {

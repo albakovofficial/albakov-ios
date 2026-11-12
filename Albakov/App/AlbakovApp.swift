@@ -51,6 +51,8 @@ enum Dest: Hashable {
     case adminPush
     case adminAudit
     case adminCustomers
+    case adminSection(String)          // раздел панели по ключу, как ?s=… на сайте
+    case adminItem(String, String)     // запись коллекции: (categories, id) …
 }
 
 // Ссылки albakovofficial.ru (письма, push, мессенджеры), albakov://… и внутренние ссылки из слайдов
@@ -84,6 +86,15 @@ final class Router: ObservableObject {
         case .favorites: favorites.append(d)
         case .cart: cart.append(d)
         case .account: account.append(d)
+        }
+    }
+    func pop(on t: Tab) {
+        switch t {
+        case .home: if !home.isEmpty { home.removeLast() }
+        case .catalog: if !catalog.isEmpty { catalog.removeLast() }
+        case .favorites: if !favorites.isEmpty { favorites.removeLast() }
+        case .cart: if !cart.isEmpty { cart.removeLast() }
+        case .account: if !account.isEmpty { account.removeLast() }
         }
     }
     func reset(_ t: Tab, to list: [Dest] = []) {
@@ -144,7 +155,12 @@ final class Router: ObservableObject {
             case "products": reset(.account, to: [.admin, .adminProducts] + (id.map { [.adminProduct($0)] } ?? []))
             case "audit": reset(.account, to: [.admin, .adminAudit])
             case "push": reset(.account, to: [.admin, .adminPush])
-            default: reset(.account, to: [.admin])
+            case "customers": reset(.account, to: [.admin, .adminCustomers])
+            case "": reset(.account, to: [.admin])
+            case let k:
+                // любой другой раздел панели сайта: категории, акции, финансы, обмен…; id — конкретная запись
+                if let id, AdminSections.collections[k] != nil { reset(.account, to: [.admin, .adminSection(k), .adminItem(k, id)]) }
+                else { reset(.account, to: [.admin, .adminSection(k)]) }
             }
         default: reset(.home)
         }

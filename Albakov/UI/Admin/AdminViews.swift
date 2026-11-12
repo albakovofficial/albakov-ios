@@ -29,28 +29,26 @@ struct AdminHomeView: View {
             if let e = admin.error { Text(e).font(Theme.font(14)).foregroundStyle(Theme.danger) }
             Section {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Панель управления").font(Theme.font(24, .light))
+                    DotTitle(text: "Панель управления", size: 26)
                     Text(admin.roleName).font(Theme.font(13)).foregroundStyle(Theme.muted)
                 }.padding(.vertical, 6)
                 if admin.can("orders") {
                     let o = admin.orders
                     let today = o.filter { Calendar.current.isDateInToday($0.createdAt ?? .distantPast) && $0.status != "canceled" }
-                    HStack(spacing: 10) {
-                        stat("Сегодня", "\(today.count)", Fmt.rub(today.reduce(0) { $0 + $1.total }))
-                        stat("Новые", "\(o.filter { $0.status == "new" }.count)", "ждут сборки")
-                        stat("В пути", "\(o.filter { $0.status == "shipped" }.count)", "у СДЭК")
+                    HStack(spacing: 8) {
+                        AdminStat(title: "Сегодня", value: "\(today.count)", sub: Fmt.rub(today.reduce(0) { $0 + $1.total }))
+                        AdminStat(title: "Новые", value: "\(o.filter { $0.status == "new" }.count)", sub: "ждут сборки")
+                        AdminStat(title: "В пути", value: "\(o.filter { $0.status == "shipped" }.count)", sub: "у СДЭК")
                     }
+                }
+                ForEach(admin.data["problems"].array.indices, id: \.self) { i in
+                    Text(admin.data["problems"].array[i]["title"].str + ". " + admin.data["problems"].array[i]["text"].str).font(Theme.font(13)).foregroundStyle(Theme.warn)
                 }
             }
             Section {
-                if admin.can("orders") {
-                    item("Заказы", "shippingbox", .adminOrders, badge: admin.orders.filter { $0.status == "new" }.count)
-                    item("Поддержка", "bubble.left.and.text.bubble.right", .adminSupport, badge: admin.data["supportNew"].int ?? 0)
+                ForEach(AdminSections.list.filter { AdminSections.can($0.key) }, id: \.key) { s in
+                    item(s.title, s.icon, s.key == "orders" ? .adminOrders : s.key == "support" ? .adminSupport : s.key == "customers" ? .adminCustomers : s.key == "push" ? .adminPush : s.key == "audit" ? .adminAudit : s.key == "products" ? .adminProducts : .adminSection(s.key), badge: badge(s.key))
                 }
-                if admin.can("content") { item("Товары и остатки", "tshirt", .adminProducts) }
-                if admin.can("orders") || admin.can("marketing") { item("Покупатели и бонусы", "person.2", .adminCustomers) }
-                item("Push-уведомления", "bell.badge", .adminPush)
-                if admin.can("staff") { item("Журнал действий", "list.bullet.rectangle", .adminAudit) }
             }
         }
         .navigationTitle("Панель")
@@ -59,12 +57,14 @@ struct AdminHomeView: View {
         .task { await admin.load() }
         .refreshable { await admin.load() }
     }
-    private func stat(_ t: String, _ v: String, _ s: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(t).font(Theme.font(11.5)).foregroundStyle(Theme.muted)
-            Text(v).font(Theme.font(24, .light))
-            Text(s).font(Theme.font(11)).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.8)
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+    private func badge(_ k: String) -> Int {
+        switch k {
+        case "orders": return admin.orders.filter { $0.status == "new" }.count
+        case "support": return admin.data["supportNew"].int ?? 0
+        case "exchange": return admin.data["orders"].array.flatMap { $0["requests"].array }.filter { ["new", "received"].contains($0["status"].str) }.count
+        case "products": return admin.data["waitlist"].array.filter { $0["status"].str == "waiting" }.count
+        default: return 0
+        }
     }
     private func item(_ t: String, _ icon: String, _ d: Dest, badge: Int = 0) -> some View {
         Button { router.push(d, on: .account) } label: {
@@ -130,6 +130,9 @@ struct AdminOrderView: View {
                             Button(Order.statusAdminRu[s] ?? s) { Task { await patch(["status": s]) } }
                         }
                     } label: { Label("Сменить статус", systemImage: "arrow.triangle.2.circlepath").font(Theme.font(15, .medium)) }
+                    Menu {
+                        ForEach([("pending", "Не оплачен"), ("paid", "Оплачен"), ("refunded", "Деньги возвращены")], id: \.0) { p in Button(p.1) { Task { await patch(["paymentStatus": p.0]) } } }
+                    } label: { Label("Оплата: " + o.payStatusText, systemImage: "rublesign.circle").font(Theme.font(15)) }
                     if o.payMethod == "cod" && !o.paid { Button { Task { await patch(["paymentStatus": "paid"]) } } label: { Label("Отметить оплату", systemImage: "rublesign.circle").font(Theme.font(15)) } }
                 }
                 Section("Покупатель") {
@@ -158,6 +161,9 @@ struct AdminOrderView: View {
                         }
                     }
                 }
+                OrderRequestsSection(o: o.raw)
+                OrderRefundSection(o: o.raw)
+                if Shop.shared.cdekReady && (o.raw["delivery"]["pvz"].exists || o.raw["delivery"]["door"].exists || o.raw["cdek"].exists) { OrderCdekSection(o: o.raw) }
                 Section("Заметка для команды") {
                     TextField("Видна только в панели", text: $note, axis: .vertical).font(Theme.font(14.5)).lineLimit(2...6)
                     if note != o.adminNote { Button("Сохранить заметку") { Task { await patch(["note": note]) } }.font(Theme.font(14, .medium)) }
@@ -169,6 +175,7 @@ struct AdminOrderView: View {
                         }
                     }
                 }
+                OrderDeleteSection(o: o.raw)
                 if let error { Text(error).font(Theme.font(13)).foregroundStyle(Theme.danger) }
             }
             .navigationTitle("Заказ № \(o.number)").navigationBarTitleDisplayMode(.inline)
@@ -242,123 +249,6 @@ struct AdminTicketView: View {
     private func load() async {
         if let r = try? await API.shared.json("GET", "admin/support") { t = r["tickets"].array.first { $0["id"].str == id } ?? JSON(nil) }
         _ = try? await API.shared.raw("PATCH", "admin/support/\(id)", body: ["read": true])
-    }
-}
-
-// MARK: - Товары и остатки
-struct AdminProductsView: View {
-    @EnvironmentObject private var router: Router
-    @ObservedObject private var admin = Admin.shared
-    @State private var q = ""
-    var body: some View {
-        List {
-            ForEach(Array(admin.products.filter { q.isEmpty || ($0["name"].str + " " + $0["sku"].str).lowercased().contains(q.lowercased()) }.enumerated()), id: \.offset) { _, p in
-                let prod = Product(p)
-                Button { router.push(.adminProduct(prod.id), on: .account) } label: {
-                    HStack(spacing: 12) {
-                        RemoteImage(path: prod.image).frame(width: 48, height: 62).clipShape(RoundedRectangle(cornerRadius: 8)).opacity(prod.active ? 1 : 0.4)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(prod.name).font(Theme.font(14.5))
-                            Text("\(Fmt.rub(prod.price)) · остаток \(prod.stock)" + (prod.active ? "" : " · скрыт")).font(Theme.font(12.5)).foregroundStyle(prod.stock == 0 ? Theme.danger : Theme.muted)
-                        }
-                    }.foregroundStyle(Theme.text)
-                }
-            }
-        }
-        .listStyle(.plain)
-        .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Название или артикул")
-        .navigationTitle("Товары").navigationBarTitleDisplayMode(.inline)
-        .task { if !admin.data.exists { await admin.load() } }   // открыт сразу из push или ссылки — минуя главную панели
-        .refreshable { await admin.load() }
-    }
-}
-
-struct AdminProductView: View {
-    let id: String
-    @ObservedObject private var admin = Admin.shared
-    @State private var draft: [String: Any] = [:]
-    @State private var price = ""
-    @State private var compareAt = ""
-    @State private var active = true
-    @State private var stock: [String: Int] = [:]   // "цвет|размер" → остаток
-    @State private var busy = false
-    @State private var error: String?
-    @State private var photo: PhotosPickerItem?
-    @State private var photoColor = ""
-
-    private var raw: JSON? { admin.products.first { $0["id"].str == id } }
-
-    var body: some View {
-        if let raw {
-            let p = Product(raw)
-            Form {
-                Section {
-                    Text(p.name).font(Theme.font(20, .light))
-                    Toggle("Показывать на сайте", isOn: $active).tint(Theme.ink)
-                }
-                Section("Цена") {
-                    HStack { Text("Цена, ₽"); Spacer(); TextField("0", text: $price).keyboardType(.numberPad).multilineTextAlignment(.trailing) }
-                    HStack { Text("Старая цена, ₽"); Spacer(); TextField("нет", text: $compareAt).keyboardType(.numberPad).multilineTextAlignment(.trailing) }
-                }
-                ForEach(p.colors) { c in
-                    Section("Остатки · \(c.name)") {
-                        ForEach(c.sizes, id: \.size) { s in
-                            let k = c.id + "|" + s.size
-                            Stepper(value: Binding(get: { stock[k] ?? s.stock }, set: { stock[k] = max(0, $0) }), in: 0...9999) {
-                                HStack { Text(s.size).font(Theme.font(15, .medium)); Spacer(); Text("\(stock[k] ?? s.stock) шт.").font(Theme.font(15)).foregroundStyle((stock[k] ?? s.stock) == 0 ? Theme.danger : Theme.text) }
-                            }
-                        }
-                        PhotosPicker(selection: Binding(get: { photo }, set: { photo = $0; photoColor = c.id }), matching: .images) {
-                            Label("Добавить фото (\(c.images.count))", systemImage: "photo.badge.plus").font(Theme.font(14))
-                        }
-                    }
-                }
-                if let error { Text(error).font(Theme.font(13)).foregroundStyle(Theme.danger) }
-                Section { PrimaryButton(title: "Сохранить", busy: busy) { Task { await save(raw) } }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
-            }
-            .navigationTitle("Товар").navigationBarTitleDisplayMode(.inline)
-            .onAppear { price = "\(p.price)"; compareAt = p.compareAt > 0 ? "\(p.compareAt)" : ""; active = p.active }
-            .onChange(of: photo) { item in Task { await addPhoto(item, raw) } }
-        } else { ProgressView().task { if !admin.data.exists { await admin.load() } } }
-    }
-
-    private func mutable(_ raw: JSON) -> [String: Any] { (raw.raw as? [String: Any]) ?? [:] }
-
-    private func save(_ raw: JSON) async {
-        busy = true; error = nil; defer { busy = false }
-        var v = mutable(raw)
-        v["price"] = Int(price) ?? 0
-        v["compareAt"] = Int(compareAt) ?? 0
-        v["active"] = active
-        if var colors = v["colors"] as? [[String: Any]] {
-            for ci in colors.indices {
-                let cid = colors[ci]["id"] as? String ?? ""
-                if var sizes = colors[ci]["sizes"] as? [[String: Any]] {
-                    for si in sizes.indices { let k = cid + "|" + (sizes[si]["size"] as? String ?? ""); if let n = stock[k] { sizes[si]["stock"] = n } }
-                    colors[ci]["sizes"] = sizes
-                }
-            }
-            v["colors"] = colors
-        }
-        do { _ = try await API.shared.raw("PUT", "admin/products/\(id)", body: ["value": v]); await admin.load(); stock = [:]; Haptic.success(); Toast.shared.show("Товар сохранён") }
-        catch { self.error = error.localizedDescription; Haptic.error() }
-    }
-
-    private func addPhoto(_ item: PhotosPickerItem?, _ raw: JSON) async {
-        guard let item, let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) else { return }
-        busy = true; defer { busy = false; photo = nil }
-        // Сжимаем до 2000 px по длинной стороне — как при загрузке на сайте
-        let scale = min(1, 2000 / max(img.size.width, img.size.height))
-        let size = CGSize(width: img.size.width * scale, height: img.size.height * scale)
-        let jpg = UIGraphicsImageRenderer(size: size).image { _ in img.draw(in: CGRect(origin: .zero, size: size)) }.jpegData(compressionQuality: 0.85) ?? data
-        do {
-            let url = try await API.shared.upload(jpg)
-            var v = mutable(raw)
-            if var colors = v["colors"] as? [[String: Any]], let ci = colors.firstIndex(where: { ($0["id"] as? String) == photoColor }) {
-                var imgs = colors[ci]["images"] as? [String] ?? []; imgs.append(url); colors[ci]["images"] = imgs; v["colors"] = colors
-                _ = try await API.shared.raw("PUT", "admin/products/\(id)", body: ["value": v]); await admin.load(); Toast.shared.show("Фото добавлено")
-            }
-        } catch { self.error = error.localizedDescription }
     }
 }
 
