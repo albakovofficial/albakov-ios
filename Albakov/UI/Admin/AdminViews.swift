@@ -99,7 +99,7 @@ struct AdminOrdersView: View {
             ForEach(list) { o in Button { router.push(.adminOrder(o.id), on: .account) } label: { OrderRow(order: o, admin: true) }.foregroundStyle(Theme.text) }
         }
         .listStyle(.plain)
-        .searchable(text: $q, prompt: "Номер, имя, телефон")
+        .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Номер, имя, телефон")
         .navigationTitle("Заказы").navigationBarTitleDisplayMode(.inline)
         .task { if !admin.data.exists { await admin.load() } }   // открыт сразу из push или ссылки — минуя главную панели
         .refreshable { await admin.load() }
@@ -266,7 +266,7 @@ struct AdminProductsView: View {
             }
         }
         .listStyle(.plain)
-        .searchable(text: $q, prompt: "Название или артикул")
+        .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Название или артикул")
         .navigationTitle("Товары").navigationBarTitleDisplayMode(.inline)
         .task { if !admin.data.exists { await admin.load() } }   // открыт сразу из push или ссылки — минуя главную панели
         .refreshable { await admin.load() }
@@ -381,7 +381,7 @@ struct AdminCustomersView: View {
             }
         }
         .listStyle(.plain)
-        .searchable(text: $q, prompt: "Имя, телефон, почта")
+        .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Имя, телефон, почта")
         .navigationTitle("Покупатели").navigationBarTitleDisplayMode(.inline)
         .task { if !admin.data.exists { await admin.load() } }
         .sheet(item: Binding(get: { bonusFor.map { IdentJSON(j: $0) } }, set: { bonusFor = $0?.j })) { w in BonusGrantSheet(user: w.j) }
@@ -477,7 +477,7 @@ struct AdminAuditView: View {
             }
         }
         .listStyle(.plain)
-        .searchable(text: $q, prompt: "Номер заказа, товар, слово")
+        .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Номер заказа, товар, слово")
         .navigationTitle("Журнал действий").navigationBarTitleDisplayMode(.inline)
         .task(id: q) {
             try? await Task.sleep(nanoseconds: q.isEmpty ? 0 : 300_000_000)
