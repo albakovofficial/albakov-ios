@@ -64,9 +64,9 @@ struct AdminFinance: View {
     var body: some View {
         List {
             Section {
-                Picker("", selection: $tab) { Text("Отчёт").tag("report"); Text("Операции").tag("ops"); Text("Себестоимость").tag("costs"); Text("Настройки").tag("settings") }.pickerStyle(.segmented)
+                PillTabs(items: [("report", "Отчёт"), ("ops", "Операции"), ("costs", "Себестоимость"), ("settings", "Настройки")], value: $tab)
                 if tab == "report" || tab == "ops" {
-                    Picker("Период", selection: $kind) { ForEach(AdminFinance.pers, id: \.0) { Text($0.1).tag($0.0) } }.pickerStyle(.segmented)
+                    PillTabs(items: AdminFinance.pers, value: $kind)
                     if kind == "custom" {
                         DatePicker("С", selection: $from, displayedComponents: .date); DatePicker("По", selection: $to, displayedComponents: .date)
                     } else {

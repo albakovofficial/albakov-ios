@@ -13,10 +13,7 @@ struct AdminMail: View {
             Section {
                 Text("Всё, что сайт отправляет письмами: покупателям, вам и тем, кто ждёт размер. Письма уходят с вашего почтового ящика — он подключается один раз.").font(Theme.font(13)).foregroundStyle(Theme.muted)
                 if mail.exists && !mail["ready"].bool { Text("Почта не подключена — ни одно письмо не уходит. Покупатели не получают подтверждение заказа и трек-номер, вы не узнаёте о новых заказах.").font(Theme.font(13, .medium)).foregroundStyle(Theme.danger) }
-                Picker("", selection: $tab) {
-                    Text("Письма").tag("letters"); Text("Мне").tag("alerts"); Text("Поступление" + (waiting > 0 ? " \(waiting)" : "")).tag("notify")
-                    if admin.can("payment") { Text("Подключение").tag("smtp") }
-                }.pickerStyle(.segmented)
+                PillTabs(items: [("letters", "Письма покупателям"), ("alerts", "Уведомления мне"), ("notify", "Сообщить о поступлении" + (waiting > 0 ? " · \(waiting)" : ""))] + (admin.can("payment") ? [("smtp", "Подключение")] : []), value: $tab)
             }
             switch tab {
             case "alerts": MailAlerts()
@@ -43,8 +40,8 @@ private struct MailLetters: View {
         Section {
             Text("Покупателям письма приходят с адреса для отправки и с пометкой «отвечать не нужно» — написать вам можно на почту для связи.").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
             if r.exists {
-                LabeledContent("Отправитель", value: "\(mi["fromName"].str) <\(mi["from"].string ?? "—")>")
-                LabeledContent("Пишут вам", value: mi["support"].string ?? mi["replyTo"].string ?? "—")
+                LabeledContent("Отправитель", value: mi["from"].str.isEmpty ? "—" : (mi["fromName"].str.isEmpty ? "" : mi["fromName"].str + " ") + "<" + mi["from"].str + ">")
+                LabeledContent("Пишут вам", value: [mi["support"].str, mi["replyTo"].str].first { !$0.isEmpty } ?? "—")
                 Text(mi["ready"].bool ? "Почта настроена, письма уходят" : "Не настроена — письма не отправляются").font(Theme.font(12.5)).foregroundStyle(mi["ready"].bool ? Theme.ok : Theme.warn)
                 TextField("Почта для примера", text: $to).keyboardType(.emailAddress).textInputAutocapitalization(.never)
             } else { ProgressView() }

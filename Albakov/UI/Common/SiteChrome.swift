@@ -16,7 +16,7 @@ struct Announcement: View {
             Text(list[i % list.count])
                 .font(Theme.font(12)).kerning(0.24).foregroundStyle(.white.opacity(0.78)).lineLimit(1).minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity).frame(height: 38).padding(.horizontal, 12)
-                .background(Theme.dark)
+                .background(Theme.dark, ignoresSafeAreaEdges: [])
                 .id(i).transition(.opacity)
                 .animation(.easeInOut(duration: 0.45), value: i)
                 .task(id: list.count) { while list.count > 1 { try? await Task.sleep(nanoseconds: 3_500_000_000); i += 1 } }

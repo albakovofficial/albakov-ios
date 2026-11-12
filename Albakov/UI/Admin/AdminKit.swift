@@ -74,6 +74,18 @@ func notifyMsg(_ base: String, _ n: JSON) -> String {
     return c > 0 ? base + " · \(c) \(Fmt.plural(c, "покупателю", "покупателям", "покупателям")) ушло письмо о поступлении" : base
 }
 
+/// Вкладки-пилюли как на сайте (.tabs): листаются вбок, названия не обрезаются
+struct PillTabs: View {
+    let items: [(String, String)]
+    @Binding var value: String
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) { ForEach(items, id: \.0) { it in Chip(title: it.1, on: value == it.0, height: 36) { withAnimation(.easeOut(duration: 0.2)) { value = it.0 } } } }
+        }
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+    }
+}
+
 // MARK: - Форма по описанию
 
 struct DefForm: View {
