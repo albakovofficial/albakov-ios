@@ -8,13 +8,16 @@ enum Demo {
     static var on: Bool { (UserDefaults.standard.string(forKey: "screen") ?? "").contains("demo=staff") }
 
     private static var products: [[String: Any]] = []
+    /// Витрина с сайта как есть: настройки, категории, акции, страницы — чтобы разделы панели на снимках были заполнены
+    private static var pub: [String: Any] = [:]
 
     /// nil — запрос идёт на сервер как обычно
     static func answer(_ method: String, _ path: String, real: () async throws -> Data) async throws -> Data? {
         if path == "state" {
             let data = try await real()
             guard var j = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return data }
-            products = ((j["data"] as? [String: Any])?["products"] as? [[String: Any]]) ?? []
+            pub = (j["data"] as? [String: Any]) ?? [:]
+            products = (pub["products"] as? [[String: Any]]) ?? []
             j["user"] = user; j["isAdmin"] = true
             return try JSONSerialization.data(withJSONObject: j)
         }
@@ -31,10 +34,10 @@ enum Demo {
         case ("GET", "support", _): out["ticket"] = ticket
         case ("GET", "admin", _):
             switch parts.dropFirst().first ?? "" {
-            case "data": out["data"] = ["perms": ["orders", "content", "finance", "marketing", "mail", "payment", "settings", "staff"], "role": "owner", "roleName": "Владелец",
+            case "data": out["data"] = pub.merging(["perms": ["orders", "content", "finance", "marketing", "mail", "payment", "settings", "staff"], "role": "owner", "roleName": "Владелец",
                                         "orders": orders + [order("d4", "1045", status: "new", hoursAgo: 1, name: "Дмитрий Орлов", pay: "online", paid: true)],
                                         "products": products, "users": [user, ["id": "u2", "firstName": "Дмитрий", "lastName": "Орлов", "phone": "79991112233", "email": "dmitry@example.com", "bonus": 120]],
-                                        "supportNew": 1] as [String: Any]
+                                        "supportNew": 1, "promocodes": [Any](), "waitlist": [Any]()] as [String: Any]) { _, new in new }
             case "support": out["tickets"] = [ticket]
             case "push": out["prefs"] = ["orders": true, "support": true, "stock": true]
             case "audit": out["items"] = [["at": iso(-0.5), "who": "Анна Смирнова", "text": "Заказ № 1043: статус «Передан в доставку»"], ["at": iso(-3), "who": "Анна Смирнова", "text": "Товар «\(firstName)»: остатки"]]
