@@ -159,7 +159,7 @@ final class Router: ObservableObject {
             case "": reset(.account, to: [.admin])
             case let k:
                 // любой другой раздел панели сайта: категории, акции, финансы, обмен…; id — конкретная запись
-                if let id, AdminSections.collections[k] != nil { reset(.account, to: [.admin, .adminSection(k), .adminItem(k, id)]) }
+                if let id, AdminSections.collectionKeys.contains(k) { reset(.account, to: [.admin, .adminSection(k), .adminItem(k, id)]) }
                 else { reset(.account, to: [.admin, .adminSection(k)]) }
             }
         default: reset(.home)

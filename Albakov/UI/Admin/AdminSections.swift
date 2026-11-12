@@ -27,6 +27,7 @@ enum AdminSections {
         return need.isEmpty || need.contains { Admin.shared.can($0) }
     }
 
+    nonisolated static let collectionKeys: Set<String> = ["categories", "sizeCharts", "promotions", "promocodes", "pages", "products"]
     static var collections: [String: CollectionCfg] {
         ["categories": categories, "sizeCharts": sizeCharts, "promotions": promotions, "promocodes": promocodes, "pages": pages, "products": AdminProduct.cfg]
     }
