@@ -46,40 +46,35 @@ struct SiteHeader: View {
     }
 }
 
-/// Разделы под шапкой и в меню: выбранный — цветом раздела; закрытый — с пометкой «скоро». Повторное нажатие — вся коллекция
+/// Разделы под шапкой и в меню: выбранный — цветом раздела. Закрытые разделы не показываются, пока их не откроют в панели (1.0.0);
+/// открыт один раздел — переключателя нет. Повторное нажатие — вся коллекция
 struct GenderTabs: View {
     var drawer = false
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
     var body: some View {
-        let open = shop.settings.gendersOpen
-        if open.count > 1 {
+        let shown = Sections.all.filter { !shop.closed($0.key) }
+        if shown.count > 1 {
             if drawer {
                 HStack(spacing: 3) {
-                    ForEach(Sections.all, id: \.key) { g in
+                    ForEach(shown, id: \.key) { g in
                         let on = shop.gender == g.key
                         Button { pick(g.key) } label: {
-                            VStack(spacing: 1) {
-                                Text(g.name).font(Theme.font(13.5, on ? .medium : .regular)).foregroundStyle(on ? .white : Theme.muted)
-                                if open[g.key] == false { Text("скоро").font(Theme.font(9)).foregroundStyle(on ? .white.opacity(0.8) : Theme.dim) }
-                            }
-                            .frame(maxWidth: .infinity).frame(height: 44)
-                            .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Color.clear)))
+                            Text(g.name).font(Theme.font(13.5, on ? .medium : .regular)).foregroundStyle(on ? .white : Theme.muted)
+                                .frame(maxWidth: .infinity).frame(height: 44)
+                                .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Color.clear)))
                         }.buttonStyle(.plain)
                     }
                 }.padding(4).background(Capsule().fill(Theme.surface))
             } else {
                 HStack(spacing: 0) {
-                    ForEach(Sections.all, id: \.key) { g in
+                    ForEach(shown, id: \.key) { g in
                         let on = shop.gender == g.key
                         Button { pick(g.key) } label: {
-                            HStack(alignment: .top, spacing: 3) {
-                                Text(g.name).font(Theme.font(14)).kerning(0.4).foregroundStyle(on ? Theme.accent : Theme.muted)
-                                if open[g.key] == false { Text("скоро").font(Theme.font(9)).foregroundStyle(on ? Theme.accent : Theme.dim).offset(y: -3) }
-                            }
-                            .padding(.vertical, 12)
-                            .overlay(alignment: .bottom) { Capsule().fill(Theme.accent).frame(height: 2).scaleEffect(x: on ? 1 : 0, anchor: .leading) }
-                            .frame(maxWidth: .infinity)
+                            Text(g.name).font(Theme.font(14)).kerning(0.4).foregroundStyle(on ? Theme.accent : Theme.muted)
+                                .padding(.vertical, 12)
+                                .overlay(alignment: .bottom) { Capsule().fill(Theme.accent).frame(height: 2).scaleEffect(x: on ? 1 : 0, anchor: .leading) }
+                                .frame(maxWidth: .infinity)
                         }.buttonStyle(.plain)
                     }
                 }

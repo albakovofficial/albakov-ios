@@ -61,6 +61,8 @@ final class Shop: ObservableObject {
         sizeCharts = d["sizeCharts"].array.map(SizeChart.init)
         pages = d["pages"].array.map(Page.init)
         hitIds = d["hits"].array.compactMap { $0.string }
+        // Закрытые разделы не показываются (1.0.0): если покупатель был в закрытом разделе — показываем всю коллекцию
+        if closed(gender) { gender = nil }
         payReady = d["payReady"].bool; cdekReady = d["cdekReady"].bool
         giftCfg = d["giftCfg"]
     }
