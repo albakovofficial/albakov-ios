@@ -27,8 +27,8 @@ struct SiteHeader: View {
             .padding(.horizontal, 10).frame(height: 76)
             if genders { GenderTabs() }
         }
-        .background(Color.white)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
+        // Линия под шапкой — под содержимым: черта выбранного раздела ложится поверх неё, а не наоборот
+        .background(alignment: .bottom) { Color.white.overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) } }
     }
     private func icon(_ name: String, count: Int = 0, _ a: @escaping () -> Void) -> some View {
         Button { Haptic.tap(); a() } label: {
@@ -77,7 +77,7 @@ struct GenderTabs: View {
                                 if open[g.key] == false { Text("скоро").font(Theme.font(9)).foregroundStyle(on ? Theme.accent : Theme.dim).offset(y: -3) }
                             }
                             .padding(.vertical, 12)
-                            .overlay(alignment: .bottom) { Rectangle().fill(Theme.accent).frame(height: 1.5).scaleEffect(x: on ? 1 : 0, anchor: .leading) }
+                            .overlay(alignment: .bottom) { Capsule().fill(Theme.accent).frame(height: 2).scaleEffect(x: on ? 1 : 0, anchor: .leading) }
                             .frame(maxWidth: .infinity)
                         }.buttonStyle(.plain)
                     }
@@ -127,7 +127,7 @@ struct MenuDrawer: View {
                 tiles
                 if !shop.settings.socials.isEmpty {
                     HStack(spacing: 10) {
-                        ForEach(shop.settings.socials) { s in if let u = URL(string: s.url) { Link(destination: u) { SocialIcon(name: s.name, url: s.url, size: 42) } } }
+                        ForEach(shop.settings.socials) { s in if let u = URL(string: s.url) { Link(destination: u) { SocialIcon(name: s.name, url: s.url, size: 34) } } }
                         Spacer()
                         Text("Мы в соцсетях").font(Theme.font(13)).foregroundStyle(Theme.muted)
                     }
@@ -226,7 +226,7 @@ struct MenuDrawer: View {
     }
 }
 
-/// Значок соцсети в фирменном цвете
+/// Значок соцсети в фирменном цвете — сам логотип, без белой подложки (как на сайте)
 struct SocialIcon: View {
     let name: String, url: String
     var size: CGFloat = 36
@@ -240,18 +240,25 @@ struct SocialIcon: View {
         return "web"
     }
     var body: some View {
-        let k = kind
+        let r = size * 9 / 32   // скругление как у логотипов на сайте (rx 9 из 32)
         ZStack {
-            switch k {
-            case "tg": Circle().fill(Color(hex: "#2aabee")); Image(systemName: "paperplane.fill").font(.system(size: size * 0.32)).foregroundStyle(.white).offset(x: -1)
-            case "vk": RoundedRectangle(cornerRadius: size * 0.22).fill(Color(hex: "#0077ff")); Text("VK").font(.system(size: size * 0.3, weight: .bold)).foregroundStyle(.white)
-            case "ig": RoundedRectangle(cornerRadius: size * 0.26).fill(LinearGradient(colors: [Color(hex: "#feda75"), Color(hex: "#d62976"), Color(hex: "#4f5bd5")], startPoint: .bottomLeading, endPoint: .topTrailing)); Image(systemName: "camera").font(.system(size: size * 0.32)).foregroundStyle(.white)
-            case "yt": RoundedRectangle(cornerRadius: size * 0.22).fill(Color(hex: "#ff0000")); Image(systemName: "play.fill").font(.system(size: size * 0.3)).foregroundStyle(.white)
-            default: Circle().fill(Theme.ink); Image(systemName: "globe").font(.system(size: size * 0.36)).foregroundStyle(.white)
+            switch kind {
+            case "tg": Circle().fill(Color(hex: "#2aabee")); Image(systemName: "paperplane.fill").font(.system(size: size * 0.42)).foregroundStyle(.white).offset(x: -size * 0.03)
+            case "vk": RoundedRectangle(cornerRadius: r).fill(Color(hex: "#0077ff")); Text("VK").font(.system(size: size * 0.38, weight: .bold)).foregroundStyle(.white)
+            case "ig":
+                RoundedRectangle(cornerRadius: r)
+                    .fill(RadialGradient(stops: [.init(color: Color(hex: "#fdf497"), location: 0.05), .init(color: Color(hex: "#fd5949"), location: 0.45),
+                                                 .init(color: Color(hex: "#d6249f"), location: 0.6), .init(color: Color(hex: "#285aeb"), location: 0.9)],
+                                         center: UnitPoint(x: 0.3, y: 1.07), startRadius: 0, endRadius: size * 1.5))
+                // Камера Instagram: рамка, объектив, точка вспышки — тонкие белые линии
+                RoundedRectangle(cornerRadius: size * 0.15).strokeBorder(.white, lineWidth: size * 0.06).frame(width: size * 0.53, height: size * 0.53)
+                Circle().strokeBorder(.white, lineWidth: size * 0.06).frame(width: size * 0.27, height: size * 0.27)
+                Circle().fill(.white).frame(width: size * 0.075, height: size * 0.075).offset(x: size * 0.16, y: -size * 0.16)
+            case "yt": RoundedRectangle(cornerRadius: r).fill(Color(hex: "#ff0000")); Image(systemName: "play.fill").font(.system(size: size * 0.38)).foregroundStyle(.white)
+            default: Circle().fill(Theme.ink); Image(systemName: "globe").font(.system(size: size * 0.46)).foregroundStyle(.white)
             }
         }
-        .frame(width: size * 0.62, height: size * 0.62)
-        .frame(width: size, height: size).background(RoundedRectangle(cornerRadius: size * 0.3).fill(.white)).hairline(RoundedRectangle(cornerRadius: size * 0.3), 0.09)
+        .frame(width: size, height: size)
     }
 }
 
@@ -310,8 +317,8 @@ struct Footer: View {
                     ForEach(s.socials) { x in
                         if let u = URL(string: x.url) {
                             Link(destination: u) {
-                                HStack(spacing: 8) { SocialIcon(name: x.name, url: x.url, size: 30).environment(\.colorScheme, .dark); Text(x.name).font(Theme.font(14)).foregroundStyle(.white) }
-                                    .padding(.leading, 4).padding(.trailing, 14).padding(.vertical, 4)
+                                HStack(spacing: 8) { SocialIcon(name: x.name, url: x.url, size: 26); Text(x.name).font(Theme.font(14)).foregroundStyle(.white) }
+                                    .padding(.leading, 6).padding(.trailing, 14).padding(.vertical, 6)
                                     .background(Capsule().fill(.white.opacity(0.06))).overlay(Capsule().strokeBorder(.white.opacity(0.12)))
                             }
                         }

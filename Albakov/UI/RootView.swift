@@ -52,8 +52,10 @@ struct MainTabs: View {
             stack(.account) { AccountView() }.tag(Tab.account)
         }
         .tint(Theme.ink)
-        // Своё нижнее меню (13.63): белая капсула, выбранная вкладка — пилюля цвета раздела
-        .safeAreaInset(edge: .bottom, spacing: 0) { AppTabBar(selection: tabBinding) }
+        // Своё нижнее меню (13.63): белая капсула, выбранная вкладка — пилюля цвета раздела.
+        // Рисуется поверх вкладок, а место под него каждая страница оставляет сама (BarSpace):
+        // отступ снаружи TabView до страниц не доходит — кнопки внизу экрана прятались под меню
+        .overlay(alignment: .bottom) { AppTabBar(selection: tabBinding) }
         .overlay { drawer }
     }
 
@@ -83,13 +85,23 @@ struct MainTabs: View {
                 .toolbar(.hidden, for: .tabBar)
                 .safeAreaInset(edge: .top, spacing: 0) { SiteHeader(tab: t) }
                 .overlay(alignment: .bottomTrailing) { if [.home, .catalog, .favorites].contains(t) { ChatFab().padding(.trailing, 14).padding(.bottom, 14) } }
-                .navigationDestination(for: Dest.self) { DestView(dest: $0).toolbar(.hidden, for: .tabBar) }
+                .modifier(BarSpace())
+                .navigationDestination(for: Dest.self) { DestView(dest: $0).toolbar(.hidden, for: .tabBar).modifier(BarSpace()) }
         }
+    }
+}
+
+/// Место под нижнее меню: содержимое прокручивается под ним, а кнопки внизу экрана стоят над ним
+private struct BarSpace: ViewModifier {
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: AppTabBar.height).allowsHitTesting(false) }
     }
 }
 
 /// Нижнее меню (вариант A): значки тонкие; выбранная вкладка — пилюля цвета раздела с подписью; счётчик корзины и ответов поддержки
 struct AppTabBar: View {
+    /// Высота меню вместе с отступом снизу: пилюля 46 + поля 6 + 6 + 4
+    static let height: CGFloat = 62
     @Binding var selection: Tab
     @EnvironmentObject private var shop: Shop
     private let items: [(Tab, String, String)] = [(.home, "Главная", "house"), (.catalog, "Каталог", "square.grid.2x2"), (.favorites, "Избранное", "heart"), (.cart, "Корзина", "bag"), (.account, "Кабинет", "person")]
@@ -101,12 +113,13 @@ struct AppTabBar: View {
                 Button { Haptic.tap(); selection = it.0 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: it.2).font(.system(size: 19, weight: .light))
-                        if on { Text(it.1).font(Theme.font(13, .medium)).lineLimit(1).fixedSize() }
+                        if on { Text(it.1).font(Theme.font(13, .medium)).lineLimit(1) }
                     }
                     .foregroundStyle(on ? .white : Theme.text)
-                    .padding(.horizontal, on ? 15 : 0).frame(minWidth: 46).frame(height: 46)
+                    .padding(.horizontal, on ? 16 : 0).frame(minWidth: 46).frame(height: 46)
+                    // Выбранная пилюля всегда по ширине подписи — подпись не вылезает за край
+                    .fixedSize()
                     .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Color.clear)))
-                    .shadow(color: on ? Theme.accent.opacity(0.35) : .clear, radius: 8, y: 6)
                     .overlay(alignment: .topTrailing) {
                         if n > 0 {
                             Text("\(n)").font(Theme.font(10, .semibold)).foregroundStyle(.white).padding(.horizontal, 4).frame(minWidth: 17, minHeight: 17)
@@ -114,13 +127,15 @@ struct AppTabBar: View {
                         }
                     }
                     .frame(maxWidth: on ? nil : .infinity)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .layoutPriority(on ? 1 : 0)
                 .accessibilityLabel(it.1)
             }
         }
         .padding(6)
-        .background(Capsule().fill(.white).shadow(color: Theme.ink.opacity(0.18), radius: 16, y: 8))
+        .background(Capsule().fill(.white).shadow(color: Theme.ink.opacity(0.07), radius: 14, y: 4))
         .overlay(Capsule().strokeBorder(Theme.ink.opacity(0.07), lineWidth: 1))
         .padding(.horizontal, 12).padding(.bottom, 4)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selection)
