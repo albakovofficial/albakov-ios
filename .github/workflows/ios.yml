@@ -71,6 +71,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.screens
     runs-on: ${{ inputs.runner || 'macos-26' }}
     timeout-minutes: 40
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Выбрать Xcode 26
@@ -97,10 +99,13 @@ jobs:
             sleep 9
             xcrun simctl io "$UDID" screenshot "shots/$(printf %02d $i).png" >/dev/null 2>&1
           done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: screens
-          path: shots
+      # Хранилище артефактов GitHub бывает переполнено — кладём снимки в ветку screens этого репозитория
+      - name: Сохранить снимки в ветку screens
+        run: |
+          for f in shots/*.png; do sips -Z 1000 "$f" >/dev/null; done
+          cd shots && git init -q && git checkout -q -b screens
+          git -c user.name=ci -c user.email=ci@albakovofficial.ru add . && git -c user.name=ci -c user.email=ci@albakovofficial.ru commit -qm "Снимки ${{ github.sha }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screens
 
   testflight:
     name: TestFlight
