@@ -24,7 +24,7 @@ struct CatalogRootView: View {
                 .padding(.horizontal, Theme.gutter)
             }
         }
-        .navigationTitle("Каталог")
+        .navigationTitle("Каталог").navigationBarTitleDisplayMode(.inline)
         .refreshable { await shop.load() }
     }
     private func row(_ title: String, count: Int, accent: Bool = false, _ go: @escaping () -> Void) -> some View {
@@ -174,7 +174,7 @@ struct FavoritesView: View {
                 EmptyState(icon: "heart", title: "Пока пусто", text: "Нажимайте на сердечко у товаров — они сохранятся здесь", button: "В каталог") { router.reset(.catalog) }.padding(.top, 60)
             } else { ProductGrid(products: list).padding(.vertical, 12) }
         }
-        .navigationTitle("Избранное")
+        .navigationTitle("Избранное").navigationBarTitleDisplayMode(.inline)
     }
 }
 

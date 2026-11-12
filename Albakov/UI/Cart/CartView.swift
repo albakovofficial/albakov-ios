@@ -17,10 +17,10 @@ struct CartView: View {
                         ForEach(shop.cart) { line in CartRow(line: line, q: quoteLine(line)) }
                     }.padding(.horizontal, Theme.gutter)
                     VStack(spacing: 10) {
-                        sumRow("Товары", Fmt.rub(quote["subtotal"].int ?? 0))
+                        sumRow("Товары", Fmt.rub(quote["baseTotal"].int ?? quote["subtotal"].int ?? 0))
                         if let d = quote["saleDiscount"].int, d > 0 { sumRow("Скидка", "−" + Fmt.rub(d), Theme.danger) }
                         Divider1()
-                        HStack { Text("Итого").font(Theme.font(18, .medium)); Spacer(); Text(Fmt.rub((quote["subtotal"].int ?? 0) - (quote["saleDiscount"].int ?? 0))).font(Theme.font(18, .medium)) }
+                        HStack { Text("Итого").font(Theme.font(18, .medium)); Spacer(); Text(Fmt.rub(quote["subtotal"].int ?? 0)).font(Theme.font(18, .medium)) }
                         if let b = quote["bonusEarn"].int, b > 0 { Text("+\(b) бонусов за заказ").font(Theme.font(13)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .leading) }
                         Text("Доставка и промокод — на следующем шаге").font(Theme.font(12.5)).foregroundStyle(Theme.dim).frame(maxWidth: .infinity, alignment: .leading)
                     }.padding(Theme.gutter).padding(.bottom, 100)
@@ -31,7 +31,7 @@ struct CartView: View {
                 }
             }
         }
-        .navigationTitle("Корзина")
+        .navigationTitle("Корзина").navigationBarTitleDisplayMode(.inline)
         .task(id: shop.cart) { await recalc() }
     }
 

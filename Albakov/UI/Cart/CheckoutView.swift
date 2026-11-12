@@ -139,7 +139,7 @@ struct CheckoutView: View {
     }
     private var summary: some View {
         VStack(spacing: 10) {
-            row("Товары", Fmt.rub(quote["subtotal"].int ?? 0))
+            row("Товары", Fmt.rub(quote["baseTotal"].int ?? quote["subtotal"].int ?? 0))
             if let v = quote["saleDiscount"].int, v > 0 { row("Скидка", "−" + Fmt.rub(v), Theme.danger) }
             if let v = quote["promoDiscount"].int, v > 0 { row("Промокод", "−" + Fmt.rub(v), Theme.danger) }
             if let v = quote["bonusUsed"].int, v > 0 { row("Бонусы", "−" + Fmt.rub(v), Theme.danger) }

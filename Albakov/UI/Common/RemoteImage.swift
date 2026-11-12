@@ -44,7 +44,8 @@ struct RemoteImage: View {
 
     var body: some View {
         let url = API.shared.url(path)
-        ZStack {
+        // Фото занимает ровно отведённое место: при заполнении лишнее обрезается и не раздвигает карточку
+        Color.clear.overlay {
             if let img = image ?? url.flatMap({ ImageCache.shared.cached($0) }) {
                 Image(uiImage: img).resizable().aspectRatio(contentMode: contentMode).transition(.opacity)
             } else {

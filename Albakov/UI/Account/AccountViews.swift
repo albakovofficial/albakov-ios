@@ -49,7 +49,7 @@ struct AccountView: View {
                 AuthView()
             }
         }
-        .navigationTitle("Кабинет")
+        .navigationTitle("Кабинет").navigationBarTitleDisplayMode(.inline)
     }
 
     private func link(_ t: String, _ icon: String, _ d: Dest, badge: Int = 0) -> some View {
@@ -278,7 +278,7 @@ struct OrderView: View {
                     info("Получатель", [o.customerName, Fmt.phone(o.phone), o.email].filter { !$0.isEmpty }.joined(separator: "\n"))
                     info("Оплата", "\(o.payMethodText) · \(o.payStatusText)")
                     VStack(spacing: 8) {
-                        line("Товары", Fmt.rub(o.subtotal))
+                        line("Товары", Fmt.rub(o.subtotal + o.saleDiscount))
                         if o.saleDiscount + o.promoDiscount > 0 { line("Скидка", "−" + Fmt.rub(o.saleDiscount + o.promoDiscount)) }
                         if o.bonusUsed > 0 { line("Бонусы", "−" + Fmt.rub(o.bonusUsed)) }
                         line("Доставка", o.deliveryPrice == 0 ? "Бесплатно" : Fmt.rub(o.deliveryPrice))
