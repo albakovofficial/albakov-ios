@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 // Товары в панели — как на сайте: все поля, плашки, цвета с фото и остатками по размерам, характеристики,
 // мерки для подбора размера, предзаказ, образ; приход товара, массовые изменения, остатки в Excel.
+@MainActor
 enum AdminProduct {
     @MainActor static var cfg: CollectionCfg {
         CollectionCfg(key: "products", prefix: "p", title: "Товары", newTitle: "Новый товар", addLabel: "Добавить товар",

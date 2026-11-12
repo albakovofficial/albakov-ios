@@ -2,6 +2,7 @@ import SwiftUI
 
 // Разделы панели как на сайте (SECTIONS в public/js/admin.js): ключ раздела → экран.
 // Права: SECTION_PERMS — раздел виден, если у роли есть хотя бы одно из прав.
+@MainActor
 enum AdminSections {
     static let list: [(key: String, title: String, icon: String)] = [
         ("overview", "Обзор", "chart.bar"), ("orders", "Заказы", "shippingbox"), ("support", "Поддержка", "bubble.left.and.text.bubble.right"),

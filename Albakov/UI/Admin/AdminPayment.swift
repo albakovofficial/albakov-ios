@@ -16,7 +16,7 @@ struct AdminPayment: View {
     @State private var cdekId = ""
     @State private var cdekSecret = ""
     @State private var cdekTest = false
-    @State private var cdekState: (String, Bool)?
+    @State private var cdekState: (String, Bool?)?
     @State private var addKind = false
     private static let tax = [(1, "ОСН — общая система"), (2, "УСН «Доходы»"), (3, "УСН «Доходы минус расходы»"), (5, "ЕСХН"), (6, "Патентная система")]
     private static let vat = [(1, "Без НДС"), (2, "НДС 0%"), (7, "НДС 5%"), (8, "НДС 7%"), (3, "НДС 10%"), (4, "НДС 20% (до 2026)"), (11, "НДС 22%")]
@@ -67,7 +67,7 @@ struct AdminPayment: View {
                 Field(label: "Secure password (секретный ключ)", text: $cdekSecret, placeholder: "Вставьте ключ", secure: true, capitalization: .never)
                 Toggle("Тестовая среда СДЭК (только для проверки, данные учебные)", isOn: $cdekTest).font(Theme.font(14)).tint(Theme.ink)
                 GhostButton(title: "Сохранить и проверить", height: 44) { Task { await saveCdek() } }
-                stateLine(cdekState?.0 ?? (shop.cdekReady ? "Ключи сохранены — подбор пунктов работает" : "Не подключено — покупатели вводят адрес пункта вручную"), cdekState?.1 ?? shop.cdekReady)
+                stateLine(cdekState?.0 ?? (shop.cdekReady ? "Ключи сохранены — подбор пунктов работает" : "Не подключено — покупатели вводят адрес пункта вручную"), cdekState == nil ? shop.cdekReady : cdekState!.1)
             }.padding(16).softCard(20)
             CdekShipCard()
         }
