@@ -63,7 +63,7 @@ struct GenderTabs: View {
                             }
                             .frame(maxWidth: .infinity).frame(height: 44)
                             .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Color.clear)))
-                            .shadow(color: on ? Theme.accent.opacity(0.35) : .clear, radius: 8, y: 6)
+                            .compositingGroup().shadow(color: on ? Theme.accent.opacity(0.35) : .clear, radius: 8, y: 6)
                         }.buttonStyle(.plain)
                     }
                 }.padding(4).background(Capsule().fill(Theme.surface))
@@ -193,7 +193,7 @@ struct MenuDrawer: View {
             .foregroundStyle(sale ? .white : Theme.text)
             .background(RoundedRectangle(cornerRadius: 22).fill(sale ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Theme.tile)))
             .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(sale ? .clear : Theme.ink.opacity(0.06), lineWidth: 1))
-            .shadow(color: sale ? Theme.accent.opacity(0.35) : .clear, radius: 14, y: 10)
+            .compositingGroup().shadow(color: sale ? Theme.accent.opacity(0.35) : .clear, radius: 14, y: 10)
         }.buttonStyle(Pressable())
     }
     private func quick(_ icon: String, _ t: String, count: Int = 0, _ a: @escaping () -> Void) -> some View {

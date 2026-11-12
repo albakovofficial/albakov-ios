@@ -81,8 +81,8 @@ struct MainTabs: View {
         ZStack(alignment: .leading) {
             if router.menuOpen {
                 Color.black.opacity(0.35).ignoresSafeArea().onTapGesture { router.menuOpen = false }.transition(.opacity)
+                // Без тени: тень на меню ложилась на каждую плитку внутри — между плитками проступал серый фон
                 MenuDrawer().frame(width: min(UIScreen.main.bounds.width * 0.9, 380)).ignoresSafeArea(edges: .bottom)
-                    .shadow(color: .black.opacity(0.18), radius: 30, x: 10)
                     .transition(.move(edge: .leading))
                     .gesture(DragGesture().onEnded { if $0.translation.width < -60 { router.menuOpen = false } })
             }
