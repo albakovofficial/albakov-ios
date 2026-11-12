@@ -23,6 +23,10 @@ on:
         description: 'Снимки для App Store: экраны покупателя, полный размер iPhone Pro Max, раздел «Мужчинам»'
         type: boolean
         default: false
+      store_paths:
+        description: 'Снимки для App Store: только эти экраны через пробел (пусто — все)'
+        type: string
+        default: ''
       runner:
         description: 'Mac на GitHub (по умолчанию Intel: Mac на Apple Silicon у GitHub часто в очереди)'
         type: choice
@@ -92,6 +96,7 @@ jobs:
       - name: Снять экраны
         env:
           STORE: ${{ inputs.store }}
+          PATHS: ${{ inputs.store_paths }}
         run: |
           # App Store: Pro Max (1320×2868 — размер 6,9"); проверка дизайна: обычный Pro
           if [ "$STORE" = "true" ]; then export WANT=Max; else export WANT=; fi
@@ -103,11 +108,11 @@ jobs:
           mkdir -p shots; i=0
           if [ "$STORE" = "true" ]; then
             # Только экраны покупателя; покупательница вымышленная (demo=buyer), панели управления нет
-            for S in / /menu /product/FIRST /catalog "/cart?demo=1" "/checkout?demo=1" "/account?demo=buyer" "/order/d1?demo=buyer" \
-                     "/account?tab=bonus&demo=buyer" "/account?tab=support&id=t1&demo=buyer" /gift /track /sizes; do
+            LIST='/ /menu /product/FIRST /catalog /cart?demo=1 /checkout?demo=1 /account?demo=buyer /order/d1?demo=buyer /account?tab=bonus&demo=buyer /account?tab=support&id=t1&demo=buyer /gift /track /sizes'
+            for S in ${PATHS:-$LIST}; do
               i=$((i+1))
               xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -screen "$S" -gender men >/dev/null
-              sleep 10
+              sleep 20
               xcrun simctl io "$UDID" screenshot "shots/$(printf %02d $i).png" >/dev/null 2>&1
             done
           else
