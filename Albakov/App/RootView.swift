@@ -3,7 +3,6 @@ import SwiftUI
 struct RootView: View {
     @ObservedObject private var web = WebController.shared
     @EnvironmentObject private var router: Router
-    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         ZStack {
@@ -18,11 +17,6 @@ struct RootView: View {
             if web.failed {
                 OfflineView { web.retry() }
                     .transition(.opacity)
-            }
-            // Защита данных: в переключателе приложений и пока приложение не на экране — только знак ALBAKOV,
-            // без заказов, адресов и кабинета. Не закрываем, пока iPhone спрашивает разрешение на уведомления.
-            if phase != .active && !PushManager.shared.prompting {
-                PrivacyCover()
             }
         }
         .animation(.easeOut(duration: 0.35), value: web.ready)
@@ -71,15 +65,6 @@ struct SplashView: View {
             .frame(width: 150, height: 1)
         }
         .onAppear { withAnimation(.timingCurve(0.25, 0.7, 0.3, 1, duration: 2.6)) { progress = 0.82 } }
-    }
-}
-
-struct PrivacyCover: View {
-    var body: some View {
-        ZStack {
-            Color("LaunchBackground").ignoresSafeArea()
-            BrandMark()
-        }
     }
 }
 
