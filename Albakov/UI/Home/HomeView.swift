@@ -139,7 +139,7 @@ struct HeroSlider: View {
                         Button { router.open(path: s.btn1.1) } label: {
                             HStack(spacing: 12) { Text(s.btn1.0).font(Theme.font(14, .medium)).kerning(0.6).lineLimit(1); ArrowDot(size: 30) }
                                 .foregroundStyle(.white).padding(.leading, 16).padding(.trailing, 6).frame(height: 42)
-                                .background(Capsule().fill(Theme.dark)).shadow(color: Theme.dark.opacity(0.35), radius: 10, y: 8)
+                                .background(Capsule().fill(Theme.dark))
                         }.buttonStyle(Pressable()).padding(.top, 4)
                     }
                     if !s.btn2.0.isEmpty { LinkButton(title: s.btn2.0, arrow: true) { router.open(path: s.btn2.1) } }
@@ -304,7 +304,7 @@ struct BonusBand: View {
                         Spacer(minLength: 0)
                         Text("\(i + 1)").font(Theme.font(11)).foregroundStyle(Theme.dim)
                     }
-                    .padding(16).background(RoundedRectangle(cornerRadius: 18).fill(.white)).shadow(color: Theme.ink.opacity(0.06), radius: 10, y: 6)
+                    .padding(16).background(RoundedRectangle(cornerRadius: 18).fill(.white)).hairline(RoundedRectangle(cornerRadius: 18))
                 }
             }
             VStack(alignment: .leading, spacing: 12) {
@@ -347,7 +347,6 @@ struct LoyalCard: View {
             }.padding(20)
         }
         .frame(height: 200).clipShape(RoundedRectangle(cornerRadius: 22))
-        .shadow(color: .black.opacity(0.3), radius: 22, y: 16)
         .rotationEffect(.degrees(-2))
     }
 }

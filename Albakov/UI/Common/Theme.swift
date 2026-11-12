@@ -90,7 +90,7 @@ extension Color {
     }
 }
 
-// MARK: - Подложки и тени как на сайте: тонкая внутренняя линия + мягкая тень
+// MARK: - Подложки как на сайте: тонкая внутренняя линия, без теней (решение владельца 12.11)
 
 extension View {
     /// Внутренняя линия 1px (box-shadow: inset 0 0 0 1px rgba(18,20,23,a))
@@ -136,7 +136,6 @@ struct PrimaryButton: View {
             .overlay(alignment: .trailing) { if arrow && !busy { ArrowDot(size: height - 18).padding(.trailing, 9) } }
             .foregroundStyle(.white)
             .background(Capsule().fill(Theme.accentGradient).opacity(disabled ? 0.4 : 1))
-            .shadow(color: Theme.accent.opacity(disabled ? 0 : 0.3), radius: 12, y: 10)
         }
         .buttonStyle(Pressable())
         .disabled(busy || disabled)
@@ -218,7 +217,6 @@ struct Chip: View {
                 .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Theme.surface)))
                 .overlay(Capsule().strokeBorder(Theme.ink.opacity(on ? 0 : 0.07), lineWidth: 1))
                 .overlay(out ? Rectangle().fill(on ? Color.white.opacity(0.7) : Theme.dim.opacity(0.7)).frame(height: 1).rotationEffect(.degrees(-22)).padding(.horizontal, 10) : nil)
-                .shadow(color: Theme.accent.opacity(on ? 0.22 : 0), radius: 6, y: 3)
         }.buttonStyle(Pressable())
     }
 }
@@ -235,7 +233,6 @@ struct Eyebrow: View {
         }
         .padding(.leading, 10).padding(.trailing, 11).padding(.vertical, 6)
         .background(Capsule().fill(.white.opacity(0.85))).hairline(Capsule())
-        .shadow(color: Theme.ink.opacity(0.08), radius: 8, y: 6)
     }
 }
 
@@ -324,7 +321,6 @@ struct Badge: View {
         .foregroundStyle(filled ? Color.ink(on: color) : Theme.text)
         .background(Capsule().fill(filled ? AnyShapeStyle(LinearGradient(colors: [Color(hex: color).opacity(0.85), Color(hex: color)], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(Color.white.opacity(0.86))))
         .hairline(Capsule(), 0.06)
-        .shadow(color: .black.opacity(0.12), radius: 6, y: 4)
     }
 }
 
@@ -341,7 +337,7 @@ struct BonusPill: View {
     }
 }
 
-/// Сердечко (.fav-btn): белый кружок 32 с тенью
+/// Сердечко (.fav-btn): белый кружок 32 с тонкой линией
 struct FavCircle: View {
     let on: Bool
     var size: CGFloat = 32
@@ -351,7 +347,6 @@ struct FavCircle: View {
             Image(systemName: on ? "heart.fill" : "heart").font(.system(size: size * 0.4, weight: .regular))
                 .foregroundStyle(on ? Theme.accent : Theme.text)
                 .frame(width: size, height: size).background(Circle().fill(.white.opacity(0.94))).hairline(Circle())
-                .shadow(color: Theme.ink.opacity(0.18), radius: 8, y: 6)
         }.buttonStyle(Pressable())
     }
 }
@@ -396,7 +391,6 @@ struct AccordionCard<Content: View>: View {
         }
         .background(RoundedRectangle(cornerRadius: 18).fill(.white))
         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.lineStrong.opacity(0.9)))
-        .shadow(color: Color(hex: "#141416").opacity(open ? 0.12 : 0), radius: 18, y: 12)
     }
 }
 
@@ -477,7 +471,7 @@ struct EmptyState: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: icon).font(.system(size: 24, weight: .light)).foregroundStyle(Theme.accent)
-                .frame(width: 70, height: 70).background(Circle().fill(.white)).shadow(color: Theme.accent.opacity(0.18), radius: 16, y: 8)
+                .frame(width: 70, height: 70).background(Circle().fill(.white)).hairline(Circle())
             Text(title).font(Theme.font(26, .light)).kerning(-0.8).multilineTextAlignment(.center)
             Text(text).font(Theme.font(15)).foregroundStyle(Theme.muted).multilineTextAlignment(.center).lineSpacing(4)
             if let button, let action { PrimaryButton(title: button, action: action).frame(maxWidth: 230).padding(.top, 6) }
@@ -508,7 +502,7 @@ struct ToastView: View {
             if let t = toast.text {
                 Text(t).font(Theme.font(14, .medium)).foregroundStyle(.white).multilineTextAlignment(.center)
                     .padding(.horizontal, 18).padding(.vertical, 13)
-                    .background(Capsule().fill(Theme.dark)).shadow(color: .black.opacity(0.2), radius: 16, y: 8)
+                    .background(Capsule().fill(Theme.dark))
                     .padding(.horizontal, 24).padding(.bottom, 96).transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

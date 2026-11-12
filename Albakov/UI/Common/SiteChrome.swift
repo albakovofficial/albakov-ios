@@ -63,7 +63,6 @@ struct GenderTabs: View {
                             }
                             .frame(maxWidth: .infinity).frame(height: 44)
                             .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Color.clear)))
-                            .compositingGroup().shadow(color: on ? Theme.accent.opacity(0.35) : .clear, radius: 8, y: 6)
                         }.buttonStyle(.plain)
                     }
                 }.padding(4).background(Capsule().fill(Theme.surface))
@@ -111,7 +110,7 @@ struct MenuDrawer: View {
                 if shop.isStaff {
                     Button { go { router.reset(.account, to: [.admin]) } } label: {
                         HStack(spacing: 12) {
-                            IconTile(icon: "square.grid.2x2", size: 40, fill: .white).shadow(color: .black.opacity(0.08), radius: 8, y: 4)
+                            IconTile(icon: "square.grid.2x2", size: 40, fill: .white)
                             VStack(alignment: .leading, spacing: 1) { Text("Панель управления").font(Theme.font(15, .medium)); Text("Заказы, товары, финансы").font(Theme.font(12)).foregroundStyle(Theme.dim) }
                             Spacer(); Image(systemName: "arrow.right").font(.system(size: 13))
                         }.foregroundStyle(Theme.text).padding(12)
@@ -141,7 +140,7 @@ struct MenuDrawer: View {
                             let d = MenuDrawer.doc(p)
                             Button { go { router.push(.page(p.slug), on: .home) } } label: {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    IconTile(icon: d.icon, size: 36, fill: .white).shadow(color: .black.opacity(0.08), radius: 8, y: 5)
+                                    IconTile(icon: d.icon, size: 36, fill: .white)
                                     Spacer(minLength: 10)
                                     Text(d.title).font(Theme.font(14.5, .medium)).foregroundStyle(Theme.text).lineLimit(1).minimumScaleFactor(0.8)
                                     Text(d.sub).font(Theme.font(11.5)).foregroundStyle(Theme.muted).lineLimit(2).multilineTextAlignment(.leading)
@@ -193,7 +192,6 @@ struct MenuDrawer: View {
             .foregroundStyle(sale ? .white : Theme.text)
             .background(RoundedRectangle(cornerRadius: 22).fill(sale ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Theme.tile)))
             .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(sale ? .clear : Theme.ink.opacity(0.06), lineWidth: 1))
-            .compositingGroup().shadow(color: sale ? Theme.accent.opacity(0.35) : .clear, radius: 14, y: 10)
         }.buttonStyle(Pressable())
     }
     private func quick(_ icon: String, _ t: String, count: Int = 0, _ a: @escaping () -> Void) -> some View {
@@ -268,7 +266,7 @@ struct ChatFab: View {
     var body: some View {
         Button { Haptic.tap(); router.reset(.account, to: shop.user == nil ? [] : [.support]) } label: {
             Image(systemName: "text.bubble").font(.system(size: 18, weight: .light)).foregroundStyle(.white)
-                .frame(width: 50, height: 50).background(Circle().fill(Theme.accentGradient)).shadow(color: Theme.accent.opacity(0.35), radius: 12, y: 8)
+                .frame(width: 50, height: 50).background(Circle().fill(Theme.accentGradient))
                 .overlay(alignment: .topTrailing) {
                     if let n = shop.user?.supportUnread, n > 0 { Circle().fill(Color.white).frame(width: 12, height: 12).overlay(Circle().strokeBorder(Theme.accent, lineWidth: 3)) }
                 }

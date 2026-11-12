@@ -216,7 +216,7 @@ struct CheckoutView: View {
                 applied.wrappedValue = applied.wrappedValue.isEmpty ? text.wrappedValue.trimmingCharacters(in: .whitespaces) : ""
                 if applied.wrappedValue.isEmpty { text.wrappedValue = "" }
             }
-            .font(Theme.font(14, .medium)).foregroundStyle(Theme.text).padding(.horizontal, 18).frame(height: 50).background(Capsule().fill(.white)).shadow(color: Theme.ink.opacity(0.06), radius: 6, y: 3)
+            .font(Theme.font(14, .medium)).foregroundStyle(Theme.text).padding(.horizontal, 18).frame(height: 50).background(Capsule().fill(.white)).hairline(Capsule(), 0.1)
         }
     }
     private func deliveryPrice(_ m: DeliveryMethod) -> String? {

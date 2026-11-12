@@ -81,7 +81,6 @@ struct MainTabs: View {
         ZStack(alignment: .leading) {
             if router.menuOpen {
                 Color.black.opacity(0.35).ignoresSafeArea().onTapGesture { router.menuOpen = false }.transition(.opacity)
-                // Без тени: тень на меню ложилась на каждую плитку внутри — между плитками проступал серый фон
                 MenuDrawer().frame(width: min(UIScreen.main.bounds.width * 0.9, 380)).ignoresSafeArea(edges: .bottom)
                     .transition(.move(edge: .leading))
                     .gesture(DragGesture().onEnded { if $0.translation.width < -60 { router.menuOpen = false } })
@@ -152,7 +151,7 @@ struct AppTabBar: View {
             }
         }
         .padding(6)
-        .background(Capsule().fill(.white).shadow(color: Theme.ink.opacity(0.07), radius: 14, y: 4))
+        .background(Capsule().fill(.white))
         .overlay(Capsule().strokeBorder(Theme.ink.opacity(0.07), lineWidth: 1))
         .padding(.horizontal, 12).padding(.bottom, 4)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selection)
@@ -291,7 +290,6 @@ struct UpdateSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 14) {
                 Image("AppIconSmall").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 15))
-                    .shadow(color: Theme.accent.opacity(0.25), radius: 12, y: 6)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ALBAKOV").font(Theme.font(12, .medium)).kerning(1.6).foregroundStyle(Theme.muted)
                     Text("Версия \(info.version)").font(Theme.font(13, .medium)).foregroundStyle(.white)

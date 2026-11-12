@@ -255,7 +255,7 @@ struct SearchView: View {
                 .padding(.horizontal, 16).frame(height: 52)
                 .background(RoundedRectangle(cornerRadius: 14).fill(.white))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.ink, lineWidth: 1))
-                .shadow(color: Theme.accent.opacity(0.12), radius: 0, x: 0, y: 0).padding(.horizontal, Theme.gutter)
+                .padding(.horizontal, Theme.gutter)
                 if q.count >= 2 && results.isEmpty {
                     EmptyState(icon: "magnifyingglass", title: "Ничего не нашлось", text: "Проверьте написание или поищите по-другому")
                 } else if !results.isEmpty {

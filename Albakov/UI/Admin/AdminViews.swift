@@ -93,7 +93,6 @@ struct AdminHomeView: View {
             }
             .foregroundStyle(.white).padding(16)
             .background(RoundedRectangle(cornerRadius: 24).fill(Theme.accentGradient).overlay(RoundedRectangle(cornerRadius: 24).fill(RadialGradient(colors: [.white.opacity(0.14), .clear], center: .topLeading, startRadius: 0, endRadius: 240))))
-            .shadow(color: Theme.accent.opacity(0.35), radius: 16, y: 10)
         }.buttonStyle(Pressable())
     }
     private func kpi(_ v: String, _ l: String) -> some View {

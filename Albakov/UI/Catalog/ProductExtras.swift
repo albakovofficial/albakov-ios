@@ -207,7 +207,6 @@ struct FitCheckCard: View {
             .padding(.leading, 14).padding([.top, .bottom, .trailing], 18)
             .background(RoundedRectangle(cornerRadius: 22).fill(RadialGradient(colors: [Color(hex: "#f6f3ee"), .white], center: .topLeading, startRadius: 0, endRadius: 260)))
             .hairline(RoundedRectangle(cornerRadius: 22))
-            .shadow(color: Theme.ink.opacity(0.08), radius: 20, y: 14)
         }
     }
 }

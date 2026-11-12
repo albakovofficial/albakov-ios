@@ -65,7 +65,6 @@ struct AccountView: View {
         .foregroundStyle(.white).padding(18).frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26).fill(Theme.accentGradient)
             .overlay(RoundedRectangle(cornerRadius: 26).fill(RadialGradient(colors: [.white.opacity(0.18), .clear], center: .topLeading, startRadius: 0, endRadius: 260))))
-        .shadow(color: Theme.accent.opacity(0.35), radius: 18, y: 12)
     }
     private var ordersSub: String {
         let active = orders.filter { !["done", "canceled", "returned"].contains($0.status) }.count
@@ -135,7 +134,7 @@ struct AccountView: View {
         default:
             if orders.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    IconTile(icon: "bag", size: 44, fill: .white, tint: Theme.accent).shadow(color: .black.opacity(0.08), radius: 8, y: 5).padding(.bottom, 4)
+                    IconTile(icon: "bag", size: 44, fill: .white, tint: Theme.accent).padding(.bottom, 4)
                     Text("Заказов пока нет").font(Theme.font(19, .medium))
                     Text("Здесь появятся ваши покупки и где каждая из них сейчас").font(Theme.font(13.5)).foregroundStyle(Theme.muted).lineSpacing(3)
                     PrimaryButton(title: "Перейти в каталог", height: 46) { router.reset(.catalog) }.frame(width: 210).padding(.top, 6)
