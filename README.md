@@ -23,6 +23,7 @@ Albakov/UI/Admin/       панель: заказы, поддержка, това
 ## Сборка
 
 - **Каждый push в `main`** — проверочная сборка под симулятор.
+- **Снимки экранов** — Actions → iOS → Run workflow → «Снять экраны»: 14 экранов в симуляторе, картинки в ветке `screens`. Кабинет и панель снимаются на вымышленных данных (`demo=staff`, только сборка Debug — в TestFlight этого кода нет), боевые заказы не создаются.
 - **TestFlight** — Actions → iOS → Run workflow → «TestFlight» (или тег `V2.0.1`). Номер сборки растёт сам.
 - Секреты: `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`.
 

@@ -56,6 +56,13 @@ final class API {
     }
 
     func raw(_ method: String, _ path: String, body: [String: Any]? = nil, query: [String: String] = [:]) async throws -> Data {
+        #if DEBUG
+        if Demo.on, let d = try await Demo.answer(method, path, real: { try await send(method, path, body: body, query: query) }) { return d }
+        #endif
+        return try await send(method, path, body: body, query: query)
+    }
+
+    private func send(_ method: String, _ path: String, body: [String: Any]?, query: [String: String]) async throws -> Data {
         var comps = URLComponents(url: base.appendingPathComponent("api/" + path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) } }
         var req = URLRequest(url: comps.url!)

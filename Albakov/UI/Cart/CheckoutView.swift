@@ -19,6 +19,9 @@ struct CheckoutView: View {
     @State private var payment = "online"
     @State private var code = ""
     @State private var appliedCode = ""
+    @State private var gift = ""
+    @State private var appliedGift = ""
+    @State private var showGift = false
     @State private var useBonus = false
     @State private var comment = ""
     @State private var consent = false
@@ -75,13 +78,22 @@ struct CheckoutView: View {
                 }
 
                 block("Промокод и бонусы") {
-                    HStack(spacing: 10) {
-                        TextField("Промокод", text: $code).font(Theme.font(16)).textInputAutocapitalization(.characters).autocorrectionDisabled()
-                            .padding(.horizontal, 14).frame(height: 50).background(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line))
-                        Button(appliedCode.isEmpty ? "Применить" : "Убрать") { appliedCode = appliedCode.isEmpty ? code.trimmingCharacters(in: .whitespaces) : ""; if appliedCode.isEmpty { code = "" } }
-                            .font(Theme.font(14, .medium)).foregroundStyle(Theme.text).padding(.horizontal, 16).frame(height: 50).background(Capsule().strokeBorder(Theme.line))
-                    }
+                    codeField("Промокод", text: $code, applied: $appliedCode)
                     if let m = quote["promo"]["message"].string, !appliedCode.isEmpty { Text(m).font(Theme.font(13)).foregroundStyle(quote["promo"]["ok"].bool ? Theme.ok : Theme.danger) }
+                    if shop.giftEnabled {
+                        if showGift || !appliedGift.isEmpty {
+                            codeField("GIFT-XXXX-XXXX", text: $gift, applied: $appliedGift)
+                            if !appliedGift.isEmpty, quote["gift"].exists {
+                                let ok = quote["gift"]["ok"].bool
+                                VStack(alignment: .leading, spacing: 2) {
+                                    if ok { Text("Сертификат \(quote["gift"]["code"].str) — спишем \(Fmt.rub(quote["giftUsed"].int ?? 0))").font(Theme.font(13.5, .medium)).foregroundStyle(Theme.ok) }
+                                    Text(quote["gift"]["message"].str).font(Theme.font(13)).foregroundStyle(ok ? Theme.muted : Theme.danger)
+                                }
+                            }
+                        } else {
+                            Button { withAnimation { showGift = true } } label: { Label("Есть подарочный сертификат?", systemImage: "gift").font(Theme.font(14.5)).foregroundStyle(Theme.text) }
+                        }
+                    }
                     if let u = shop.user, u.bonus > 0, shop.settings.bonusEnabled {
                         Toggle(isOn: $useBonus) { VStack(alignment: .leading, spacing: 2) { Text("Списать бонусы").font(Theme.font(15)); Text("На счёте \(u.bonus)").font(Theme.font(12.5)).foregroundStyle(Theme.muted) } }.tint(Theme.ink)
                     }
@@ -98,7 +110,7 @@ struct CheckoutView: View {
                     Text("Согласен на обработку персональных данных и с условиями оферты").font(Theme.font(13)).foregroundStyle(Theme.muted)
                 }.tint(Theme.ink)
                 ErrorText(text: error)
-                PrimaryButton(title: payment == "online" && onlineOk ? "Оплатить \(Fmt.rub(quote["total"].int ?? 0))" : "Оформить заказ", busy: busy, disabled: !consent) { Task { await place() } }
+                PrimaryButton(title: payment == "online" && onlineOk && !paidInFull ? "Оплатить \(Fmt.rub(quote["total"].int ?? 0))" : "Оформить заказ", busy: busy, disabled: !consent) { Task { await place() } }
                 HStack(spacing: 14) {
                     ForEach(["offer", "privacy", "consent"], id: \.self) { s in if let p = shop.page(s) { Button(p.title) { router.push(.page(s), on: .cart) }.font(Theme.font(11.5)).foregroundStyle(Theme.dim) } }
                 }
@@ -131,6 +143,19 @@ struct CheckoutView: View {
         }
         .padding(14).background(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line))
     }
+    /// Поле кода с кнопкой «Применить» / «Убрать» — для промокода и подарочного сертификата
+    private func codeField(_ placeholder: String, text: Binding<String>, applied: Binding<String>) -> some View {
+        HStack(spacing: 10) {
+            TextField(placeholder, text: text).font(Theme.font(16)).textInputAutocapitalization(.characters).autocorrectionDisabled()
+                .padding(.horizontal, 14).frame(height: 50).background(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line))
+                .onSubmit { applied.wrappedValue = text.wrappedValue.trimmingCharacters(in: .whitespaces) }
+            Button(applied.wrappedValue.isEmpty ? "Применить" : "Убрать") {
+                applied.wrappedValue = applied.wrappedValue.isEmpty ? text.wrappedValue.trimmingCharacters(in: .whitespaces) : ""
+                if applied.wrappedValue.isEmpty { text.wrappedValue = "" }
+            }
+            .font(Theme.font(14, .medium)).foregroundStyle(Theme.text).padding(.horizontal, 16).frame(height: 50).background(Capsule().strokeBorder(Theme.line))
+        }
+    }
     private func deliveryPrice(_ m: DeliveryMethod) -> String? {
         if m.id == deliveryId, let d = quote["delivery"]["price"].int { return d == 0 ? "Бесплатно" : Fmt.rub(d) }
         if m.priceAuto { return "по тарифу" }
@@ -143,13 +168,17 @@ struct CheckoutView: View {
             if let v = quote["saleDiscount"].int, v > 0 { row("Скидка", "−" + Fmt.rub(v), Theme.danger) }
             if let v = quote["promoDiscount"].int, v > 0 { row("Промокод", "−" + Fmt.rub(v), Theme.danger) }
             if let v = quote["bonusUsed"].int, v > 0 { row("Бонусы", "−" + Fmt.rub(v), Theme.danger) }
+            if let v = quote["giftUsed"].int, v > 0 { row("Подарочный сертификат", "−" + Fmt.rub(v), Theme.danger) }
             row("Доставка", quote["delivery"].exists ? ((quote["deliveryPrice"].int ?? 0) == 0 ? "Бесплатно" : Fmt.rub(quote["deliveryPrice"].int ?? 0)) : "—")
             Divider1()
             HStack { Text("Итого").font(Theme.font(19, .medium)); Spacer(); Text(Fmt.rub(quote["total"].int ?? 0)).font(Theme.font(19, .medium)) }
+            if paidInFull { Text("Заказ полностью оплачен \(giftUsed > 0 && (quote["bonusUsed"].int ?? 0) > 0 ? "сертификатом и бонусами" : giftUsed > 0 ? "подарочным сертификатом" : "бонусами") — платить ничего не нужно.").font(Theme.font(13)).foregroundStyle(Theme.ok).frame(maxWidth: .infinity, alignment: .leading) }
             if let b = earn, b > 0 { Text("+\(b) бонусов после получения").font(Theme.font(13)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .leading) }
         }
         .padding(16).background(RoundedRectangle(cornerRadius: 20).fill(Theme.surface))
     }
+    private var giftUsed: Int { quote["giftUsed"].int ?? 0 }
+    private var paidInFull: Bool { quote["total"].exists && (quote["total"].int ?? 0) == 0 && (giftUsed > 0 || (quote["bonusUsed"].int ?? 0) > 0) }
     private var earn: Int? { shop.user == nil ? nil : (quote["bonusEarn"].int ?? 0) + (payment == "online" ? quote["bonusOnline"].int ?? 0 : 0) }
     private func row(_ t: String, _ v: String, _ c: Color = Theme.text) -> some View { HStack { Text(t).font(Theme.font(14.5)).foregroundStyle(Theme.muted); Spacer(); Text(v).font(Theme.font(14.5)).foregroundStyle(c) } }
 
@@ -159,10 +188,11 @@ struct CheckoutView: View {
         if deliveryId.isEmpty { deliveryId = shop.settings.delivery.first?.id ?? "" }
         if !onlineOk { payment = "cod" }
     }
-    private var quoteKey: String { [deliveryId, appliedCode, String(useBonus), payment, String(city?.code ?? 0), point?.type ?? "", String(shop.cart.count)].joined(separator: "|") }
+    private var quoteKey: String { [deliveryId, appliedCode, appliedGift, String(useBonus), payment, String(city?.code ?? 0), point?.type ?? "", String(shop.cart.count)].joined(separator: "|") }
     private var body0: [String: Any] {
         var b: [String: Any] = ["lines": shop.cart.map(\.dict), "deliveryId": deliveryId, "payment": payment, "useBonus": useBonus]
         if !appliedCode.isEmpty { b["code"] = appliedCode }
+        if !appliedGift.isEmpty { b["gift"] = appliedGift }
         if let c = city { b["cityCode"] = c.code }
         if let p = point { b["pvzType"] = p.type }
         return b
@@ -178,6 +208,7 @@ struct CheckoutView: View {
         busy = true; defer { busy = false }
         var b = body0
         b["idem"] = idem
+        if !quote["gift"]["ok"].bool { b.removeValue(forKey: "gift") }   // недействительный сертификат в заказ не передаём, как на сайте
         b["customer"] = ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email]
         b["consent"] = consent
         b["comment"] = comment

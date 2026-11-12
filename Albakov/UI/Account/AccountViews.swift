@@ -281,6 +281,7 @@ struct OrderView: View {
                         line("Товары", Fmt.rub(o.subtotal + o.saleDiscount))
                         if o.saleDiscount + o.promoDiscount > 0 { line("Скидка", "−" + Fmt.rub(o.saleDiscount + o.promoDiscount)) }
                         if o.bonusUsed > 0 { line("Бонусы", "−" + Fmt.rub(o.bonusUsed)) }
+                        if o.giftUsed > 0 { line("Подарочный сертификат", "−" + Fmt.rub(o.giftUsed)) }
                         line("Доставка", o.deliveryPrice == 0 ? "Бесплатно" : Fmt.rub(o.deliveryPrice))
                         Divider1()
                         HStack { Text("Итого").font(Theme.font(18, .medium)); Spacer(); Text(Fmt.rub(o.total)).font(Theme.font(18, .medium)) }

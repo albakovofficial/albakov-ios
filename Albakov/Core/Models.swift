@@ -129,7 +129,7 @@ struct DeliveryMethod: Identifiable, Hashable {
 struct Slide: Identifiable {
     let id: String, eyebrow: String, title: String, text: String, image: String, btn1: (String, String), btn2: (String, String), gender: String
     init(_ j: JSON) {
-        id = j["id"].str; eyebrow = j["eyebrow"].str; title = j["title"].str; text = j["text"].str; image = j["image"].str; gender = j["gender"].str
+        id = j["id"].str; eyebrow = j["eyebrow"].str; title = Fmt.plain(j["title"].str); text = j["text"].str; image = j["image"].str; gender = j["gender"].str
         btn1 = (j["btn1"]["label"].str, j["btn1"]["link"].str); btn2 = (j["btn2"]["label"].str, j["btn2"]["link"].str)
     }
 }
@@ -199,7 +199,7 @@ struct CartLine: Codable, Hashable, Identifiable {
 struct Order: Identifiable, Hashable {
     let id: String, number: String, createdAt: Date?, status: String
     let items: [OrderItem]
-    let subtotal: Int, total: Int, saleDiscount: Int, promoDiscount: Int, promoCode: String, bonusUsed: Int, bonusEarn: Int
+    let subtotal: Int, total: Int, saleDiscount: Int, promoDiscount: Int, promoCode: String, bonusUsed: Int, giftUsed: Int, bonusEarn: Int
     let deliveryName: String, deliveryPrice: Int, city: String, address: String
     let payMethod: String, payStatus: String
     let customerName: String, phone: String, email: String, comment: String
@@ -214,7 +214,7 @@ struct Order: Identifiable, Hashable {
         id = j["id"].str; number = j["number"].str; createdAt = ISO.date(j["createdAt"].str); status = j["status"].str
         items = j["items"].array.map(OrderItem.init)
         subtotal = j["subtotal"].int ?? 0; total = j["total"].int ?? 0; saleDiscount = j["saleDiscount"].int ?? 0; promoDiscount = j["promoDiscount"].int ?? 0
-        promoCode = j["promoCode"].str; bonusUsed = j["bonusUsed"].int ?? 0; bonusEarn = j["bonusEarn"].int ?? 0
+        promoCode = j["promoCode"].str; bonusUsed = j["bonusUsed"].int ?? 0; giftUsed = j["giftUsed"].int ?? 0; bonusEarn = j["bonusEarn"].int ?? 0
         let d = j["delivery"]
         deliveryName = d["name"].str; deliveryPrice = d["price"].int ?? 0; city = d["city"].str; address = d["address"].str
         payMethod = j["payment"]["method"].str; payStatus = j["payment"]["status"].str
@@ -236,6 +236,8 @@ struct Order: Identifiable, Hashable {
         switch payMethod {
         case "online": return "Онлайн"
         case "cod": return "При получении"
+        case "gift": return "Подарочным сертификатом"
+        case "bonus": return "Бонусами"
         default: return "Бонусами или сертификатом"
         }
     }
@@ -264,6 +266,8 @@ enum ISO {
 enum Fmt {
     private static let money: NumberFormatter = { let f = NumberFormatter(); f.numberStyle = .decimal; f.groupingSeparator = "\u{00A0}"; f.maximumFractionDigits = 0; return f }()
     static func rub(_ n: Int) -> String { (money.string(from: NSNumber(value: n)) ?? "\(n)") + "\u{00A0}₽" }
+    /// Заголовки из панели: «*слово*» на сайте выделяется без курсива — в приложении звёздочки просто убираем
+    static func plain(_ s: String) -> String { s.replacingOccurrences(of: #"\*(.+?)\*"#, with: "$1", options: .regularExpression) }
     static func date(_ d: Date?, time: Bool = false) -> String {
         guard let d else { return "" }
         let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.dateFormat = time ? "d MMMM, HH:mm" : "d MMMM yyyy"
