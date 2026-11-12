@@ -203,23 +203,22 @@ struct Pressable: ButtonStyle {
     }
 }
 
-/// Капсула-переключатель (.chip): размеры, суммы, фильтры; выбранная — с тенью и рамкой цвета раздела
+/// Чип (размер, фильтр, вариант): выбранный — заливка цвета раздела с белым текстом
 struct Chip: View {
     let title: String
     var on = false
     var out = false
-    var dark = false
     var height: CGFloat = 44
     let action: () -> Void
     var body: some View {
         Button(action: { Haptic.tap(); action() }) {
-            Text(title).font(Theme.font(14)).kerning(0.56).lineLimit(1)
-                .foregroundStyle(on && dark ? .white : out ? Theme.dim : Theme.text)
+            Text(title).font(Theme.font(14, on ? .medium : .regular)).kerning(0.56).lineLimit(1)
+                .foregroundStyle(on ? .white : out ? Theme.dim : Theme.text)
                 .padding(.horizontal, 14).frame(minWidth: 48).frame(height: height)
-                .background(Capsule().fill(on && dark ? Theme.accent : on ? .white : Theme.surface))
-                .overlay(Capsule().strokeBorder(on ? Theme.accent : Theme.ink.opacity(0.07), lineWidth: on ? 1.2 : 1))
-                .overlay(out ? Rectangle().fill(Theme.dim.opacity(0.7)).frame(height: 1).rotationEffect(.degrees(-22)).padding(.horizontal, 10) : nil)
-                .shadow(color: Theme.dark.opacity(on ? 0.25 : 0), radius: 8, y: 6)
+                .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Theme.surface)))
+                .overlay(Capsule().strokeBorder(Theme.ink.opacity(on ? 0 : 0.07), lineWidth: 1))
+                .overlay(out ? Rectangle().fill(on ? Color.white.opacity(0.7) : Theme.dim.opacity(0.7)).frame(height: 1).rotationEffect(.degrees(-22)).padding(.horizontal, 10) : nil)
+                .shadow(color: Theme.accent.opacity(on ? 0.22 : 0), radius: 6, y: 3)
         }.buttonStyle(Pressable())
     }
 }

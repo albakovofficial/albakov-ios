@@ -506,7 +506,7 @@ struct FlowChips: View {
     let pick: (String) -> Void
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) { ForEach(items, id: \.self) { t in Chip(title: t, on: t == selected, dark: true, height: 40) { pick(t) } } }
+            HStack(spacing: 8) { ForEach(items, id: \.self) { t in Chip(title: t, on: t == selected, height: 40) { pick(t) } } }
         }
     }
 }

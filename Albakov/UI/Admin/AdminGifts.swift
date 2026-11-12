@@ -30,7 +30,7 @@ struct AdminGifts: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach([("all", "Все"), ("active", "Действуют"), ("used", "Использованы"), ("pending", "Ждут оплаты"), ("expired", "Истекли"), ("canceled", "Отменены")], id: \.0) { x in
-                            Chip(title: x.1 + " \(x.0 == "all" ? list.count : list.filter { $0["state"].str == x.0 }.count)", on: f == x.0, dark: true, height: 34) { f = x.0 }
+                            Chip(title: x.1 + " \(x.0 == "all" ? list.count : list.filter { $0["state"].str == x.0 }.count)", on: f == x.0, height: 34) { f = x.0 }
                         }
                     }
                 }

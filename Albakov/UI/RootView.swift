@@ -3,7 +3,10 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
+    @Environment(\.scenePhase) private var phase
     @State private var askPush = false
+    @State private var update: AppUpdate.Info?
+    @State private var checkedAt = Date.distantPast
 
     var body: some View {
         ZStack {
@@ -20,11 +23,25 @@ struct RootView: View {
         }
         .animation(.easeOut(duration: 0.35), value: shop.loaded)
         .sheet(isPresented: $askPush) { PushAskSheet().presentationDetents([.medium, .large]) }
+        .sheet(item: $update) { UpdateSheet(info: $0).presentationDetents([.medium, .large]) }
         .onChange(of: shop.loaded) { ok in
             guard ok else { return }
             // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны
-            if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty { if screen.contains("demo") { shop.demoCart() }; router.open(path: screen) } else { scheduleAsk() }
+            if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty { if screen.contains("demo") { shop.demoCart() }; router.open(path: screen) }
+            else { Task { let shown = await checkUpdate(); if !shown { scheduleAsk() } } }
         }
+        // Вернулись в приложение спустя время — снова проверить, не вышла ли новая версия
+        .onChange(of: phase) { p in
+            if p == .active, shop.loaded, update == nil, !askPush, Date().timeIntervalSince(checkedAt) > 6 * 3600 { Task { await checkUpdate() } }
+        }
+    }
+
+    /// Окно «Вышло обновление», если в App Store версия новее установленной
+    @discardableResult private func checkUpdate() async -> Bool {
+        checkedAt = Date()
+        guard let info = await AppUpdate.check() else { return false }
+        update = info
+        return true
     }
 
     // Окно «Включите уведомления»: при входе, пока не разрешены; «Не сейчас» — снова через 7 дней, не больше 3 раз
@@ -234,6 +251,65 @@ struct PushAskSheet: View {
             Spacer(minLength: 0)
             PrimaryButton(title: "Включить уведомления") { Task { await PushManager.shared.request(); dismiss() } }
             GhostButton(title: "Не сейчас") { dismiss() }
+        }
+        .padding(20)
+    }
+}
+
+/// Новая версия в App Store: номер последней версии Apple отдаёт по Bundle ID (TestFlight сюда не попадает)
+enum AppUpdate {
+    struct Info: Identifiable { let version: String, notes: String, url: URL; var id: String { version } }
+    static var installed: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0" }
+
+    static func check() async -> Info? {
+        guard let id = Bundle.main.bundleIdentifier, let u = URL(string: "https://itunes.apple.com/lookup?bundleId=\(id)&country=ru") else { return nil }
+        let req = URLRequest(url: u, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
+        guard let res = try? await URLSession.shared.data(for: req),
+              let json = try? JSONSerialization.jsonObject(with: res.0) as? [String: Any],
+              let r = (json["results"] as? [[String: Any]])?.first,
+              let v = r["version"] as? String, newer(v, than: installed),
+              let link = (r["trackViewUrl"] as? String).flatMap({ URL(string: $0) }) else { return nil }
+        return Info(version: v, notes: ((r["releaseNotes"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines), url: link)
+    }
+
+    /// 2.1.10 новее 2.1.9: сравниваем числа по порядку
+    static func newer(_ a: String, than b: String) -> Bool {
+        let x = a.split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(x.count, y.count) {
+            let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0
+            if p != q { return p > q }
+        }
+        return false
+    }
+}
+
+/// Окно «Вышло обновление»: значок приложения, номер версии, что нового, кнопка в App Store
+struct UpdateSheet: View {
+    let info: AppUpdate.Info
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 14) {
+                Image("AppIconSmall").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 15))
+                    .shadow(color: Theme.accent.opacity(0.25), radius: 12, y: 6)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ALBAKOV").font(Theme.font(12, .medium)).kerning(1.6).foregroundStyle(Theme.muted)
+                    Text("Версия \(info.version)").font(Theme.font(13, .medium)).foregroundStyle(.white)
+                        .padding(.horizontal, 10).padding(.vertical, 4).background(Capsule().fill(Theme.accentGradient))
+                }
+            }
+            Text("Вышло обновление").font(Theme.font(26, .light))
+            Text("Обновите приложение, чтобы всё работало как надо: исправления и новое уже в App Store.").font(Theme.font(15)).foregroundStyle(Theme.muted)
+            if !info.notes.isEmpty {
+                ScrollView {
+                    Text(info.notes).font(Theme.font(14)).foregroundStyle(Theme.text).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 140).padding(14)
+                .background(RoundedRectangle(cornerRadius: 18).fill(Theme.surface)).hairline(RoundedRectangle(cornerRadius: 18), 0.06)
+            }
+            Spacer(minLength: 0)
+            PrimaryButton(title: "Обновить") { UIApplication.shared.open(info.url) }
+            GhostButton(title: "Позже") { dismiss() }
         }
         .padding(20)
     }
