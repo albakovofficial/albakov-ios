@@ -94,8 +94,8 @@ jobs:
           STORE: ${{ inputs.store }}
         run: |
           # App Store: Pro Max (1320×2868 — размер 6,9"); проверка дизайна: обычный Pro
-          if [ "$STORE" = "true" ]; then WANT=Max; else WANT=; fi
-          UDID=$(WANT="$WANT" xcrun simctl list devices available -j | python3 -c "import json,sys,os; w=os.environ['WANT']; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k in d for x in d[k] if 'iPhone 1' in x['name'] and 'Pro' in x['name'] and (('Max' in x['name']) == (w == 'Max'))))")
+          if [ "$STORE" = "true" ]; then export WANT=Max; else export WANT=; fi
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys,os; w=os.environ['WANT']; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k in d for x in d[k] if 'iPhone 1' in x['name'] and 'Pro' in x['name'] and (('Max' in x['name']) == (w == 'Max'))))")
           xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
           xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 || true
           APP=$(ls -d build/Build/Products/Debug-iphonesimulator/Albakov.app)
