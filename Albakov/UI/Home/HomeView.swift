@@ -334,10 +334,8 @@ struct LoyalCard: View {
             VStack(alignment: .leading) {
                 HStack { Image("Logo").resizable().scaledToFit().frame(width: 26).colorInvert(); Spacer(); Text("Бонусный счёт").font(Theme.font(12.5)).foregroundStyle(.white.opacity(0.6)) }
                 Spacer()
-                HStack(alignment: .top, spacing: 2) {
-                    Text("\(pct)").font(Theme.font(64, .light)).foregroundStyle(.white)
-                    Text("%").font(Theme.font(26, .light)).foregroundStyle(Theme.accentSoft).padding(.top, 8)
-                }
+                // Процент — того же размера и цвета, что и число, вплотную к нему
+                Text("\(pct)%").font(Theme.font(64, .light)).foregroundStyle(.white)
                 Spacer()
                 HStack {
                     Text(u.map { $0.name } ?? "Ваше имя").font(Theme.font(13.5)).foregroundStyle(.white.opacity(0.75))
