@@ -100,7 +100,8 @@ struct AdminOrdersView: View {
         }
         .listStyle(.plain)
         .searchable(text: $q, prompt: "Номер, имя, телефон")
-        .navigationTitle("Заказы")
+        .navigationTitle("Заказы").navigationBarTitleDisplayMode(.inline)
+        .task { if !admin.data.exists { await admin.load() } }   // открыт сразу из push или ссылки — минуя главную панели
         .refreshable { await admin.load() }
     }
 }
@@ -208,7 +209,7 @@ struct AdminSupportView: View {
             }
         }
         .listStyle(.plain)
-        .navigationTitle("Поддержка")
+        .navigationTitle("Поддержка").navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
     }
@@ -266,7 +267,8 @@ struct AdminProductsView: View {
         }
         .listStyle(.plain)
         .searchable(text: $q, prompt: "Название или артикул")
-        .navigationTitle("Товары")
+        .navigationTitle("Товары").navigationBarTitleDisplayMode(.inline)
+        .task { if !admin.data.exists { await admin.load() } }   // открыт сразу из push или ссылки — минуя главную панели
         .refreshable { await admin.load() }
     }
 }
@@ -317,7 +319,7 @@ struct AdminProductView: View {
             .navigationTitle("Товар").navigationBarTitleDisplayMode(.inline)
             .onAppear { price = "\(p.price)"; compareAt = p.compareAt > 0 ? "\(p.compareAt)" : ""; active = p.active }
             .onChange(of: photo) { item in Task { await addPhoto(item, raw) } }
-        } else { ProgressView() }
+        } else { ProgressView().task { if !admin.data.exists { await admin.load() } } }
     }
 
     private func mutable(_ raw: JSON) -> [String: Any] { (raw.raw as? [String: Any]) ?? [:] }
@@ -380,7 +382,8 @@ struct AdminCustomersView: View {
         }
         .listStyle(.plain)
         .searchable(text: $q, prompt: "Имя, телефон, почта")
-        .navigationTitle("Покупатели")
+        .navigationTitle("Покупатели").navigationBarTitleDisplayMode(.inline)
+        .task { if !admin.data.exists { await admin.load() } }
         .sheet(item: Binding(get: { bonusFor.map { IdentJSON(j: $0) } }, set: { bonusFor = $0?.j })) { w in BonusGrantSheet(user: w.j) }
     }
 }
@@ -446,7 +449,7 @@ struct AdminPushView: View {
                 } header: { Text("Рассылка покупателям") } footer: { Text("Только тем, кто включил «Акции и новинки». Пишите редко и по делу.").font(Theme.font(12)) }
             }
         }
-        .navigationTitle("Push-уведомления")
+        .navigationTitle("Push-уведомления").navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }
     private func load() async { if let j = try? await API.shared.json("GET", "admin/push") { r = j; prefs = j["prefs"].dict.mapValues(\.bool) } }
@@ -475,7 +478,7 @@ struct AdminAuditView: View {
         }
         .listStyle(.plain)
         .searchable(text: $q, prompt: "Номер заказа, товар, слово")
-        .navigationTitle("Журнал действий")
+        .navigationTitle("Журнал действий").navigationBarTitleDisplayMode(.inline)
         .task(id: q) {
             try? await Task.sleep(nanoseconds: q.isEmpty ? 0 : 300_000_000)
             if let r = try? await API.shared.json("GET", "admin/audit", query: q.isEmpty ? [:] : ["q": q]) { items = r["items"].array }

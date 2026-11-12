@@ -191,7 +191,7 @@ struct OrdersView: View {
         }
         .listStyle(.plain)
         .overlay { if loading { ProgressView() } }
-        .navigationTitle("Мои заказы")
+        .navigationTitle("Мои заказы").navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
     }

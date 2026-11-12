@@ -29,7 +29,7 @@ struct BonusView: View {
                 }
             }
         }
-        .navigationTitle("Бонусы")
+        .navigationTitle("Бонусы").navigationBarTitleDisplayMode(.inline)
         .task {
             if let r = try? await API.shared.json("GET", "me") { log = r["bonusLog"].array }
             _ = try? await API.shared.raw("POST", "me/bonus-seen")
@@ -75,7 +75,7 @@ struct SupportListView: View {
             }
         }
         .overlay { if loading { ProgressView() } }
-        .navigationTitle("Поддержка")
+        .navigationTitle("Поддержка").navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
         .sheet(isPresented: $compose) { NewTicketSheet(topics: topics) { id in compose = false; Task { await load() }; router.push(.ticket(id), on: .account) } }
@@ -206,7 +206,7 @@ struct ProfileView: View {
                 PrimaryButton(title: "Сохранить", busy: busy) { Task { await save() } }
             }.padding(Theme.gutter)
         }
-        .navigationTitle("Личные данные")
+        .navigationTitle("Личные данные").navigationBarTitleDisplayMode(.inline)
         .onAppear { if let u = shop.user, firstName.isEmpty { firstName = u.firstName; lastName = u.lastName; phone = Fmt.phone(u.phone); email = u.email } }
     }
     private func save() async {
@@ -248,7 +248,7 @@ struct NotificationsView: View {
                 }
             }
         }
-        .navigationTitle("Уведомления")
+        .navigationTitle("Уведомления").navigationBarTitleDisplayMode(.inline)
         .task {
             push.refreshStatus()
             if let r = try? await API.shared.json("GET", "me/push") { prefs = r["prefs"].dict.mapValues(\.bool) }
