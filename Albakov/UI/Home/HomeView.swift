@@ -208,6 +208,8 @@ struct Footer: View {
                     Button { router.push(.page(p.slug), on: .home) } label: { Text(p.title).font(Theme.font(14)).foregroundStyle(.white.opacity(0.85)) }
                 }
                 Button { router.push(.sizes, on: .home) } label: { Text("Таблица размеров").font(Theme.font(14)).foregroundStyle(.white.opacity(0.85)) }
+                if shop.giftEnabled { Button { router.push(.gift, on: .home) } label: { Text("Подарочные сертификаты").font(Theme.font(14)).foregroundStyle(.white.opacity(0.85)) } }
+                Button { router.push(.track, on: .home) } label: { Text("Где мой заказ").font(Theme.font(14)).foregroundStyle(.white.opacity(0.85)) }
             }
             if !shop.settings.socials.isEmpty {
                 HStack(spacing: 10) {

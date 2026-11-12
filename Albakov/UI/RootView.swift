@@ -81,6 +81,8 @@ struct DestView: View {
         case .search: SearchView()
         case .page(let slug): PageView(slug: slug)
         case .sizes: SizesView()
+        case .gift: GiftView()
+        case .track: TrackView()
         case .checkout: CheckoutView()
         case .orders: OrdersView()
         case .order(let id): OrderView(id: id)

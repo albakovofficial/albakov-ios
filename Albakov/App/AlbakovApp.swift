@@ -31,6 +31,8 @@ enum Dest: Hashable {
     case search
     case page(String)
     case sizes
+    case gift
+    case track
     case checkout
     case orders
     case order(String)
@@ -123,6 +125,8 @@ final class Router: ObservableObject {
         case "order" where parts.count > 1: reset(.account, to: [.orders, .order(parts[1])])
         case "page" where parts.count > 1: push(.page(parts[1]))
         case "sizes": push(.sizes)
+        case "gift": push(.gift, on: tab == .account ? .account : .home)
+        case "track": push(.track, on: tab == .account ? .account : .home)
         case "account":
             switch q["tab"] ?? "" {
             case "support": reset(.account, to: q["id"].map { [.support, .ticket($0)] } ?? [.support])

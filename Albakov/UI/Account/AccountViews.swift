@@ -32,6 +32,7 @@ struct AccountView: View {
                         link("Личные данные", "person.crop.circle", .profile)
                         link("Уведомления", "bell", .notifications)
                         link("Таблица размеров", "ruler", .sizes)
+                        if shop.giftEnabled { link("Подарочные сертификаты", "gift", .gift) }
                     }
                     Section("Покупателям") {
                         ForEach(shop.pages) { p in link(p.title, p.group == "legal" ? "doc.text" : "info.circle", .page(p.slug)) }
@@ -68,6 +69,7 @@ struct AccountView: View {
 // MARK: - Вход, регистрация, восстановление пароля; код из письма (новый аккаунт, сотрудник на новом устройстве)
 struct AuthView: View {
     @EnvironmentObject private var shop: Shop
+    @EnvironmentObject private var router: Router
     enum Mode { case login, register, forgot }
     @State private var mode: Mode = .login
     @State private var login = ""
@@ -107,6 +109,11 @@ struct AuthView: View {
                 if mode == .login { Button("Забыли пароль?") { mode = .forgot; error = nil }.font(Theme.font(14)).foregroundStyle(Theme.muted) }
                 Divider1().padding(.vertical, 4)
                 GhostButton(title: mode == .register || mode == .forgot ? "У меня есть аккаунт" : "Создать аккаунт") { mode = mode == .login ? .register : .login; error = nil }
+                if mode == .login {
+                    Button { router.push(.track, on: .account) } label: {
+                        HStack(spacing: 8) { Image(systemName: "shippingbox"); Text("Где мой заказ — без входа") }.font(Theme.font(14)).foregroundStyle(Theme.text)
+                    }.frame(maxWidth: .infinity).padding(.top, 4)
+                }
             }
             .padding(Theme.gutter).padding(.top, 10)
         }

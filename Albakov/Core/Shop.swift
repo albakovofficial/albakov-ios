@@ -18,7 +18,9 @@ final class Shop: ObservableObject {
     @Published private(set) var hitIds: [String] = []
     @Published private(set) var payReady = false
     @Published private(set) var cdekReady = false
-    @Published private(set) var giftEnabled = false
+    @Published private(set) var giftCfg = JSON(nil)
+    /// Подарочные сертификаты — как на сайте: включены, пока не выключены в панели
+    var giftEnabled: Bool { !giftCfg["enabled"].exists || giftCfg["enabled"].bool }
     @Published private(set) var user: User?
     @Published private(set) var isStaff = false
     @Published var cart: [CartLine] = [] { didSet { saveCart() } }
@@ -54,7 +56,7 @@ final class Shop: ObservableObject {
         pages = d["pages"].array.map(Page.init)
         hitIds = d["hits"].array.compactMap { $0.string }
         payReady = d["payReady"].bool; cdekReady = d["cdekReady"].bool
-        giftEnabled = !d["giftCfg"]["enabled"].exists || d["giftCfg"]["enabled"].bool   // как на сайте: включены, пока не выключены в панели
+        giftCfg = d["giftCfg"]
     }
 
     // MARK: Цены — как на сайте (Pricing.productPrice): лучшая из действующих акций или старая цена
