@@ -21,6 +21,7 @@ struct RootView: View {
             }
             ToastView()
         }
+        .background(KeyboardDismisser())
         .animation(.easeOut(duration: 0.35), value: shop.loaded)
         .sheet(isPresented: $askPush) { PushAskSheet().presentationDetents([.medium, .large]) }
         .sheet(item: $update) { UpdateSheet(info: $0).presentationDetents([.medium, .large]) }
@@ -59,6 +60,7 @@ struct RootView: View {
 struct MainTabs: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
+    @State private var keyboard = false
 
     var body: some View {
         TabView(selection: tabBinding) {
@@ -72,7 +74,10 @@ struct MainTabs: View {
         // Своё нижнее меню (13.63): белая капсула, выбранная вкладка — пилюля цвета раздела.
         // Рисуется поверх вкладок, а место под него каждая страница оставляет сама (BarSpace):
         // отступ снаружи TabView до страниц не доходит — кнопки внизу экрана прятались под меню
-        .overlay(alignment: .bottom) { AppTabBar(selection: tabBinding) }
+        // Пока открыта клавиатура, нижнее меню прячется — иначе оно едет вверх вместе с ней
+        .overlay(alignment: .bottom) { if !keyboard { AppTabBar(selection: tabBinding).transition(.opacity) } }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in withAnimation(.easeOut(duration: 0.2)) { keyboard = true } }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in withAnimation(.easeOut(duration: 0.2)) { keyboard = false } }
         .overlay { drawer }
     }
 
@@ -104,6 +109,31 @@ struct MainTabs: View {
                 .modifier(BarSpace())
                 .navigationDestination(for: Dest.self) { DestView(dest: $0).toolbar(.hidden, for: .tabBar).modifier(BarSpace()) }
         }
+    }
+}
+
+/// Нажатие мимо поля ввода закрывает клавиатуру (1.0.0): один распознаватель на всё окно, нажатия кнопок он не перехватывает
+private struct KeyboardDismisser: UIViewRepresentable {
+    func makeUIView(context: Context) -> Probe { Probe() }
+    func updateUIView(_ uiView: Probe, context: Context) {}
+    final class Probe: UIView, UIGestureRecognizerDelegate {
+        private weak var installed: UIWindow?
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard let w = window, installed !== w else { return }
+            let tap = UITapGestureRecognizer(target: self, action: #selector(hide))
+            tap.cancelsTouchesInView = false
+            tap.delegate = self
+            w.addGestureRecognizer(tap); installed = w
+        }
+        @objc private func hide() { window?.endEditing(true) }
+        // Нажатие в само поле (или в другое поле) клавиатуру не закрывает
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            var v = touch.view
+            while let x = v { if x is UITextField || x is UITextView { return false }; v = x.superview }
+            return true
+        }
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
     }
 }
 

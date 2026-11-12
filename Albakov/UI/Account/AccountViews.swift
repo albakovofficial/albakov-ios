@@ -27,9 +27,6 @@ struct AccountView: View {
             }
             .refreshable { await load() }
             .task { await load() }
-            .confirmationDialog("Выйти из кабинета?", isPresented: $confirmLogout, titleVisibility: .visible) {
-                Button("Выйти", role: .destructive) { Task { await shop.logout() } }
-            }
         } else {
             AuthView()
         }
@@ -91,8 +88,12 @@ struct AccountView: View {
             if shop.isStaff { row("square.grid.2x2", "Панель управления") { router.push(.admin, on: .account) } }
             Button { confirmLogout = true } label: {
                 HStack(spacing: 12) { Image(systemName: "rectangle.portrait.and.arrow.right").font(.system(size: 16, weight: .light)).frame(width: 22); Text("Выйти").font(Theme.font(15)); Spacer() }
-                    .foregroundStyle(Theme.accent).padding(.horizontal, 16).frame(height: 52)
+                    .foregroundStyle(Theme.accent).padding(.horizontal, 16).frame(height: 52).contentShape(Rectangle())
             }.buttonStyle(.plain)
+            // Окно подтверждения привязано к самой строке «Выйти»: на iOS 26 оно всплывает у кнопки, а не вверху экрана
+            .confirmationDialog("Выйти из кабинета?", isPresented: $confirmLogout, titleVisibility: .visible) {
+                Button("Выйти", role: .destructive) { Task { await shop.logout() } }
+            }
         }
         .background(RoundedRectangle(cornerRadius: 20).fill(Theme.tile)).hairline(RoundedRectangle(cornerRadius: 20), 0.06)
     }

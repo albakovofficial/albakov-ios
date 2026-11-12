@@ -28,7 +28,9 @@ struct SiteHeader: View {
             if genders { GenderTabs() }
         }
         // Линия под шапкой — под содержимым: черта выбранного раздела ложится поверх неё, а не наоборот
-        .background(alignment: .bottom) { Color.white.overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) } }
+        .background(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
+        // Белый фон уходит и под часы: иначе там просвечивает прокрученная страница
+        .background(Color.white)
     }
     private func icon(_ name: String, count: Int = 0, _ a: @escaping () -> Void) -> some View {
         Button { Haptic.tap(); a() } label: {

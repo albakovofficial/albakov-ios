@@ -193,6 +193,7 @@ struct ProfileView: View {
     @State private var newPassword = ""
     @State private var busy = false
     @State private var error: String?
+    @State private var askDelete = false
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -204,8 +205,23 @@ struct ProfileView: View {
                 Field(label: "Текущий пароль — нужен, чтобы сменить пароль или почту", text: $current, content: .password, secure: true)
                 ErrorText(text: error)
                 PrimaryButton(title: "Сохранить", busy: busy) { Task { await save() } }
+                Button { askDelete = true } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "trash").font(.system(size: 16, weight: .light)).foregroundStyle(Theme.danger)
+                            .frame(width: 40, height: 40).background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: "#fbebeb")))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Удалить аккаунт").font(Theme.font(15, .medium)).foregroundStyle(Theme.danger)
+                            Text("Личные данные удалятся, бонусы сгорят").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
+                        }
+                        Spacer()
+                    }.padding(.vertical, 14).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
+                .padding(.top, 26)
             }.padding(Theme.gutter)
         }
+        .sheet(isPresented: $askDelete) { DeleteAccountSheet().presentationDetents([.large]) }
         .navigationTitle("Личные данные").navigationBarTitleDisplayMode(.inline)
         .onAppear { if let u = shop.user, firstName.isEmpty { firstName = u.firstName; lastName = u.lastName; phone = Fmt.phone(u.phone); email = u.email } }
     }
@@ -216,6 +232,57 @@ struct ProfileView: View {
         if !current.isEmpty { b["currentPassword"] = current }
         do { _ = try await API.shared.raw("PUT", "me", body: b); await shop.refreshUser(); current = ""; newPassword = ""; Haptic.success(); Toast.shared.show("Сохранено") }
         catch { self.error = error.localizedDescription; Haptic.error() }
+    }
+}
+
+/// Окно «Удалить аккаунт?»: что удалится, что останется, пароль для подтверждения
+struct DeleteAccountSheet: View {
+    @EnvironmentObject private var shop: Shop
+    @EnvironmentObject private var router: Router
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var going: [Order] = []
+    @State private var busy = false
+    @State private var error: String?
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Image(systemName: "trash").font(.system(size: 22, weight: .light)).foregroundStyle(Theme.danger)
+                    .frame(width: 52, height: 52).background(RoundedRectangle(cornerRadius: 16).fill(Color(hex: "#fbebeb")))
+                Text("Удалить аккаунт?").font(Theme.font(26, .light))
+                VStack(alignment: .leading, spacing: 9) {
+                    line(false, "Имя, телефон, почта, избранное и корзина удалятся навсегда")
+                    if let b = shop.user?.bonus, b > 0 { line(false, "Сгорят \(Fmt.num(b)) \(Fmt.plural(b, "бонус", "бонуса", "бонусов"))") }
+                    ForEach(going) { o in line(true, "Заказ № \(o.number) — доставим его как обычно") }
+                    line(true, "Чеки и история заказов останутся у магазина — так требует закон")
+                }
+                Field(label: "Пароль — для подтверждения", text: $password, content: .password, secure: true).padding(.top, 6)
+                ErrorText(text: error)
+                Button { Task { await remove() } } label: {
+                    ZStack { if busy { ProgressView().tint(.white) } else { Text("Удалить навсегда").font(Theme.font(15, .medium)) } }
+                        .foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 54).background(Capsule().fill(Theme.danger))
+                }.buttonStyle(Pressable()).disabled(busy)
+                GhostButton(title: "Отмена") { dismiss() }
+            }.padding(20).padding(.top, 8)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .task {
+            if let r = try? await API.shared.json("GET", "orders") { going = r["orders"].array.map(Order.init).filter { ["new", "processing", "shipped"].contains($0.status) } }
+        }
+    }
+    private func line(_ ok: Bool, _ t: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: ok ? "checkmark" : "xmark").font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.muted).frame(width: 18).padding(.top, 3)
+            Text(t).font(Theme.font(14.5)).foregroundStyle(Theme.text).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    private func remove() async {
+        guard !password.isEmpty else { error = "Введите пароль"; return }
+        busy = true; error = nil; defer { busy = false }
+        do {
+            try await shop.deleteAccount(password: password)
+            Haptic.success(); dismiss(); router.reset(.account); Toast.shared.show("Аккаунт удалён")
+        } catch { self.error = error.localizedDescription; Haptic.error() }
     }
 }
 

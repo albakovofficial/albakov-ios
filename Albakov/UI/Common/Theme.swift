@@ -70,6 +70,8 @@ enum Theme {
         UINavigationBar.appearance().scrollEdgeAppearance = nav
         UINavigationBar.appearance().compactAppearance = nav
         UINavigationBar.appearance().tintColor = ink
+        // Клавиатура закрывается, когда страницу прокручивают (1.0.0)
+        UIScrollView.appearance().keyboardDismissMode = .interactive
         UISegmentedControl.appearance().setTitleTextAttributes([.font: UIFont(name: "Montserrat-Medium", size: 13) ?? .systemFont(ofSize: 13)], for: .normal)
     }
 }

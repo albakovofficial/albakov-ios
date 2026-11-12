@@ -175,6 +175,13 @@ final class Shop: ObservableObject {
         setUser(User(j["user"]), staff: j["isAdmin"].bool, merge: true)
         Task { await refreshUser() }
     }
+    /// Удаление аккаунта (1.0.0, правило App Store 5.1.1(v)): по паролю; после — как после выхода, избранное и корзина очищаются
+    func deleteAccount(password: String) async throws {
+        _ = try await API.shared.raw("POST", "me/delete", body: ["password": password])
+        API.shared.clearSession()
+        user = nil; isStaff = false; favorites = []; clearCart()
+        PushManager.shared.resend()
+    }
     func logout() async {
         _ = try? await API.shared.raw("POST", "auth/logout")
         API.shared.clearSession()
