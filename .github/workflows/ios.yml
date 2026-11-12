@@ -15,6 +15,10 @@ on:
         description: 'Выгрузить сборку в TestFlight'
         type: boolean
         default: false
+      screens:
+        description: 'Снять экраны приложения в симуляторе (для проверки дизайна)'
+        type: boolean
+        default: false
       runner:
         description: 'Mac на GitHub (если macos-26 долго нет — попробуйте macos-15 или macos-15-intel, там тоже есть Xcode 26)'
         type: choice
@@ -29,7 +33,7 @@ jobs:
   build:
     name: Сборка (симулятор)
     # Для выгрузки в TestFlight отдельная проверочная сборка не нужна: архив и так всё собирает (и Mac на GitHub бывает в дефиците).
-    if: ${{ !startsWith(github.ref, 'refs/tags/') && !(github.event_name == 'workflow_dispatch' && inputs.testflight) }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/') && !(github.event_name == 'workflow_dispatch' && (inputs.testflight || inputs.screens)) }}
     runs-on: ${{ inputs.runner || 'macos-26' }}
     timeout-minutes: 30
     steps:
@@ -61,6 +65,42 @@ jobs:
         with:
           name: build-log
           path: build.log
+
+  screens:
+    name: Экраны (симулятор)
+    if: github.event_name == 'workflow_dispatch' && inputs.screens
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Выбрать Xcode 26
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+      - name: Собрать для симулятора
+        run: |
+          brew install xcodegen && xcodegen generate
+          set -o pipefail
+          xcodebuild build -project Albakov.xcodeproj -scheme Albakov -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO | tail -3
+      - name: Снять экраны
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k in d for x in d[k] if 'iPhone 1' in x['name'] and 'Pro' in x['name'] and 'Max' not in x['name']))")
+          xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 || true
+          APP=$(ls -d build/Build/Products/Debug-iphonesimulator/Albakov.app)
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p shots; i=0
+          for S in / /catalog "/catalog?cat=FIRSTCAT" /product/FIRST "/cart?demo=1" "/checkout?demo=1" /account /sizes; do
+            i=$((i+1))
+            xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -screen "$S" >/dev/null
+            sleep 9
+            xcrun simctl io "$UDID" screenshot "shots/$(printf %02d $i).png" >/dev/null 2>&1
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screens
+          path: shots
 
   testflight:
     name: TestFlight

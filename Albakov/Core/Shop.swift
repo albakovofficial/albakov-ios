@@ -81,8 +81,13 @@ final class Shop: ObservableObject {
         return out
     }
 
-    func product(_ id: String) -> Product? { products.first { $0.id == id || $0.slug == id } }
-    func category(_ id: String) -> Category? { categories.first { $0.id == id || $0.slug == id } }
+    func product(_ id: String) -> Product? { id == "FIRST" ? visibleProducts.first { $0.available } ?? products.first : products.first { $0.id == id || $0.slug == id } }
+    func category(_ id: String) -> Category? { id == "FIRSTCAT" ? visibleCategories.first : categories.first { $0.id == id || $0.slug == id } }
+    /// Для снимков экрана на GitHub: положить в корзину первый товар в наличии
+    func demoCart() {
+        guard cart.isEmpty, let p = products.first(where: { $0.stock > 0 }), let c = p.colors.first(where: { $0.stock > 0 }), let sz = c.sizes.first(where: { $0.stock > 0 }) else { return }
+        add(p, color: c.id, size: sz.size)
+    }
     var visibleProducts: [Product] { products.filter { $0.forGender(gender) } }
     var visibleCategories: [Category] {
         let ids = Set(visibleProducts.map(\.categoryId))

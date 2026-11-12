@@ -19,7 +19,11 @@ struct RootView: View {
         }
         .animation(.easeOut(duration: 0.35), value: shop.loaded)
         .sheet(isPresented: $askPush) { PushAskSheet().presentationDetents([.medium, .large]) }
-        .onChange(of: shop.loaded) { ok in if ok { scheduleAsk() } }
+        .onChange(of: shop.loaded) { ok in
+            guard ok else { return }
+            // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны
+            if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty { if screen.contains("demo") { shop.demoCart() }; router.open(path: screen) } else { scheduleAsk() }
+        }
     }
 
     // Окно «Включите уведомления»: при входе, пока не разрешены; «Не сейчас» — снова через 7 дней, не больше 3 раз
