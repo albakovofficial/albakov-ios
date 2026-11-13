@@ -319,16 +319,15 @@ struct FitCompareSheet: View {
     }
 }
 
-/// Мерки изделия: ширина, длина, рукав, рост и вес по размерам
 /// Таблица размеров товара (1.0.2): своя у каждого товара — мерки на каждый размер задаются в панели.
 /// Ширина, длина, рукав, свои столбцы и рост/вес — только те, что заполнены; единицы — в заголовке
 struct MeasuresTable: View {
     let product: Product
     var body: some View {
         let rows = Fit.tableRows(product), cols = Fit.cols(product)
-        let extra = cols.indices.filter { i in !cols[i].isEmpty && rows.contains { i < $0.x.count && !$0.x[i].trimmingCharacters(in: .whitespaces).isEmpty } }
+        let extra: [Int] = Self.extraCols(cols, rows)
         let hasW = rows.contains { $0.w > 0 }, hasL = rows.contains { $0.l > 0 }, hasSl = rows.contains { $0.sl > 0 }, hasH = rows.contains { $0.hMin > 0 }, hasK = rows.contains { $0.kMin > 0 }
-        let head = ["Размер"] + (hasW ? ["Ширина, см"] : []) + (hasL ? ["Длина, см"] : []) + (hasSl ? ["Рукав, см"] : []) + extra.map { cols[$0] } + (hasH ? ["Рост, см"] : []) + (hasK ? ["Вес, кг"] : [])
+        let head = Self.header(cols: cols, extra: extra, w: hasW, l: hasL, sl: hasSl, h: hasH, k: hasK)
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 DotTitle(text: "Таблица размеров", size: 28, dot: false)
@@ -354,6 +353,22 @@ struct MeasuresTable: View {
                 if head.count > 4 { Text("Таблица листается вбок →").font(Theme.font(12.5)).foregroundStyle(Theme.dim) }
             }
         }
+    }
+    static func extraCols(_ cols: [String], _ rows: [Fit.Row]) -> [Int] {
+        cols.indices.filter { i in
+            if cols[i].isEmpty { return false }
+            return rows.contains { r in i < r.x.count && !r.x[i].trimmingCharacters(in: .whitespaces).isEmpty }
+        }
+    }
+    static func header(cols: [String], extra: [Int], w: Bool, l: Bool, sl: Bool, h: Bool, k: Bool) -> [String] {
+        var out = ["Размер"]
+        if w { out.append("Ширина, см") }
+        if l { out.append("Длина, см") }
+        if sl { out.append("Рукав, см") }
+        for i in extra { out.append(cols[i]) }
+        if h { out.append("Рост, см") }
+        if k { out.append("Вес, кг") }
+        return out
     }
     static func num(_ v: Double) -> String { v > 0 ? String(format: "%g", v).replacingOccurrences(of: ".", with: ",") : "—" }
 }
