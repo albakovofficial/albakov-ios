@@ -73,88 +73,120 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Слайдер: на телефоне текст слева, картинка справа с белым переходом; снизу — номера с полосой времени
+// MARK: - Слайдер (вариант B, 1.0.1): карточка в светлом тоне раздела — фото сверху, текст и кнопка ниже,
+// внизу счётчик «01 / 03», полоса времени и стрелки. Цвета — палитра раздела, как на сайте.
 
 struct HeroSlider: View {
     let slides: [Slide]
+    var preview = false
     @EnvironmentObject private var router: Router
     @EnvironmentObject private var shop: Shop
     @State private var page = 0
-    /// Когда начался показ текущего слайда. Полоса времени считается от этой отметки на каждом кадре экрана
-    /// (TimelineView), а не анимацией: так она идёт ровно и не подтормаживает, когда страница перерисовывается
-    /// или слайд перелистывается с анимацией (1.0.1).
+    /// Когда начался показ текущего слайда. Полоса времени считается от этой отметки на каждом кадре
+    /// (TimelineView), а не анимацией: идёт ровно и не подтормаживает, когда экран перерисовывается
+    /// или слайд перелистывается (1.0.1).
     @State private var started = Date()
     private var interval: Double { max(3, shop.settings.raw["slider"]["interval"].double ?? 7) }
-    private var autoplay: Bool { !(shop.settings.raw["slider"]["autoplay"].exists && !shop.settings.raw["slider"]["autoplay"].bool) && slides.count > 1 }
+    private var autoplay: Bool { !preview && !(shop.settings.raw["slider"]["autoplay"].exists && !shop.settings.raw["slider"]["autoplay"].bool) && slides.count > 1 }
     private var cur: Int { slides.isEmpty ? 0 : min(page, slides.count - 1) }
+    static let photoH: CGFloat = 210, bodyH: CGFloat = 196
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: 0) {
             TabView(selection: $page) {
                 ForEach(Array(slides.enumerated()), id: \.offset) { i, s in slide(s).tag(i) }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            if slides.count > 1 {
-                TimelineView(.animation(minimumInterval: 1 / 60, paused: !autoplay)) { ctx in
-                    let p = autoplay ? CGFloat(min(1, max(0, ctx.date.timeIntervalSince(started) / interval))) : 1
-                    HStack(spacing: 8) {
-                        ForEach(slides.indices, id: \.self) { i in
-                            Button { page = i } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(i + 1)").font(Theme.font(10, .medium)).kerning(0.8).foregroundStyle(Theme.text)
-                                    ZStack(alignment: .leading) {
-                                        Rectangle().fill(Theme.lineStrong).frame(height: 1)
-                                        Rectangle().fill(LinearGradient(colors: [Theme.ink, Theme.accent], startPoint: .leading, endPoint: .trailing))
-                                            .frame(height: 2).scaleEffect(x: i == cur ? p : 0, anchor: .leading)
-                                    }
-                                }.frame(maxWidth: .infinity).contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                        }
-                    }
-                    .transaction { $0.animation = nil }
-                }
-                .padding(.horizontal, Theme.gutter).padding(.bottom, 22)
-            }
+            .frame(height: Self.photoH + 16 + Self.bodyH)
+            if slides.count > 1 { controls.padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 10) }
         }
-        .frame(height: 362)
-        .overlay(alignment: .bottom) { Divider1() }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Theme.tint))
+        .padding(.horizontal, Theme.gutter).padding(.top, 12)
         .onChange(of: page) { _ in started = Date() }
         .onChange(of: slides.count) { n in if page >= n { page = 0 } }
         .onAppear { started = Date() }
         .task(id: page) {
             guard autoplay else { return }
             try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
-            if !Task.isCancelled, !slides.isEmpty { withAnimation(.easeInOut(duration: 0.6)) { page = (cur + 1) % slides.count } }
+            if !Task.isCancelled, !slides.isEmpty { withAnimation(.easeInOut(duration: 0.5)) { page = (cur + 1) % slides.count } }
         }
     }
 
-    private func slide(_ s: Slide) -> some View {
-        GeometryReader { g in
-            let mediaW = g.size.width * (1 / 2.35)
-            ZStack(alignment: .leading) {
-                HStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    ProductImage(path: s.image, kind: "coat", tone: "#3d3d40").frame(width: mediaW).frame(maxHeight: .infinity)
-                        .overlay(LinearGradient(colors: [.white, .white.opacity(0)], startPoint: .leading, endPoint: UnitPoint(x: 0.28, y: 0.5)))
+    private var controls: some View {
+        HStack(spacing: 12) {
+            (Text(String(format: "%02d", cur + 1)).foregroundColor(Theme.accent) + Text(" / " + String(format: "%02d", slides.count)).foregroundColor(Theme.text))
+                .font(Theme.font(12, .medium)).kerning(0.6).frame(minWidth: 52, alignment: .leading)
+            TimelineView(.animation(minimumInterval: 1 / 60, paused: !autoplay)) { ctx in
+                let p = autoplay ? CGFloat(min(1, max(0, ctx.date.timeIntervalSince(started) / interval))) : 1
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.ink.opacity(0.14))
+                    Capsule().fill(Theme.accentGradient).scaleEffect(x: p, anchor: .leading)
                 }
-                VStack(alignment: .leading, spacing: 10) {
-                    if !s.eyebrow.isEmpty { Eyebrow(text: s.eyebrow) }
-                    Text(s.title).font(Theme.font(26, .light)).kerning(-1.04).lineSpacing(-1).foregroundStyle(Theme.text).fixedSize(horizontal: false, vertical: true)
-                    if !s.text.isEmpty { Text(s.text).font(Theme.font(13.5)).foregroundStyle(Theme.muted).lineLimit(3) }
-                    if !s.btn1.0.isEmpty {
-                        Button { router.open(path: s.btn1.1) } label: {
-                            HStack(spacing: 12) { Text(s.btn1.0).font(Theme.font(14, .medium)).kerning(0.6).lineLimit(1); ArrowDot(size: 30) }
-                                .foregroundStyle(.white).padding(.leading, 16).padding(.trailing, 6).frame(height: 42)
-                                .background(Capsule().fill(Theme.dark))
-                        }.buttonStyle(Pressable()).padding(.top, 4)
-                    }
-                    if !s.btn2.0.isEmpty { LinkButton(title: s.btn2.0, arrow: true) { router.open(path: s.btn2.1) } }
-                }
-                .frame(width: g.size.width - mediaW + 40, alignment: .leading)
-                .padding(.leading, Theme.gutter).padding(.bottom, 56).padding(.top, 20)
+                .frame(height: 2).transaction { $0.animation = nil }
             }
+            arrow("chevron.left", "Предыдущий слайд") { go(-1) }
+            arrow("chevron.right", "Следующий слайд") { go(1) }
         }
-        .clipped()
+    }
+    private func go(_ d: Int) { guard !slides.isEmpty else { return }; withAnimation(.easeInOut(duration: 0.4)) { page = (cur + d + slides.count) % slides.count } }
+    private func arrow(_ icon: String, _ label: String, _ act: @escaping () -> Void) -> some View {
+        Button(action: act) {
+            Image(systemName: icon).font(.system(size: 13, weight: .regular)).foregroundStyle(Theme.ink)
+                .frame(width: 44, height: 44).background(Circle().fill(.white)).overlay(Circle().stroke(Theme.ink.opacity(0.14), lineWidth: 1))
+        }.buttonStyle(Pressable()).accessibilityLabel(label)
+    }
+
+    private func title(_ t: String) -> Text {
+        let lines = t.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard let first = lines.first else { return Text("") }
+        let rest = lines.dropFirst().joined(separator: " ")
+        return rest.isEmpty ? Text(first) : Text(first + " ") + Text(rest).foregroundColor(Theme.accent)
+    }
+
+    private func slide(_ s: Slide) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ZStack(alignment: .topLeading) {
+                ProductImage(path: s.image, kind: "coat", tone: "#3d3d40")
+                    .frame(maxWidth: .infinity).frame(height: Self.photoH).background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                if !s.eyebrow.isEmpty { Eyebrow(text: s.eyebrow).padding(12) }
+            }
+            VStack(alignment: .leading, spacing: 9) {
+                title(s.title).font(Theme.font(26, .light)).kerning(-0.9).foregroundColor(Theme.text).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                if !s.text.isEmpty { Text(s.text).font(Theme.font(13.5)).foregroundStyle(Theme.muted).lineSpacing(2).lineLimit(3) }
+                if !s.code.isEmpty {
+                    Button {
+                        UIPasteboard.general.string = s.code; Haptic.success()
+                        Toast.shared.show("Промокод \(s.code) скопирован — вставьте его при оформлении")
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text("Промокод").foregroundStyle(Theme.dim)
+                            Text(s.code).font(Theme.font(12, .semibold)).kerning(1).foregroundStyle(Theme.text)
+                            Image(systemName: "doc.on.doc").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                        }
+                        .font(Theme.font(12)).padding(.horizontal, 14).frame(height: 34)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(.white))
+                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                    }.buttonStyle(Pressable())
+                }
+                Spacer(minLength: 0)
+                if !s.btn1.0.isEmpty {
+                    Button { router.open(path: s.btn1.1) } label: {
+                        HStack(spacing: 12) {
+                            Text(s.btn1.0).font(Theme.font(14, .medium)).kerning(0.4).lineLimit(1)
+                            Image(systemName: "arrow.right").font(.system(size: 12, weight: .medium))
+                                .frame(width: 32, height: 32).background(Circle().fill(.white.opacity(0.18)))
+                        }
+                        .foregroundStyle(.white).padding(.leading, 18).padding(.trailing, 6).frame(height: 44)
+                        .background(Capsule().fill(Theme.accentGradient))
+                    }.buttonStyle(Pressable())
+                }
+            }
+            .padding(.horizontal, 10).frame(height: Self.bodyH, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
     }
 }
 

@@ -182,7 +182,7 @@ private struct SlideEdit: View {
         AdminPage(title: isNew ? "Новый слайд" : (SlideKit.clean(slide["title"] as? String ?? "").isEmpty ? "Слайд" : SlideKit.clean(slide["title"] as? String ?? "")), busy: busy, error: error, onSave: { Task { await save() } }) {
             VStack(alignment: .leading, spacing: 8) {
                 Eyebrow(text: "Предпросмотр")
-                HeroSlider(slides: [Slide(JSON(current))]).allowsHitTesting(false).clipShape(RoundedRectangle(cornerRadius: 18)).hairline(RoundedRectangle(cornerRadius: 18), 0.09)
+                HeroSlider(slides: [Slide(JSON(current))], preview: true).allowsHitTesting(false).padding(.horizontal, -Theme.gutter)
                 Text("На сайте и в приложении изменения появятся после «Сохранить».").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
             }
             DefForm(defs: defs, doc: doc).padding(16).softCard(20)
