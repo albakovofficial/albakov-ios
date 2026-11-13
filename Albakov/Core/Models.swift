@@ -116,6 +116,17 @@ struct Page: Identifiable { let id: String, slug: String, title: String, body: S
     init(_ j: JSON) { id = j["id"].str; slug = j["slug"].str; title = j["title"].str; body = j["body"].str; group = j["group"].str; inFooter = !j["inFooter"].exists || j["inFooter"].bool }
 }
 
+extension Settings {
+    /// Подстановки в текстах страниц, как на сайте (fillDoc): {магазин}, {продавец} — реквизиты из панели, {почта}, {телефон}, {адрес}, {сайт}
+    func fill(_ text: String) -> String {
+        let legal = raw["legal"].str
+        let map = ["магазин": storeName, "продавец": legal.isEmpty ? storeName : legal, "почта": email, "телефон": phone, "адрес": address, "сайт": "albakovofficial.ru"]
+        var out = text
+        for (k, v) in map { out = out.replacingOccurrences(of: "{\(k)}", with: v.isEmpty ? "—" : v) }
+        return out
+    }
+}
+
 struct DeliveryMethod: Identifiable, Hashable {
     let id: String, name: String, desc: String, price: Int, freeFrom: Int, needsAddress: Bool, cdekDoor: Bool, pickupPoint: Bool?, priceAuto: Bool
     init(_ j: JSON) {

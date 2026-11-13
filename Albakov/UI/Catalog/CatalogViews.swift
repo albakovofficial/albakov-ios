@@ -295,16 +295,18 @@ struct PageView: View {
     let slug: String
     @EnvironmentObject private var shop: Shop
     var body: some View {
-        ScrollView {
-            if let p = shop.page(slug) {
-                VStack(alignment: .leading, spacing: 16) {
-                    Eyebrow(text: p.group == "legal" ? "Документы" : shop.settings.storeName)
-                    DotTitle(text: p.title, size: 32)
-                    MarkdownText(text: p.body).padding(.top, 6)
-                }.padding(Theme.gutter).padding(.bottom, 40)
-            } else { EmptyState(icon: "doc", title: "Страница не найдена", text: "").padding(.top, 40) }
+        if slug == "about", let p = shop.page(slug) { AboutView(page: p) } else {
+            ScrollView {
+                if let p = shop.page(slug) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Eyebrow(text: p.group == "legal" ? "Документы" : shop.settings.storeName)
+                        DotTitle(text: p.title, size: 32)
+                        MarkdownText(text: shop.settings.fill(p.body)).padding(.top, 6)
+                    }.padding(Theme.gutter).padding(.bottom, 40)
+                } else { EmptyState(icon: "doc", title: "Страница не найдена", text: "").padding(.top, 40) }
+            }
+            .navigationTitle(shop.page(slug)?.title ?? "").navigationBarTitleDisplayMode(.inline)
         }
-        .navigationTitle(shop.page(slug)?.title ?? "").navigationBarTitleDisplayMode(.inline)
     }
 }
 

@@ -51,14 +51,6 @@ struct AboutDoc {
     }
 }
 
-/// Подстановки страниц: {магазин}, {почта}, {телефон}, {адрес}, {сайт}
-private func fillDoc(_ s: String, _ st: Settings) -> String {
-    let map = ["магазин": st.storeName, "продавец": st.storeName, "почта": st.email, "телефон": st.phone, "адрес": st.address, "сайт": "albakovofficial.ru"]
-    var out = s
-    for (k, v) in map { out = out.replacingOccurrences(of: "{\(k)}", with: v.isEmpty ? "—" : v) }
-    return out
-}
-
 struct AboutView: View {
     let page: Page
     @EnvironmentObject private var shop: Shop
@@ -66,7 +58,7 @@ struct AboutView: View {
     private static let gold = Color(hex: "#e8b84a"), violet = Color(hex: "#7b61ff")
 
     var body: some View {
-        let d = AboutDoc(fillDoc(page.body, shop.settings))
+        let d = AboutDoc(shop.settings.fill(page.body))
         let motto = d.motto.isEmpty ? shop.settings.tagline.components(separatedBy: ".").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } : d.motto
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -129,7 +121,7 @@ struct AboutView: View {
     }
 
     private func mottoRow(_ words: [String]) -> some View {
-        FlowRow(spacing: 0, lineSpacing: 8) {
+        FlowRow(spacing: 6) {
             ForEach(Array(words.enumerated()), id: \.offset) { i, w in
                 HStack(spacing: 0) {
                     if i > 0 { Circle().fill(LinearGradient(colors: [Self.gold, Self.violet], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 5, height: 5).padding(.horizontal, 12) }
