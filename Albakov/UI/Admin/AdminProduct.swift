@@ -57,8 +57,6 @@ enum AdminProduct {
     }
 
     @MainActor static var fields: [FDef] {
-        let packs = JSON(Admin.shared.data["settings"]["cdek"]["packs"].raw).array
-        let packOpts = [("", "По умолчанию из настроек СДЭК")] + (packs.isEmpty ? [("bag", "Пакет · 30×25×5 см"), ("m", "Коробка M · 40×30×10 см"), ("l", "Коробка L · 50×40×20 см")] : packs.map { ($0["id"].str, "\($0["name"].str) · \($0["length"].int ?? 0)×\($0["width"].int ?? 0)×\($0["height"].int ?? 0) см") })
         return [.section("Основное"),
                 FDef(k: "name", label: "Название"),
                 FDef(k: "sku", label: "Артикул", hint: "Заполнится сам: ALB-0001, ALB-0002… Можно указать свой — латиница, цифры, дефис"),
@@ -69,14 +67,13 @@ enum AdminProduct {
                 FDef(k: "compareAt", label: "Старая цена, ₽", kind: .number, hint: "Если больше цены — показывается зачёркнутой. 0 — скидки нет"),
                 FDef(k: "active", label: "Показывать в магазине", kind: .bool),
                 .section("Доставка"),
-                FDef(k: "weight", label: "Вес в упаковке, г", kind: .number, hint: "Для цены доставки СДЭК. Например, футболка 300, пальто 1800. Пусто — вес из настроек СДЭК"),
-                FDef(k: "pack", label: "Упаковка", kind: .select(packOpts)),
+                FDef(k: "parcel", label: "Посылка для СДЭК", kind: .parcel),
                 .section("Описание"),
                 FDef(k: "description", label: "Описание", kind: .area(5)),
                 FDef(k: "composition", label: "Состав — свой текст", kind: .area(2), hint: "Нужен, только если состава нет среди вариантов в «Характеристиках»"),
                 FDef(k: "care", label: "Уход — дополнительно", kind: .area(2), hint: "Основное отмечается значками в «Характеристиках»"),
                 .section("Образ и предзаказ"),
-                FDef(k: "look", label: "С этим носят — отметьте до 4 вещей", kind: .multi(AdminSections.prodOpts), hint: "В карточке появится «Соберите образ»: покупатель выберет размеры и добавит все вещи одной кнопкой"),
+                FDef(k: "look", label: "С этим носят — до 4 вещей", kind: .look(4), hint: "В карточке появится «Соберите образ»: покупатель выберет размеры и добавит все вещи одной кнопкой"),
                 FDef(k: "preorder", label: "Предзаказ: можно заказать размеры, которых нет в наличии", kind: .bool),
                 FDef(k: "preorderShip", label: "Когда отправим по предзаказу", kind: .date),
                 FDef(k: "preorderLimit", label: "Мест в партии", kind: .number, hint: "Сколько вещей можно заказать заранее. 0 — без ограничения"),

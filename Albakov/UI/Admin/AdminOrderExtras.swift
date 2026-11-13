@@ -232,7 +232,8 @@ struct OrderCdekSection: View {
     private func num(_ t: String, _ b: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 2) { Text(t).font(Theme.font(10.5)).foregroundStyle(Theme.muted); TextField("", text: b).keyboardType(.numberPad).font(Theme.font(14)).padding(.horizontal, 8).frame(height: 36).background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface)) }
     }
-    /// Посылка по карточкам товаров: вес вещей и подходящая упаковка (как Pricing.parcelFor)
+    /// Посылка по карточкам товаров (как Pricing.parcelFor): вещи со своим размером — стопкой
+    /// (длина и ширина по самой крупной, высоты складываются), без размера — в упаковку из настроек СДЭК
     private func prefill() {
         guard w.isEmpty else { return }
         let cfg = admin.data["settings"]["cdek"]
@@ -240,17 +241,31 @@ struct OrderCdekSection: View {
         if packs.isEmpty { packs = [["id": "bag", "name": "Пакет", "length": 30, "width": 25, "height": 5, "weight": 20], ["id": "m", "name": "Коробка M", "length": 40, "width": 30, "height": 10, "weight": 150], ["id": "l", "name": "Коробка L", "length": 50, "width": 40, "height": 20, "weight": 300]] }
         packs.sort { vol(JSON($0)) < vol(JSON($1)) }
         let def = max(50, cfg["pkg"]["weight"].int ?? 1000), defIdx = max(0, packs.firstIndex { ($0["id"] as? String) == cfg["defaultPack"].str } ?? 0)
-        var n = 0, wt = 0, idx = -1
+        var wt = 0, other = 0
+        var stack: (l: Int, w: Int, h: Int)? = nil
         for it in o["items"].array {
             let q = max(0, (it["qty"].int ?? 0) - (it["refundedQty"].int ?? 0)); if q == 0 { continue }
             let p = admin.data["products"].array.first { $0["id"].str == it["productId"].str } ?? JSON(nil)
-            n += q; wt += ((p["weight"].int ?? 0) > 0 ? (p["weight"].int ?? def) : def) * q
-            let k = p["pack"].str.isEmpty ? -1 : (packs.firstIndex { ($0["id"] as? String) == p["pack"].str } ?? -1)
-            idx = max(idx, k >= 0 ? k : defIdx)
+            wt += ((p["weight"].int ?? 0) > 0 ? (p["weight"].int ?? def) : def) * q
+            var d = [p["box"]["length"].int ?? 0, p["box"]["width"].int ?? 0, p["box"]["height"].int ?? 0]
+            if d.contains(where: { $0 <= 0 }), !p["pack"].str.isEmpty, let raw = packs.first(where: { ($0["id"] as? String) == p["pack"].str }) {
+                let pk = JSON(raw)
+                d = [pk["length"].int ?? 0, pk["width"].int ?? 0, pk["height"].int ?? 0]
+            }
+            if d.contains(where: { $0 <= 0 }) { other += q; continue }
+            d.sort(by: >)
+            if let s = stack { stack = (l: Swift.max(s.l, d[0]), w: Swift.max(s.w, d[1]), h: s.h + d[2] * q) } else { stack = (l: d[0], w: d[1], h: d[2] * q) }
         }
-        if idx < 0 { idx = defIdx }; if n >= 3 { idx += 1 }; if n >= 6 { idx += 1 }
-        let pk = JSON(packs[min(idx, packs.count - 1)])
-        w = String(min(30000, max(50, wt + (pk["weight"].int ?? 0)))); l = String(pk["length"].int ?? 30); wd = String(pk["width"].int ?? 25); h = String(pk["height"].int ?? 5)
+        var L = 0, W = 0, H = 0
+        if other > 0 || stack == nil {
+            var idx = defIdx; if other >= 3 { idx += 1 }; if other >= 6 { idx += 1 }
+            let pk = JSON(packs[min(idx, packs.count - 1)])
+            wt += pk["weight"].int ?? 0
+            L = pk["length"].int ?? 30; W = pk["width"].int ?? 25; H = pk["height"].int ?? 5
+            if let s = stack { L = Swift.max(L, s.l); W = Swift.max(W, s.w); H += s.h }
+        } else if let s = stack { L = s.l; W = s.w; H = s.h }
+        let lim = { (v: Int) in min(150, Swift.max(1, v)) }
+        w = String(min(30000, Swift.max(50, wt))); l = String(lim(L)); wd = String(lim(W)); h = String(lim(H))
     }
     private func vol(_ p: JSON) -> Int { (p["length"].int ?? 1) * (p["width"].int ?? 1) * (p["height"].int ?? 1) }
     private func create() async {

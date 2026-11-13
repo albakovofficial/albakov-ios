@@ -12,6 +12,8 @@ enum FKind {
     case select([(String, String)])
     case multi([(String, String)])
     case rows([FDef])
+    case parcel                 // вес и размер посылки СДЭК (weight, box)
+    case look(Int)              // «С этим носят»: товары с фото, не больше N
 }
 
 struct FDef {
@@ -132,11 +134,181 @@ struct FieldView: View {
                 ImageField(label: d.label, value: doc.text(d.k))
             case .color:
                 ColorField(label: d.label, hex: doc.text(d.k))
+            case .parcel:
+                ParcelField(doc: doc)
+            case .look(let max):
+                LookPick(label: d.label, max: max, selfId: doc.str("id"), selected: Binding(get: { doc.arr(d.k).compactMap { $0 as? String } }, set: { doc.v[d.k] = $0 }))
             case .rows(let cols):
                 RowsEditor(label: d.label, cols: cols, rows: Binding(get: { (doc.v[d.k] as? [[String: Any]]) ?? [] }, set: { doc.v[d.k] = $0 }))
             }
             if !d.hint.isEmpty { Text(d.hint).font(Theme.font(12.5)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true) }
         }
+    }
+}
+
+/// Посылка для СДЭК: вес и размер одной вещи в упаковке (как parcelField в public/js/admin.js).
+/// Уходят в цену доставки и в отправление СДЭК; несколько вещей складываются стопкой.
+struct ParcelField: View {
+    @ObservedObject var doc: Doc
+    @ObservedObject private var admin = Admin.shared
+    @State private var l = "", w = "", h = "", wt = ""
+    @State private var ready = false
+    private var cdek: JSON { admin.data["settings"]["cdek"] }
+    private var packs: [JSON] {
+        let p = cdek["packs"].array
+        let list = p.isEmpty ? [JSON(["id": "bag", "name": "Пакет", "length": 30, "width": 25, "height": 5]), JSON(["id": "m", "name": "Коробка M", "length": 40, "width": 30, "height": 10]), JSON(["id": "l", "name": "Коробка L", "length": 50, "width": 40, "height": 20])] : p
+        return list.sorted { ($0["length"].int ?? 0) * ($0["width"].int ?? 0) * ($0["height"].int ?? 0) < ($1["length"].int ?? 0) * ($1["width"].int ?? 0) * ($1["height"].int ?? 0) }
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Посылка для СДЭК").font(Theme.font(14)).foregroundStyle(Theme.muted)
+            HStack(alignment: .bottom, spacing: 6) {
+                cell("Вес", $wt, "г").frame(width: 84)
+                Spacer(minLength: 4)
+                cell("Длина", $l, "см"); Text("×").foregroundStyle(Theme.muted).padding(.bottom, 16)
+                cell("Ширина", $w, "см"); Text("×").foregroundStyle(Theme.muted).padding(.bottom, 16)
+                cell("Высота", $h, "см")
+            }
+            (Text("В СДЭК уйдёт: ").font(Theme.font(13.5, .medium)) + Text(summary).font(Theme.font(13.5)))
+                .foregroundStyle(Theme.text).padding(.horizontal, 14).padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading).background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface))
+            Text("Вес и размер одной вещи в упаковке — как вы её отправляете. Уйдут в расчёт цены доставки и в отправление СДЭК. Несколько вещей в заказе сложатся стопкой.")
+                .font(Theme.font(12.5)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true)
+        }
+        .onAppear(perform: load)
+        .onChange(of: [l, w, h, wt]) { _ in store() }
+    }
+    private func cell(_ title: String, _ v: Binding<String>, _ unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(Theme.font(11.5)).foregroundStyle(Theme.muted)
+            HStack(spacing: 2) {
+                TextField("", text: v).keyboardType(.numberPad).font(Theme.font(15.5)).multilineTextAlignment(.leading)
+                Text(unit).font(Theme.font(12)).foregroundStyle(Theme.dim)
+            }.padding(.horizontal, 10).frame(height: 46).background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface))
+        }
+    }
+    private var summary: String {
+        let L = Int(l) ?? 0, W = Int(w) ?? 0, H = Int(h) ?? 0, G = Int(wt) ?? 0
+        let def = packs.first { $0["id"].str == cdek["defaultPack"].str } ?? packs.first ?? JSON([:])
+        let dims = L > 0 && W > 0 && H > 0 ? "\(L)×\(W)×\(H) см" : "упаковка по умолчанию «\(def["name"].str)» \(def["length"].int ?? 30)×\(def["width"].int ?? 25)×\(def["height"].int ?? 5) см"
+        let weight = G > 0 ? "\(G) г" : "вес по умолчанию \(cdek["pkg"]["weight"].int ?? 1000) г"
+        return dims + ", " + weight
+    }
+    private func load() {
+        guard !ready else { return }
+        let b = JSON(doc.v["box"])
+        var L = b["length"].int ?? 0, W = b["width"].int ?? 0, H = b["height"].int ?? 0
+        if !(L > 0 && W > 0 && H > 0), let pk = packs.first(where: { $0["id"].str == doc.str("pack") && !doc.str("pack").isEmpty }) {
+            L = pk["length"].int ?? 0; W = pk["width"].int ?? 0; H = pk["height"].int ?? 0
+        }
+        l = L > 0 ? "\(L)" : ""; w = W > 0 ? "\(W)" : ""; h = H > 0 ? "\(H)" : ""
+        let g = Int(doc.num("weight")); wt = g > 0 ? "\(g)" : ""
+        ready = true
+    }
+    private func store() {
+        guard ready else { return }
+        let n = { (s: String) in max(0, Int(s.filter(\.isNumber)) ?? 0) }
+        doc.v["weight"] = NSNumber(value: n(wt))
+        let L = n(l), W = n(w), H = n(h)
+        if L > 0 && W > 0 && H > 0 { doc.v["box"] = ["length": L, "width": W, "height": H] } else { doc.v.removeValue(forKey: "box") }
+        doc.v.removeValue(forKey: "pack")
+    }
+}
+
+/// «С этим носят»: крупные фото товаров, поиск, отметка до N вещей
+struct LookPick: View {
+    let label: String
+    let max: Int
+    let selfId: String
+    @Binding var selected: [String]
+    @ObservedObject private var admin = Admin.shared
+    @State private var open = false
+    private var all: [Product] { admin.data["products"].array.map(Product.init).filter { $0.id != selfId } }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(label).font(Theme.font(14)).foregroundStyle(Theme.muted)
+                Spacer()
+                Text(selected.isEmpty ? "Не выбрано" : "\(selected.count) из \(max)").font(Theme.font(13, .medium)).foregroundStyle(selected.isEmpty ? Theme.dim : Theme.accent)
+            }
+            let chosen = selected.compactMap { id in all.first { $0.id == id } }
+            if !chosen.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(chosen, id: \.id) { p in
+                            VStack(alignment: .leading, spacing: 5) {
+                                ProductImage(path: p.image).frame(width: 92, height: 122).background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 14))
+                                Text(p.name).font(Theme.font(12)).foregroundStyle(Theme.text).lineLimit(2).frame(width: 92, alignment: .leading)
+                            }
+                        }
+                    }
+                }
+            }
+            Button { open = true } label: {
+                HStack(spacing: 8) { Image(systemName: chosen.isEmpty ? "plus" : "square.grid.2x2"); Text(chosen.isEmpty ? "Выбрать вещи" : "Изменить выбор") }
+                    .font(Theme.font(14.5, .medium)).foregroundStyle(Theme.text).frame(maxWidth: .infinity).frame(height: 46)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+            }.buttonStyle(Pressable())
+        }
+        .sheet(isPresented: $open) { LookSheet(title: label, max: max, products: all, selected: $selected) }
+    }
+}
+
+private struct LookSheet: View {
+    let title: String
+    let max: Int
+    let products: [Product]
+    @Binding var selected: [String]
+    @Environment(\.dismiss) private var dismiss
+    @State private var q = ""
+    private var list: [Product] {
+        let f = products.filter { q.isEmpty || ($0.name + " " + $0.sku).lowercased().contains(q.lowercased()) }
+        return f.sorted { (selected.firstIndex(of: $0.id) ?? 99) < (selected.firstIndex(of: $1.id) ?? 99) }
+    }
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if list.isEmpty {
+                    Text(q.isEmpty ? "Других товаров пока нет" : "Ничего не нашлось").font(Theme.font(14)).foregroundStyle(Theme.muted).padding(.top, 40)
+                }
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 16) {
+                    ForEach(list, id: \.id) { p in card(p) }
+                }
+                .padding(16)
+            }
+            .background(Color.white)
+            .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Название или артикул")
+            .navigationTitle(selected.isEmpty ? "С этим носят" : "Выбрано \(selected.count) из \(max)").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+        }
+    }
+    private func card(_ p: Product) -> some View {
+        let on = selected.contains(p.id)
+        return Button {
+            if let i = selected.firstIndex(of: p.id) { selected.remove(at: i); Haptic.tap() }
+            else if selected.count < max { selected.append(p.id); Haptic.tap() }
+            else { Toast.shared.show("Можно отметить до \(max) вещей — снимите отметку с одной из выбранных") }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Color.clear.aspectRatio(3 / 4, contentMode: .fit)
+                    .overlay(ProductImage(path: p.image).opacity(p.active ? 1 : 0.55))
+                    .background(Theme.photo)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(on ? Theme.accent : Theme.line, lineWidth: on ? 2 : 1))
+                    .overlay(alignment: .topTrailing) {
+                        ZStack {
+                            Circle().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Color.white.opacity(0.92)))
+                            if on { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white) }
+                            else { Circle().stroke(Theme.line, lineWidth: 1) }
+                        }.frame(width: 28, height: 28).padding(10)
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        if !p.active { Text("Скрыт").font(Theme.font(11)).foregroundStyle(Theme.muted).padding(.horizontal, 8).padding(.vertical, 3).background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.92))).padding(10) }
+                    }
+                Text(p.name).font(Theme.font(13.5)).foregroundStyle(Theme.text).lineLimit(2).multilineTextAlignment(.leading)
+                Text((p.sku.isEmpty ? "" : p.sku + " · ") + Fmt.rub(p.price)).font(Theme.font(12)).foregroundStyle(Theme.muted)
+            }
+        }.buttonStyle(Pressable())
     }
 }
 
