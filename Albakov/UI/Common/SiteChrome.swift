@@ -294,7 +294,6 @@ struct Footer: View {
                     + (shop.giftEnabled ? [("Подарочные сертификаты", { router.push(.gift, on: .home) })] : []))
                 col("Покупателям", [("Где мой заказ", { router.push(.track, on: .home) })]
                     + shop.pages.filter { $0.inFooter && ($0.group.isEmpty || $0.group == "help") }.map { p in (p.title, { router.push(.page(p.slug), on: .home) }) }
-                    + [("Таблица размеров", { router.push(.sizes, on: .home) })]
                     + shop.pages.filter { $0.inFooter && $0.group == "brand" }.map { p in (p.title, { router.push(.page(p.slug), on: .home) }) })
                 col("Личный кабинет", [("Мои заказы", { router.reset(.account, to: [.orders]) }), ("Избранное", { router.reset(.favorites) })]
                     + (s.bonusEnabled ? [("Бонусы", { router.reset(.account, to: [.bonus]) })] : []) + [("Поддержка", { router.reset(.account, to: [.support]) })])

@@ -13,7 +13,6 @@ final class Shop: ObservableObject {
     @Published private(set) var categories: [Category] = []
     @Published private(set) var products: [Product] = []
     @Published private(set) var promotions: [Promotion] = []
-    @Published private(set) var sizeCharts: [SizeChart] = []
     @Published private(set) var pages: [Page] = []
     @Published private(set) var hitIds: [String] = []
     @Published private(set) var payReady = false
@@ -58,7 +57,6 @@ final class Shop: ObservableObject {
         categories = d["categories"].array.map(Category.init).sorted { $0.order < $1.order }
         products = d["products"].array.map(Product.init).filter { $0.active }
         promotions = d["promotions"].array.map(Promotion.init)
-        sizeCharts = d["sizeCharts"].array.map(SizeChart.init)
         pages = d["pages"].array.map(Page.init)
         hitIds = d["hits"].array.compactMap { $0.string }
         // Закрытые разделы не показываются (1.0.0): если покупатель был в закрытом разделе — показываем всю коллекцию
@@ -120,7 +118,6 @@ final class Shop: ObservableObject {
     /// Самый низкий порог «Бесплатно от» среди способов доставки — для {free} в строке объявления
     var freeFromMin: Int { settings.delivery.map(\.freeFrom).filter { $0 > 0 }.min() ?? 0 }
     var saleProducts: [Product] { visibleProducts.filter { price($0).oldPrice > 0 } }
-    func sizeChart(_ id: String) -> SizeChart? { sizeCharts.first { $0.id == id } }
     func page(_ slug: String) -> Page? { pages.first { $0.slug == slug } }
 
     // MARK: Корзина

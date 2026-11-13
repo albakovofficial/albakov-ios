@@ -66,7 +66,7 @@ struct ProductView: View {
                         HStack {
                             Text("Размер").font(Theme.font(15)).foregroundStyle(sizeHint ? Theme.danger : Theme.muted)
                             Spacer()
-                            if shop.sizeChart(p.sizeChartId) != nil || Fit.canCompare(p) { LinkButton(title: shop.sizeChart(p.sizeChartId) != nil ? "Таблица размеров" : "Мерки изделия") { showSizes = true } }
+                            if Fit.hasTable(p) { LinkButton(title: "Таблица размеров") { showSizes = true } }
                         }
                         FlowRow(spacing: 8) {
                             ForEach(color.sizes, id: \.size) { s in
@@ -132,9 +132,8 @@ struct ProductView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 28) {
                             MeasuresTable(product: p)
-                            if let c = shop.sizeChart(p.sizeChartId) { DotTitle(text: "Таблица размеров", size: 28, dot: false); SizeChartTable(chart: c) }
                         }.padding(Theme.gutter)
-                    }.navigationTitle("Размеры").navigationBarTitleDisplayMode(.inline)
+                    }.navigationTitle(p.name).navigationBarTitleDisplayMode(.inline)
                 }.presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $notify) { NotifySheet(product: p, color: color, size: size ?? "").presentationDetents([.large]) }

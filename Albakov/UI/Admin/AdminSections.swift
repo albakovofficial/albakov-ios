@@ -6,7 +6,7 @@ import SwiftUI
 enum AdminSections {
     static let list: [(key: String, title: String, icon: String)] = [
         ("overview", "Обзор", "chart.bar"), ("orders", "Заказы", "shippingbox"), ("support", "Поддержка", "bubble.left.and.text.bubble.right"),
-        ("products", "Товары", "tshirt"), ("categories", "Категории", "square.grid.2x2"), ("sizeCharts", "Размерные сетки", "ruler"),
+        ("products", "Товары", "tshirt"), ("categories", "Категории", "square.grid.2x2"),
         ("promotions", "Акции", "tag"), ("promocodes", "Промокоды", "ticket"), ("bonus", "Бонусы", "sparkles"),
         ("exchange", "Обмен и возвраты", "arrow.left.arrow.right"), ("customers", "Покупатели", "person.2"), ("mail", "Почта", "envelope"),
         ("analytics", "Аналитика", "chart.line.uptrend.xyaxis"), ("finance", "Финансы", "rublesign.circle"), ("gifts", "Подарочные сертификаты", "gift"),
@@ -16,7 +16,7 @@ enum AdminSections {
         ("audit", "Журнал действий", "list.bullet.rectangle"), ("settings", "Настройки", "gearshape")
     ]
     /// Группы разделов на рабочем столе: продажи, каталог, маркетинг, цифры, витрина, управление (как GROUPS на сайте)
-    static let groups: [[String]] = [["orders", "support", "exchange", "customers"], ["products", "categories", "sizeCharts", "sections"],
+    static let groups: [[String]] = [["orders", "support", "exchange", "customers"], ["products", "categories", "sections"],
         ["promotions", "promocodes", "bonus", "gifts", "mail", "push"], ["overview", "analytics", "finance"],
         ["home", "slider", "brand", "menu", "pages"], ["payment", "staff", "audit", "settings"]]
     static func group(_ k: String) -> Int { groups.firstIndex { $0.contains(k) } ?? 5 }
@@ -26,7 +26,7 @@ enum AdminSections {
     }
     static let perms: [String: [String]] = [
         "overview": [], "orders": ["orders"], "support": ["orders"], "exchange": ["orders"], "customers": ["orders", "marketing"], "gifts": ["orders", "marketing"],
-        "products": ["content"], "categories": ["content"], "sizeCharts": ["content"], "promotions": ["content", "marketing"], "promocodes": ["content", "marketing"],
+        "products": ["content"], "categories": ["content"], "promotions": ["content", "marketing"], "promocodes": ["content", "marketing"],
         "sections": ["content"], "brand": ["content"], "slider": ["content"], "home": ["content"], "pages": ["content"], "menu": ["content"],
         "bonus": ["marketing"], "mail": ["mail"], "analytics": ["finance", "marketing"], "finance": ["finance"],
         "payment": ["payment"], "push": [], "staff": ["staff"], "audit": ["staff"], "settings": ["settings"]
@@ -36,9 +36,9 @@ enum AdminSections {
         return need.isEmpty || need.contains { Admin.shared.can($0) }
     }
 
-    nonisolated static let collectionKeys: Set<String> = ["categories", "sizeCharts", "promotions", "promocodes", "pages", "products"]
+    nonisolated static let collectionKeys: Set<String> = ["categories", "promotions", "promocodes", "pages", "products"]
     static var collections: [String: CollectionCfg] {
-        ["categories": categories, "sizeCharts": sizeCharts, "promotions": promotions, "promocodes": promocodes, "pages": pages, "products": AdminProduct.cfg]
+        ["categories": categories, "promotions": promotions, "promocodes": promocodes, "pages": pages, "products": AdminProduct.cfg]
     }
 
     @MainActor @ViewBuilder static func view(_ k: String) -> some View {
@@ -106,19 +106,6 @@ enum AdminSections {
                 let n = Admin.shared.data["products"].array.filter { $0["categoryId"].str == c["id"].str }.count
                 return n > 0 ? "В категории \(n) тов. — удалить можно пустую категорию. Сначала перенесите товары в другую." : nil
             })
-    }
-
-    // MARK: - Размерные сетки
-    static var sizeCharts: CollectionCfg {
-        CollectionCfg(key: "sizeCharts", prefix: "sc", title: "Размерные сетки", newTitle: "Новая размерная сетка", addLabel: "Добавить сетку",
-            sub: "Таблицы размеров показываются в карточке товара и на странице «Таблица размеров». Столбцы и строки можно добавлять и удалять.",
-            itemTitle: { $0["name"].str },
-            itemSub: { c in c["rows"].array.map { $0.array.first?.str ?? "" }.joined(separator: ", ") + " · товаров \(Admin.shared.data["products"].array.filter { $0["sizeChartId"].str == c["id"].str }.count)" },
-            blank: { ["name": "", "columns": ["Размер", "RU", "Обхват груди, см"], "rows": [["S", "44", "88"], ["M", "46", "92"]], "note": ""] },
-            fields: { [FDef(k: "name", label: "Название"), FDef(k: "note", label: "Подсказка под таблицей", kind: .area(2))] },
-            extra: { doc in AnyView(GridEditor(doc: doc)) },
-            read: { c in c["rows"] = ((c["rows"] as? [[String]]) ?? []).filter { $0.contains { !$0.isEmpty } } },
-            validate: { c, _ in (c["name"] as? String ?? "").isEmpty ? "Укажите название" : ((c["columns"] as? [String]) ?? []).isEmpty ? "Нужен хотя бы один столбец" : "" })
     }
 
     // MARK: - Акции
@@ -321,46 +308,6 @@ enum AdminSections {
                 }
                 next["badges"] = b; s = next; return nil
             }, extra: AnyView(StoreServiceCard()))
-    }
-}
-
-/// Таблица размерной сетки: заголовки столбцов и строки, «+ Строка», «+ Столбец», удаление
-struct GridEditor: View {
-    @ObservedObject var doc: Doc
-    private var cols: [String] { (doc.v["columns"] as? [String]) ?? [] }
-    private var rows: [[String]] { (doc.v["rows"] as? [[String]]) ?? [] }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Таблица").font(Theme.font(18, .light))
-            ScrollView(.horizontal, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        ForEach(cols.indices, id: \.self) { ci in
-                            HStack(spacing: 2) {
-                                cell(Binding(get: { cols.indices.contains(ci) ? cols[ci] : "" }, set: { var c = cols; c[ci] = $0; doc.v["columns"] = c }), bold: true)
-                                if cols.count > 1 { Button { var c = cols; c.remove(at: ci); doc.v["columns"] = c; doc.v["rows"] = rows.map { r in var r = r; if r.indices.contains(ci) { r.remove(at: ci) }; return r } } label: { Image(systemName: "xmark").font(.system(size: 9)).foregroundStyle(Theme.dim) } }
-                            }
-                        }
-                    }
-                    ForEach(rows.indices, id: \.self) { ri in
-                        HStack(spacing: 6) {
-                            ForEach(cols.indices, id: \.self) { ci in
-                                cell(Binding(get: { rows.indices.contains(ri) && rows[ri].indices.contains(ci) ? rows[ri][ci] : "" },
-                                             set: { v in var r = rows; while r[ri].count < cols.count { r[ri].append("") }; r[ri][ci] = v; doc.v["rows"] = r }))
-                            }
-                            Button { var r = rows; r.remove(at: ri); doc.v["rows"] = r } label: { Image(systemName: "xmark").font(.system(size: 10)).foregroundStyle(Theme.dim).frame(width: 26, height: 26) }
-                        }
-                    }
-                }
-            }
-            HStack(spacing: 8) {
-                Button("+ Строка") { var r = rows; r.append(Array(repeating: "", count: cols.count)); doc.v["rows"] = r }
-                Button("+ Столбец") { var c = cols; c.append("Новый столбец"); doc.v["columns"] = c; doc.v["rows"] = rows.map { $0 + [""] } }
-            }.font(Theme.font(14, .medium)).foregroundStyle(Theme.text).buttonStyle(.bordered).tint(Theme.ink)
-        }.padding(16).softCard(20)
-    }
-    private func cell(_ b: Binding<String>, bold: Bool = false) -> some View {
-        TextField("", text: b).font(Theme.font(14, bold ? .medium : .regular)).padding(.horizontal, 10).frame(width: 96, height: 40).background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface))
     }
 }
 

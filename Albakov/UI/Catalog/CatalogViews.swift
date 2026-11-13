@@ -338,37 +338,3 @@ struct MarkdownText: View {
     }
 }
 
-/// «Таблица размеров» как на сайте: заголовок, таблицы в мягких карточках
-struct SizesView: View {
-    @EnvironmentObject private var shop: Shop
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                Eyebrow(text: "Как выбрать размер")
-                DotTitle(text: "Таблица размеров", size: 32)
-                ForEach(shop.sizeCharts) { SizeChartTable(chart: $0) }
-            }.padding(Theme.gutter).padding(.bottom, 40)
-        }
-        .navigationTitle("Таблица размеров").navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct SizeChartTable: View {
-    let chart: SizeChart
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(chart.name).font(Theme.font(20, .light))
-            ScrollView(.horizontal, showsIndicators: false) {
-                Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 0) {
-                    GridRow { ForEach(chart.columns, id: \.self) { Text($0).font(Theme.font(12.5)).foregroundStyle(Theme.muted).padding(.vertical, 10) } }
-                    ForEach(Array(chart.rows.enumerated()), id: \.offset) { _, r in
-                        Divider1().gridCellUnsizedAxes(.horizontal)
-                        GridRow { ForEach(Array(r.enumerated()), id: \.offset) { i, v in Text(v).font(Theme.font(14.5, i == 0 ? .medium : .regular)).padding(.vertical, 11) } }
-                    }
-                }.padding(.horizontal, 16).padding(.vertical, 6)
-            }
-            .background(RoundedRectangle(cornerRadius: 18).fill(.white)).hairline(RoundedRectangle(cornerRadius: 18), 0.08)
-            if !chart.note.isEmpty { Text(chart.note).font(Theme.font(13.5)).foregroundStyle(Theme.muted) }
-        }
-    }
-}

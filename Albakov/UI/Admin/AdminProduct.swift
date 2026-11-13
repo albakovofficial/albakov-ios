@@ -22,7 +22,7 @@ enum AdminProduct {
             blank: {
                 let col: [String: Any] = ["id": uid("col"), "name": "", "hex": "#3a3734", "images": [String](), "sizes": [[String: Any]](), "art": ["kind": "tee", "tone": "#3a3734"]]
                 return ["name": "", "slug": "", "gender": "women", "categoryId": Admin.shared.data["categories"].array.first?["id"].str ?? "", "price": 0, "compareAt": 0, "tags": ["new"],
-                        "description": "", "composition": "", "care": "", "colors": [col], "sizeChartId": Admin.shared.data["sizeCharts"].array.first?["id"].str ?? "", "active": true, "createdAt": AdminSections.today()]
+                        "description": "", "composition": "", "care": "", "colors": [col], "active": true, "createdAt": AdminSections.today()]
             },
             fields: { fields },
             extra: { doc in AnyView(ProductExtraEditor(doc: doc)) },
@@ -62,7 +62,6 @@ enum AdminProduct {
                 FDef(k: "sku", label: "Артикул", hint: "Заполнится сам: ALB-0001, ALB-0002… Можно указать свой — латиница, цифры, дефис"),
                 FDef(k: "categoryId", label: "Категория", kind: .select(AdminSections.catOpts)),
                 FDef(k: "gender", label: "Для кого", kind: .select([("women", "Женщинам"), ("men", "Мужчинам"), ("kids", "Детям"), ("unisex", "Унисекс — женщинам и мужчинам")])),
-                FDef(k: "sizeChartId", label: "Размерная сетка", kind: .select([("", "Без таблицы размеров")] + Admin.shared.data["sizeCharts"].array.map { ($0["id"].str, $0["name"].str) })),
                 FDef(k: "price", label: "Цена, ₽", kind: .number, hint: "Одна для всех цветов"),
                 FDef(k: "compareAt", label: "Старая цена, ₽", kind: .number, hint: "Если больше цены — показывается зачёркнутой. 0 — скидки нет"),
                 FDef(k: "active", label: "Показывать в магазине", kind: .bool),
@@ -180,10 +179,6 @@ struct ColorsEditor: View {
             }
             FlowRow(spacing: 8) {
                 small("+ Размер") { update(i) { var s = ($0["sizes"] as? [[String: Any]]) ?? []; s.append(["size": "", "stock": 0]); $0["sizes"] = s } }
-                small("Размеры из сетки") {
-                    guard let ch = admin.data["sizeCharts"].array.first(where: { $0["id"].str == (doc.v["sizeChartId"] as? String ?? "") }) else { Toast.shared.show("Сначала выберите размерную сетку"); return }
-                    update(i) { var s = ($0["sizes"] as? [[String: Any]]) ?? []; for r in ch["rows"].array { let n = r.array.first?.str ?? ""; if !n.isEmpty && !s.contains(where: { ($0["size"] as? String) == n }) { s.append(["size": n, "stock": 0]) } }; $0["sizes"] = s }
-                }
                 if i > 0 { small("Размеры как у «\(JSON(colors[0])["name"].string.flatMap { $0.isEmpty ? nil : $0 } ?? "первого цвета")»") {
                     let first = (colors[0]["sizes"] as? [[String: Any]]) ?? []
                     update(i) { var s = ($0["sizes"] as? [[String: Any]]) ?? []; for x in first { let n = x["size"] as? String ?? ""; if !s.contains(where: { ($0["size"] as? String) == n }) { s.append(["size": n, "stock": 0]) } }; $0["sizes"] = s }
@@ -297,39 +292,91 @@ struct SpecsEditor: View {
     }
 }
 
-/// Мерки и подбор размера: ширина, длина, рукав, рост и вес для каждого размера; размер и рост модели
+/// Таблица размеров товара (1.0.2): своя у каждого товара — мерки на каждый размер, свои столбцы, подсказка;
+/// рост и вес — для «Подобрать размер»; размер и рост модели. Покупатель видит её в карточке товара
 struct FitEditor: View {
     @ObservedObject var doc: Doc
-    private static let cols = [("w", "Ширина"), ("l", "Длина"), ("sl", "Рукав"), ("hMin", "Рост от"), ("hMax", "Рост до"), ("kMin", "Вес от"), ("kMax", "Вес до")]
+    private static let base = [("w", "Ширина"), ("l", "Длина"), ("sl", "Рукав")]
+    private static let body2 = [("hMin", "Рост от"), ("hMax", "Рост до"), ("kMin", "Вес от"), ("kMax", "Вес до")]
     private var fit: [String: Any] { (doc.v["fit"] as? [String: Any]) ?? [:] }
     private var rows: [[String: Any]] { (fit["rows"] as? [[String: Any]]) ?? [] }
+    private var cols: [String] { (fit["cols"] as? [String]) ?? [] }
     private var sizes: [String] { var out: [String] = []; for c in (doc.v["colors"] as? [[String: Any]] ?? []) { for s in (c["sizes"] as? [[String: Any]] ?? []) { let n = s["size"] as? String ?? ""; if !n.isEmpty && !out.contains(n) { out.append(n) } } }; return out }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Мерки и подбор размера").font(Theme.font(18, .light))
-            Text("Мерки готовой вещи в сантиметрах: ширина — от шва до шва под рукавами, длина — от плеча до низа. Рост и вес — на кого рассчитан размер: по ним покупатель подбирает размер.").font(Theme.font(13)).foregroundStyle(Theme.muted)
+            Text("Таблица размеров").font(Theme.font(18, .light))
+            Text("Своя у каждого товара — покупатель видит её в карточке товара. Мерки готовой вещи в сантиметрах: ширина — от шва до шва под рукавами, длина — от плеча до низа. Нужен другой замер — добавьте свой столбец. Рост и вес — на кого рассчитан размер.").font(Theme.font(13)).foregroundStyle(Theme.muted)
             if sizes.isEmpty { Text("Сначала добавьте размеры в цвета товара").font(Theme.font(13.5)).foregroundStyle(Theme.muted) }
             ScrollView(.horizontal, showsIndicators: true) {
                 Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 6) {
-                    GridRow { Text("Размер").font(Theme.font(11.5)).foregroundStyle(Theme.muted); ForEach(FitEditor.cols, id: \.0) { Text($0.1 + ($0.0.hasPrefix("k") ? ", кг" : ", см")).font(Theme.font(11.5)).foregroundStyle(Theme.muted) } }
+                    GridRow {
+                        Text("Размер").font(Theme.font(11.5)).foregroundStyle(Theme.muted)
+                        ForEach(FitEditor.base, id: \.0) { Text($0.1 + ", см").font(Theme.font(11.5)).foregroundStyle(Theme.muted) }
+                        ForEach(cols.indices, id: \.self) { i in
+                            HStack(spacing: 2) {
+                                TextField("Название", text: Binding(get: { cols.indices.contains(i) ? cols[i] : "" }, set: { setCol(i, $0) })).font(Theme.font(11.5)).frame(width: 74)
+                                Button { removeCol(i) } label: { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.muted) }.accessibilityLabel("Удалить столбец")
+                            }
+                        }
+                        ForEach(FitEditor.body2, id: \.0) { Text($0.1 + ($0.0.hasPrefix("k") ? ", кг" : ", см")).font(Theme.font(11.5)).foregroundStyle(Theme.muted) }
+                    }
                     ForEach(sizes, id: \.self) { sz in
                         GridRow {
                             Text(sz).font(Theme.font(14, .medium))
-                            ForEach(FitEditor.cols, id: \.0) { c in
-                                TextField("", text: Binding(get: { let v = (rows.first { ($0["size"] as? String) == sz }?[c.0] as? NSNumber)?.doubleValue ?? 0; return v > 0 ? String(format: "%g", v) : "" },
-                                                            set: { setVal(sz, c.0, $0) }))
-                                    .keyboardType(.decimalPad).font(Theme.font(14)).multilineTextAlignment(.center).frame(width: 62, height: 38).background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+                            ForEach(FitEditor.base, id: \.0) { c in numField(sz, c.0) }
+                            ForEach(cols.indices, id: \.self) { i in
+                                TextField("", text: Binding(get: { xVal(sz, i) }, set: { setX(sz, i, $0) }))
+                                    .font(Theme.font(14)).multilineTextAlignment(.center).frame(width: 90, height: 38).background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
                             }
+                            ForEach(FitEditor.body2, id: \.0) { c in numField(sz, c.0) }
                         }
                     }
                 }
             }
-            Button("Заполнить пустой рост и вес типовыми для оверсайза") { fillTypical() }.font(Theme.font(13, .medium)).foregroundStyle(Theme.text).buttonStyle(.bordered).tint(Theme.ink)
+            HStack(spacing: 8) {
+                Button("+ Свой столбец") { addCol() }.font(Theme.font(13, .medium)).foregroundStyle(Theme.text).buttonStyle(.bordered).tint(Theme.ink)
+                Button("Рост и вес — типовые") { fillTypical() }.font(Theme.font(13, .medium)).foregroundStyle(Theme.text).buttonStyle(.bordered).tint(Theme.ink)
+            }
+            Field(label: "Подсказка над таблицей", text: Binding(get: { fit["note"] as? String ?? "" }, set: { var f = fit; f["note"] = String($0.prefix(300)); doc.v["fit"] = f }), placeholder: "Например: длина брюк — по внутреннему шву")
             HStack(spacing: 10) {
                 Field(label: "На модели размер", text: Binding(get: { fit["modelSize"] as? String ?? "" }, set: { var f = fit; f["modelSize"] = String($0.prefix(10)); doc.v["fit"] = f }), placeholder: "например, L")
                 Field(label: "Рост модели, см", text: Binding(get: { (fit["modelHeight"] as? NSNumber).map { "\($0.intValue)" } ?? "" }, set: { var f = fit; f["modelHeight"] = Int($0) ?? ""; doc.v["fit"] = f }), keyboard: .numberPad)
             }
         }
+    }
+    private func numField(_ sz: String, _ k: String) -> some View {
+        TextField("", text: Binding(get: { let v = (rows.first { ($0["size"] as? String) == sz }?[k] as? NSNumber)?.doubleValue ?? 0; return v > 0 ? String(format: "%g", v) : "" },
+                                    set: { setVal(sz, k, $0) }))
+            .keyboardType(.decimalPad).font(Theme.font(14)).multilineTextAlignment(.center).frame(width: 62, height: 38).background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+    }
+    private func xVal(_ sz: String, _ i: Int) -> String {
+        let x = (rows.first { ($0["size"] as? String) == sz }?["x"] as? [String]) ?? []
+        return i < x.count ? x[i] : ""
+    }
+    private func setX(_ sz: String, _ i: Int, _ t: String) {
+        var f = fit, r = rows
+        let idx: Int
+        if let k = r.firstIndex(where: { ($0["size"] as? String) == sz }) { idx = k } else { r.append(["size": sz]); idx = r.count - 1 }
+        var x = (r[idx]["x"] as? [String]) ?? []
+        while x.count <= i { x.append("") }
+        x[i] = String(t.prefix(30))
+        if x.contains(where: { !$0.isEmpty }) { r[idx]["x"] = x } else { r[idx].removeValue(forKey: "x") }
+        f["rows"] = r.filter { $0.count > 1 }; doc.v["fit"] = f
+    }
+    private func setCol(_ i: Int, _ t: String) { var f = fit, c = cols; guard c.indices.contains(i) else { return }; c[i] = String(t.prefix(40)); f["cols"] = c; doc.v["fit"] = f }
+    private func addCol() {
+        guard cols.count < 6 else { Toast.shared.show("Не больше 6 своих столбцов"); return }
+        var f = fit; f["cols"] = cols + ["Мерка"]; doc.v["fit"] = f
+    }
+    private func removeCol(_ i: Int) {
+        var f = fit, c = cols; guard c.indices.contains(i) else { return }
+        c.remove(at: i); f["cols"] = c
+        f["rows"] = rows.map { r -> [String: Any] in
+            var r = r
+            if var x = r["x"] as? [String], i < x.count { x.remove(at: i); if x.contains(where: { !$0.isEmpty }) { r["x"] = x } else { r.removeValue(forKey: "x") } }
+            return r
+        }.filter { $0.count > 1 }
+        doc.v["fit"] = f
     }
     private func setVal(_ sz: String, _ k: String, _ t: String) {
         var f = fit, r = rows

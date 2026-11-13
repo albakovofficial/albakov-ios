@@ -31,7 +31,6 @@ struct Product: Identifiable, Hashable {
     let colors: [PColor]
     let description: String, composition: String, care: String
     let fit: JSON, specs: JSON, look: [String]
-    let sizeChartId: String
     let active: Bool
     let createdAt: String
     let sku: String
@@ -52,7 +51,6 @@ struct Product: Identifiable, Hashable {
         }
         colors = cs
         description = j["description"].str; composition = j["composition"].str; care = j["care"].str; fit = j["fit"]; specs = j["specs"]; look = j["look"].array.compactMap { $0.string }
-        sizeChartId = j["sizeChartId"].str
         active = j["active"].exists ? j["active"].bool : true
         createdAt = j["createdAt"].str; sku = j["sku"].str
         preorder = j["preorder"].bool; preorderLimit = j["preorderLimit"].int ?? 0; preorderSold = j["preorderSold"].int ?? 0
@@ -106,11 +104,6 @@ struct Promotion {
 }
 
 struct Price { let price: Int; let oldPrice: Int; var promoTitle = ""; var promoEnds = ""; var percent: Int { oldPrice > 0 ? Int((1 - Double(price) / Double(oldPrice)) * 100 + 0.5) : 0 } }
-
-struct SizeChart: Identifiable {
-    let id: String, name: String, columns: [String], rows: [[String]], note: String
-    init(_ j: JSON) { id = j["id"].str; name = j["name"].str; columns = j["columns"].array.map { $0.str }; rows = j["rows"].array.map { $0.array.map { $0.str } }; note = j["note"].str }
-}
 
 struct Page: Identifiable { let id: String, slug: String, title: String, body: String, group: String, inFooter: Bool
     init(_ j: JSON) { id = j["id"].str; slug = j["slug"].str; title = j["title"].str; body = j["body"].str; group = j["group"].str; inFooter = !j["inFooter"].exists || j["inFooter"].bool }

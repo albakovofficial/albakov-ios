@@ -30,7 +30,6 @@ enum Dest: Hashable {
     case catalog(cat: String?, tag: String?, sale: Bool)
     case search
     case page(String)
-    case sizes
     case gift
     case track
     case checkout
@@ -137,7 +136,7 @@ final class Router: ObservableObject {
         case "checkout": reset(.cart, to: [.checkout])
         case "order" where parts.count > 1: reset(.account, to: [.orders, .order(parts[1])])
         case "page" where parts.count > 1: push(.page(parts[1]))
-        case "sizes": push(.sizes)
+        case "sizes": reset(.catalog)   // общей таблицы размеров нет — у каждого товара своя
         case "gift": push(.gift, on: tab == .account ? .account : .home)
         case "track": push(.track, on: tab == .account ? .account : .home)
         case "account":

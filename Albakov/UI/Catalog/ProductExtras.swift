@@ -108,13 +108,13 @@ struct SpecsBlock: View {
 // MARK: - Подбор размера по росту и весу, сравнение со своей футболкой, мерки изделия
 
 enum Fit {
-    struct Row { var size: String; var w = 0.0, l = 0.0, sl = 0.0, hMin = 0.0, hMax = 0.0, kMin = 0.0, kMax = 0.0; var typical = false }
+    struct Row { var size: String; var w = 0.0, l = 0.0, sl = 0.0, hMin = 0.0, hMax = 0.0, kMin = 0.0, kMax = 0.0; var typical = false; var x: [String] = [] }
     static let typicalTable: [String: [Double]] = ["XS": [150, 165, 45, 58], "S": [160, 172, 52, 66], "M": [170, 180, 62, 76], "L": [176, 186, 72, 86], "XL": [182, 192, 82, 96], "2XL": [186, 198, 92, 110], "XXL": [186, 198, 92, 110], "3XL": [190, 205, 105, 125], "XXXL": [190, 205, 105, 125]]
     static let prefs = [("close", "Ближе к телу"), ("free", "Свободно, как задумано"), ("xfree", "Очень свободно")]
 
     static func rows(_ p: Product) -> [Row] {
         p.fit["rows"].array.filter { !$0["size"].str.isEmpty }.map { r in
-            Row(size: r["size"].str, w: r["w"].double ?? 0, l: r["l"].double ?? 0, sl: r["sl"].double ?? 0, hMin: r["hMin"].double ?? 0, hMax: r["hMax"].double ?? 0, kMin: r["kMin"].double ?? 0, kMax: r["kMax"].double ?? 0)
+            Row(size: r["size"].str, w: r["w"].double ?? 0, l: r["l"].double ?? 0, sl: r["sl"].double ?? 0, hMin: r["hMin"].double ?? 0, hMax: r["hMax"].double ?? 0, kMin: r["kMin"].double ?? 0, kMax: r["kMax"].double ?? 0, x: r["x"].array.map(\.str))
         }
     }
     static func sizes(_ p: Product) -> [String] { var out: [String] = []; for c in p.colors { for s in c.sizes where !s.size.isEmpty && !out.contains(s.size) { out.append(s.size) } }; return out }
@@ -132,6 +132,14 @@ enum Fit {
         return r.count >= 2 ? r : []
     }
     static func canPick(_ p: Product) -> Bool { rangeRows(p).count >= 2 }
+    /// Свои столбцы таблицы размеров товара (например «Обхват талии»)
+    static func cols(_ p: Product) -> [String] { p.fit["cols"].array.map(\.str) }
+    /// Строки таблицы размеров товара: есть хоть одна мерка
+    static func tableRows(_ p: Product) -> [Row] {
+        let c = cols(p)
+        return rows(p).filter { r in r.w > 0 || r.l > 0 || r.sl > 0 || r.hMin > 0 || r.x.indices.contains { $0 < c.count && !r.x[$0].trimmingCharacters(in: .whitespaces).isEmpty } }
+    }
+    static func hasTable(_ p: Product) -> Bool { !tableRows(p).isEmpty }
     static func canCompare(_ p: Product) -> Bool { rows(p).filter { $0.w > 0 && $0.l > 0 }.count >= 2 }
     /// Ближайший размер по росту и ближайший по весу — берём больший, затем поправка на посадку
     static func pick(_ p: Product, h: Double, kg: Double, pref: String) -> (row: Row, prev: Row?, outside: Bool)? {
@@ -312,31 +320,42 @@ struct FitCompareSheet: View {
 }
 
 /// Мерки изделия: ширина, длина, рукав, рост и вес по размерам
+/// Таблица размеров товара (1.0.2): своя у каждого товара — мерки на каждый размер задаются в панели.
+/// Ширина, длина, рукав, свои столбцы и рост/вес — только те, что заполнены; единицы — в заголовке
 struct MeasuresTable: View {
     let product: Product
     var body: some View {
-        let rows = Fit.rows(product).filter { $0.w > 0 || $0.l > 0 || $0.sl > 0 }
+        let rows = Fit.tableRows(product), cols = Fit.cols(product)
+        let extra = cols.indices.filter { i in !cols[i].isEmpty && rows.contains { i < $0.x.count && !$0.x[i].trimmingCharacters(in: .whitespaces).isEmpty } }
+        let hasW = rows.contains { $0.w > 0 }, hasL = rows.contains { $0.l > 0 }, hasSl = rows.contains { $0.sl > 0 }, hasH = rows.contains { $0.hMin > 0 }, hasK = rows.contains { $0.kMin > 0 }
+        let head = ["Размер"] + (hasW ? ["Ширина, см"] : []) + (hasL ? ["Длина, см"] : []) + (hasSl ? ["Рукав, см"] : []) + extra.map { cols[$0] } + (hasH ? ["Рост, см"] : []) + (hasK ? ["Вес, кг"] : [])
         if !rows.isEmpty {
-            let hasSl = rows.contains { $0.sl > 0 }, hasH = rows.contains { $0.hMin > 0 }
             VStack(alignment: .leading, spacing: 10) {
-                DotTitle(text: "Мерки изделия", size: 28, dot: false)
-                Text("Футболку разложили на столе и измерили. Ширина — от шва до шва под рукавами, длина — от плеча до низа.").font(Theme.font(14)).foregroundStyle(Theme.muted)
+                DotTitle(text: "Таблица размеров", size: 28, dot: false)
+                let note = product.fit["note"].str
+                Text(note.isEmpty ? "Мерки этой вещи в сантиметрах: её разложили на столе и измерили. Ширина — от шва до шва под рукавами, длина — от плеча до низа." : note).font(Theme.font(14)).foregroundStyle(Theme.muted)
                 ScrollView(.horizontal, showsIndicators: false) {
                     Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 0) {
-                        GridRow { ForEach(["Размер", "Ширина", "Длина"] + (hasSl ? ["Рукав"] : []) + (hasH ? ["Рост", "Вес"] : []), id: \.self) { Text($0).font(Theme.font(12.5)).foregroundStyle(Theme.muted).padding(.vertical, 10) } }
+                        GridRow { ForEach(head, id: \.self) { Text($0).font(Theme.font(12.5)).foregroundStyle(Theme.muted).padding(.vertical, 10) } }
                         ForEach(rows, id: \.size) { r in
                             Divider1().gridCellUnsizedAxes(.horizontal)
                             GridRow {
-                                Text(r.size).font(Theme.font(14.5, .medium)); Text(Fit.cm(r.w)); Text(Fit.cm(r.l))
-                                if hasSl { Text(Fit.cm(r.sl)) }
-                                if hasH { Text(r.hMin > 0 ? "\(Int(r.hMin))–\(Int(r.hMax))" : "—"); Text(r.kMin > 0 ? "\(Int(r.kMin))–\(Int(r.kMax))" : "—") }
+                                Text(r.size).font(Theme.font(14.5, .medium))
+                                if hasW { Text(Self.num(r.w)) }
+                                if hasL { Text(Self.num(r.l)) }
+                                if hasSl { Text(Self.num(r.sl)) }
+                                ForEach(extra, id: \.self) { i in Text(i < r.x.count && !r.x[i].isEmpty ? r.x[i] : "—") }
+                                if hasH { Text(r.hMin > 0 ? "\(Int(r.hMin))–\(Int(r.hMax))" : "—") }
+                                if hasK { Text(r.kMin > 0 ? "\(Int(r.kMin))–\(Int(r.kMax))" : "—") }
                             }.font(Theme.font(14.5)).padding(.vertical, 10)
                         }
                     }.padding(.horizontal, 16).padding(.vertical, 6)
                 }.background(RoundedRectangle(cornerRadius: 18).fill(.white)).hairline(RoundedRectangle(cornerRadius: 18), 0.08)
+                if head.count > 4 { Text("Таблица листается вбок →").font(Theme.font(12.5)).foregroundStyle(Theme.dim) }
             }
         }
     }
+    static func num(_ v: Double) -> String { v > 0 ? String(format: "%g", v).replacingOccurrences(of: ".", with: ",") : "—" }
 }
 
 // MARK: - Доставка в город: срок и цена СДЭК для этого товара
