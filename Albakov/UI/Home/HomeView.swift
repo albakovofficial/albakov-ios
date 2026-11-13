@@ -59,7 +59,7 @@ struct HomeView: View {
     }
 
     // Раздел, срок, акция и «кому показывать»: слайд «Зарегистрироваться» вошедшему не показываем
-    private var slides: [Slide] { shop.settings.slides.filter { $0.visible(gender: shop.gender, loggedIn: shop.user != nil, promos: shop.promotions) } }
+    private var slides: [Slide] { shop.settings.slides.filter { $0.visible(gender: shop.gender, user: shop.user, promos: shop.promotions) }.map { $0.forUser(shop.user) } }
     // Если новинок мало — дополняем последними поступлениями, чтобы ряд не выглядел пустым (как на сайте)
     private var newList: [Product] {
         var n = shop.visibleProducts.filter { $0.tags.contains("new") }

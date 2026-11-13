@@ -134,26 +134,47 @@ struct DeliveryMethod: Identifiable, Hashable {
 }
 
 struct Slide: Identifiable {
-    let id: String, eyebrow: String, title: String, text: String, image: String, btn1: (String, String), btn2: (String, String), gender: String
+    let id: String, eyebrow: String, title: String, image: String, gender: String
+    var text: String, btn1: (String, String), btn2: (String, String)
     let startsAt: String, endsAt: String, promotionId: String, audience: String, code: String
     init(_ j: JSON) {
         id = j["id"].str; eyebrow = j["eyebrow"].str; title = Fmt.plain(j["title"].str); text = j["text"].str; image = j["image"].str; gender = j["gender"].str
         btn1 = (j["btn1"]["label"].str, j["btn1"]["link"].str); btn2 = (j["btn2"]["label"].str, j["btn2"]["link"].str)
         startsAt = j["startsAt"].str; endsAt = j["endsAt"].str; promotionId = j["promotionId"].str; audience = j["audience"].str; code = j["code"].str
     }
+    private var toRegister: Bool { (btn1.1 + " " + btn2.1).contains("tab=register") }
     /// Кому показывать (как slideAudience на сайте): «guest» — только без входа, «user» — только вошедшим, «all» — всем.
-    /// Не задано: слайд с кнопкой «Регистрация» — только гостям, остальные — всем.
+    /// Не задано: слайд с кнопкой «Регистрация» — новым покупателям («new»): гостям и вошедшим, кто ещё не пользовался скидкой.
     var who: String {
         if ["guest", "user", "all"].contains(audience) { return audience }
-        return (btn1.1 + " " + btn2.1).contains("tab=register") ? "guest" : "all"
+        return toRegister ? "new" : "all"
     }
     /// Виден ли слайд сейчас: раздел, срок, связанная акция и кому показывать — как slideVisible на сайте
-    func visible(gender g: String?, loggedIn: Bool, promos: [Promotion], now: Date = Date()) -> Bool {
+    func visible(gender g: String?, user: User?, promos: [Promotion], now: Date = Date()) -> Bool {
         if !gender.isEmpty, let g, gender != g { return false }
         let win = Promotion(JSON(["active": true, "startsAt": startsAt, "endsAt": endsAt]))
         if !win.inWindow(now) { return false }
         if !promotionId.isEmpty { guard let p = promos.first(where: { $0.id == promotionId }), p.inWindow(now) else { return false } }
-        switch who { case "guest": return !loggedIn; case "user": return loggedIn; default: return true }
+        switch who {
+        case "guest": return user == nil
+        case "user": return user != nil
+        case "new":
+            guard let u = user else { return true }
+            return !u.hasOrders && (code.isEmpty || !u.usedPromos.contains(code.uppercased()))
+        default: return true
+        }
+    }
+    /// Вошедшему слайд с регистрацией — без неё: кнопка «Выбрать вещи», в тексте без «Зарегистрируйтесь» (как slideForUser на сайте)
+    func forUser(_ user: User?) -> Slide {
+        guard user != nil, toRegister else { return self }
+        var x = self
+        if btn1.1.contains("tab=register") { x.btn1 = ("Выбрать вещи", "#/catalog") }
+        if btn2.1.contains("tab=register") { x.btn2 = ("", "") }
+        var t = text
+        if let r = t.range(of: #"(?i)зарегистрируйтесь\s*(и\s*)?"#, options: .regularExpression) { t.removeSubrange(r) }
+        t = t.trimmingCharacters(in: .whitespaces)
+        x.text = t.isEmpty ? "" : t.prefix(1).uppercased() + t.dropFirst()
+        return x
     }
 }
 
@@ -208,8 +229,11 @@ struct User {
     let id: String, firstName: String, lastName: String, phone: String, email: String, bonus: Int, supportUnread: Int, createdAt: String
     let favorites: [String]
     let cart: [CartLine]
+    /// Есть ли заказы и какие промокоды уже использованы — для слайда «скидка новым покупателям»
+    let hasOrders: Bool, usedPromos: [String]
     init?(_ j: JSON) {
         guard let id = j["id"].string else { return nil }
+        hasOrders = j["hasOrders"].bool; usedPromos = j["usedPromos"].array.compactMap { $0.string?.uppercased() }
         self.id = id; firstName = j["firstName"].str; lastName = j["lastName"].str; phone = j["phone"].str; email = j["email"].str
         bonus = j["bonus"].int ?? 0; supportUnread = j["supportUnread"].int ?? 0; createdAt = j["createdAt"].str
         favorites = j["favorites"].array.compactMap { $0.string }

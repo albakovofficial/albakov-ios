@@ -125,7 +125,7 @@ struct AdminSlider: View {
     private func pills(_ x: JSON) -> String {
         var p: [String] = []
         if !x["gender"].str.isEmpty { p.append("Только «\(Sections.name(x["gender"].str))»") }
-        switch Slide(x).who { case "guest": p.append("Только гостям"); case "user": p.append("Только вошедшим"); default: break }
+        switch Slide(x).who { case "guest": p.append("Только гостям"); case "new": p.append("Новым покупателям"); case "user": p.append("Только вошедшим"); default: break }
         if let pr = admin.data["promotions"].array.first(where: { $0["id"].str == x["promotionId"].str }) { p.append("Акция: " + pr["title"].str) }
         if !x["code"].str.isEmpty { p.append("Промокод " + x["code"].str) }
         return p.joined(separator: " · ")
@@ -149,7 +149,7 @@ private struct SlideEdit: View {
         let promo = [("", "Не связан с акцией")] + d["promotions"].array.map { ($0["id"].str, $0["title"].str + (Promotion($0).inWindow(Date()) ? " — действует" : " — не действует")) }
         let codes = [("", "Без промокода")] + d["promocodes"].array.map { ($0["code"].str, $0["code"].str + ($0["active"].bool ? "" : " (выключен)") + ($0["note"].str.isEmpty ? "" : " — " + $0["note"].str)) }
         return [.section("Основное"), FDef(k: "active", label: "Показывать слайд на сайте", kind: .bool),
-                FDef(k: "audience", label: "Кому показывать", kind: .select([("", "Сам решит: со ссылкой на регистрацию — только гостям"), ("all", "Всем"), ("guest", "Только тем, кто не вошёл"), ("user", "Только вошедшим в личный кабинет")])),
+                FDef(k: "audience", label: "Кому показывать", kind: .select([("", "Сам решит: со ссылкой на регистрацию — новым покупателям, пока не воспользовались скидкой"), ("all", "Всем"), ("guest", "Только тем, кто не вошёл"), ("user", "Только вошедшим в личный кабинет")])),
                 FDef(k: "gender", label: "Для какого раздела", kind: .select([("", "Всем покупателям")] + Sections.all.map { ($0.key, "Только «\($0.name)»") })),
                 .section("Текст"), FDef(k: "eyebrow", label: "Надзаголовок", hint: "Маленькая строка над заголовком"),
                 FDef(k: "title", label: "Заголовок", kind: .area(2), hint: "Новая строка — перенос. *Слово в звёздочках* — курсивом."),
