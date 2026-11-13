@@ -33,15 +33,25 @@ enum Demo {
         case ("GET", "orders", 2): out["order"] = orders.first(where: { $0["id"] as? String == parts[1] }) ?? orders[0]
         case ("GET", "me", 1): out["user"] = user; out["bonusLog"] = bonusLog
         case ("GET", "me", _): out["prefs"] = ["orders": true, "support": true, "bonus": true, "promo": false]
-        case ("GET", "support", 1): out["tickets"] = [ticket]; out["topics"] = ["Заказ", "Обмен и возврат", "Размер", "Другое"]
-        case ("GET", "support", _): out["ticket"] = ticket
+        case ("GET", "support", 1): out["tickets"] = [ticket, closedTicket]; out["topics"] = ["Заказ", "Доставка", "Размер и посадка", "Возврат и обмен", "Другое"]
+        case ("GET", "support", _): out["ticket"] = ticket.merging(["messages": ((ticket["messages"] as? [[String: Any]]) ?? []).filter { $0["from"] as? String != "note" }]) { _, new in new }
         case ("GET", "admin", _):
             switch parts.dropFirst().first ?? "" {
             case "data": out["data"] = pub.merging(["perms": ["orders", "content", "finance", "marketing", "mail", "payment", "settings", "staff"], "role": "owner", "roleName": "Владелец",
                                         "orders": orders + [order("d4", "1045", status: "new", hoursAgo: 1, name: "Дмитрий Орлов", pay: "online", paid: true)],
                                         "products": products, "users": [user, ["id": "u2", "firstName": "Дмитрий", "lastName": "Орлов", "phone": "79991112233", "email": "dmitry@example.com", "bonus": 120]],
                                         "supportNew": 1, "promocodes": [Any](), "waitlist": [Any]()] as [String: Any]) { _, new in new }
-            case "support": out["tickets"] = [ticket]
+            case "support":
+                if parts.count > 2 {
+                    out["ticket"] = ticket
+                    out["customer"] = ["id": "demo", "name": "Анна Смирнова", "email": "anna@example.com", "phone": "79990000000", "createdAt": iso(-24 * 40), "bonus": 450,
+                                       "orders": orders.map { ["id": $0["id"] ?? "", "number": $0["number"] ?? "", "status": $0["status"] ?? "", "total": $0["total"] ?? 0, "createdAt": $0["createdAt"] ?? ""] },
+                                       "tickets": [["id": "t0", "number": "1031", "topic": "Доставка", "status": "closed", "updatedAt": iso(-24 * 9)]]] as [String: Any]
+                } else {
+                    out["tickets"] = [ticket, closedTicket]
+                    out["templates"] = [["id": "size", "title": "Подбор размера", "text": "Подскажите рост и обычный размер — подберём по меркам изделия."],
+                                        ["id": "exchange", "title": "Как оформить обмен", "text": "Обменять размер можно в личном кабинете: «Заказы» → заказ → «Обмен и возврат»."]]
+                }
             case "push": out["prefs"] = ["orders": true, "support": true, "stock": true]
             case "audit": out["items"] = [["at": iso(-0.5), "who": "Анна Смирнова", "text": "Заказ № 1043: статус «Передан в доставку»"], ["at": iso(-3), "who": "Анна Смирнова", "text": "Товар «\(firstName)»: остатки"]]
             default: break
@@ -82,8 +92,18 @@ enum Demo {
         [["at": iso(-24 * 12), "amount": 160, "type": "earn", "orderNumber": "1031"], ["at": iso(-24 * 30), "amount": 290, "type": "welcome"]]
     }
     private static var ticket: [String: Any] {
-        ["id": "t1", "number": "58", "name": "Анна Смирнова", "topic": "Размер", "status": "open", "unreadShop": true, "unread": true, "orderNumber": "1043", "createdAt": iso(-2),
-         "messages": [["from": "user", "text": "Подскажите, M подойдёт на рост 170?", "at": iso(-2)], ["from": "shop", "text": "Да, M сядет свободно — это оверсайз.", "at": iso(-1)]]]
+        let o = orders[0], it = (o["items"] as? [[String: Any]])?.first ?? [:]
+        return ["id": "t1", "number": "1043", "name": "Анна Смирнова", "phone": "79990000000", "email": "anna@example.com", "topic": "Размер и посадка", "status": "answered", "unreadShop": false, "unread": true,
+                "orderId": "d1", "orderNumber": "1043", "createdAt": iso(-2), "updatedAt": iso(-1), "firstReplyAt": iso(-1.8), "shopReadAt": iso(-1.8), "userReadAt": iso(-1),
+                "assignee": ["id": "demo", "name": "Анна"],
+                "order": ["id": "d1", "number": "1043", "status": "shipped", "total": o["total"] ?? 0, "items": 1, "name": it["name"] ?? "", "color": it["color"] ?? "", "size": "L", "image": it["image"] ?? ""],
+                "messages": [["from": "user", "text": "Здравствуйте! Рост 182, вес 78. Футболка L села великовато — может, поменять на M?", "at": iso(-2), "files": [String]()],
+                             ["from": "note", "text": "Резерв M отложен до пятницы", "at": iso(-1.9), "by": "Анна", "files": [String]()],
+                             ["from": "shop", "text": "Здравствуйте! Оверсайз задуман свободным — советуем M, обмен бесплатный.", "at": iso(-1.8), "by": "Анна", "files": [String]()]]]
+    }
+    private static var closedTicket: [String: Any] {
+        ["id": "t0", "number": "1031", "name": "Анна Смирнова", "topic": "Доставка", "status": "closed", "unread": false, "orderNumber": "1031", "createdAt": iso(-24 * 10), "updatedAt": iso(-24 * 9),
+         "messages": [["from": "user", "text": "Спасибо, всё получила!", "at": iso(-24 * 9), "files": [String]()]]]
     }
 }
 #endif

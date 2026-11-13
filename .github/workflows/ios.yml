@@ -27,6 +27,10 @@ on:
         description: 'Снимки для App Store: только эти экраны через пробел (пусто — все)'
         type: string
         default: ''
+      screen_paths:
+        description: 'Проверка дизайна: только эти экраны через пробел (пусто — все)'
+        type: string
+        default: ''
       runner:
         description: 'Mac на GitHub (по умолчанию Intel: Mac на Apple Silicon у GitHub часто в очереди)'
         type: choice
@@ -97,6 +101,7 @@ jobs:
         env:
           STORE: ${{ inputs.store }}
           PATHS: ${{ inputs.store_paths }}
+          SHOTS: ${{ inputs.screen_paths }}
         run: |
           # App Store: Pro Max (1320×2868 — размер 6,9"); проверка дизайна: обычный Pro
           if [ "$STORE" = "true" ]; then export WANT=Max; else export WANT=; fi
@@ -117,8 +122,10 @@ jobs:
             done
           else
           # 9–14: кабинет и панель на вымышленных данных (только сборка Debug, боевые заказы не создаются)
-          for S in / /catalog "/catalog?cat=FIRSTCAT" /product/FIRST "/cart?demo=1" "/checkout?demo=1" /account /sizes \
-                   "/account?demo=staff" "/order/d1?demo=staff" "/account?tab=bonus&demo=staff" "/admin?demo=staff" "/admin?s=orders&demo=staff" "/admin?s=support&id=t1&demo=staff" /gift /track "/admin?s=payment&demo=staff" "/admin?s=finance&demo=staff" "/admin?s=slider&demo=staff" "/admin?s=mail&demo=staff"; do
+          DEFAULT_LIST=(/ /catalog "/catalog?cat=FIRSTCAT" /product/FIRST "/cart?demo=1" "/checkout?demo=1" /account /sizes
+                   "/account?demo=staff" "/order/d1?demo=staff" "/account?tab=bonus&demo=staff" "/admin?demo=staff" "/admin?s=orders&demo=staff" "/admin?s=support&id=t1&demo=staff" /gift /track "/admin?s=payment&demo=staff" "/admin?s=finance&demo=staff" "/admin?s=slider&demo=staff" "/admin?s=mail&demo=staff")
+          if [ -n "$SHOTS" ]; then read -r -a DEFAULT_LIST <<< "$SHOTS"; fi
+          for S in "${DEFAULT_LIST[@]}"; do
             i=$((i+1))
             xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -screen "$S" >/dev/null
             sleep 9

@@ -269,63 +269,6 @@ struct AdminOrderView: View {
 }
 
 // MARK: - Поддержка
-struct AdminSupportView: View {
-    @EnvironmentObject private var router: Router
-    @State private var tickets: [JSON] = []
-    @State private var showClosed = false
-    var body: some View {
-        List {
-            Toggle("Показать закрытые", isOn: $showClosed).font(Theme.font(14)).tint(Theme.ink)
-            ForEach(Array(tickets.filter { showClosed || $0["status"].str != "closed" }.enumerated()), id: \.offset) { _, t in
-                Button { router.push(.adminTicket(t["id"].str), on: .account) } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("№ \(t["number"].str) · \(t["name"].str)").font(Theme.font(15, t["unreadShop"].bool ? .semibold : .medium))
-                            Spacer(); if t["unreadShop"].bool { Circle().fill(Theme.accent).frame(width: 8, height: 8) }
-                        }
-                        Text(t["topic"].str + (t["orderNumber"].str.isEmpty ? "" : " · заказ № " + t["orderNumber"].str)).font(Theme.font(12.5)).foregroundStyle(Theme.muted)
-                        Text(t["messages"].array.last?["text"].str ?? "").font(Theme.font(13)).foregroundStyle(Theme.muted).lineLimit(2)
-                    }.foregroundStyle(Theme.text).padding(.vertical, 4)
-                }
-            }
-        }
-        .listStyle(.plain)
-        .navigationTitle("Поддержка").navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
-        .refreshable { await load() }
-    }
-    private func load() async { if let r = try? await API.shared.json("GET", "admin/support") { tickets = r["tickets"].array } }
-}
-
-struct AdminTicketView: View {
-    let id: String
-    @State private var t = JSON(nil)
-    @State private var draft = ""
-    @State private var busy = false
-    var body: some View {
-        ChatView(messages: t["messages"].array, mine: { $0["from"].str != "user" }, draft: $draft, busy: busy, closed: false) {
-            busy = true
-            Task {
-                if let r = try? await API.shared.json("POST", "admin/support/\(id)", body: ["text": draft]) { t = r["ticket"]; draft = ""; Haptic.success() }
-                busy = false
-            }
-        }
-        .navigationTitle(t["name"].string ?? "Обращение").navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(t["status"].str == "closed" ? "Открыть" : "Закрыть") {
-                    Task { if let r = try? await API.shared.json("PATCH", "admin/support/\(id)", body: ["status": t["status"].str == "closed" ? "open" : "closed"]) { t = r["ticket"] } }
-                }.font(Theme.font(14, .medium))
-            }
-        }
-        .task { await load() }
-    }
-    private func load() async {
-        if let r = try? await API.shared.json("GET", "admin/support") { t = r["tickets"].array.first { $0["id"].str == id } ?? JSON(nil) }
-        _ = try? await API.shared.raw("PATCH", "admin/support/\(id)", body: ["read": true])
-    }
-}
-
 // MARK: - Покупатели и бонусы
 struct AdminCustomersView: View {
     @ObservedObject private var admin = Admin.shared

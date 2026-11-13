@@ -420,7 +420,7 @@ struct DealBand: View {
                 Spacer()
                 if !promo.endsAt.isEmpty { Text("до " + Fmt.date(ISO.date(promo.endsAt + "T12:00:00Z"))).font(Theme.font(12.5)).foregroundStyle(.white.opacity(0.7)) }
             }
-            Text(off).font(Theme.font(72, .light)).kerning(-3).foregroundStyle(LinearGradient(colors: [Theme.accentSoft, Theme.accent], startPoint: .top, endPoint: .bottom))
+            Text(off).font(Theme.font(72, .light)).kerning(-3).foregroundStyle(LinearGradient(colors: [.white, .white.opacity(0.6)], startPoint: .top, endPoint: .bottom)) // на тёмной карточке — белым: цвет раздела «мужчинам» сливается с фоном
             Text(promo.title).font(Theme.font(24, .light)).foregroundStyle(.white)
             Text(scope).font(Theme.font(14)).foregroundStyle(.white.opacity(0.65))
             Button { router.push(.catalog(cat: nil, tag: nil, sale: true), on: .home) } label: {
