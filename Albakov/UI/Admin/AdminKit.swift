@@ -151,13 +151,24 @@ struct FieldView: View {
 struct ParcelField: View {
     @ObservedObject var doc: Doc
     @ObservedObject private var admin = Admin.shared
-    @State private var l = "", w = "", h = "", wt = ""
+    @State private var l = ""
+    @State private var w = ""
+    @State private var h = ""
+    @State private var wt = ""
     @State private var ready = false
+    init(doc: Doc) { self.doc = doc }
     private var cdek: JSON { admin.data["settings"]["cdek"] }
     private var packs: [JSON] {
         let p = cdek["packs"].array
-        let list = p.isEmpty ? [JSON(["id": "bag", "name": "Пакет", "length": 30, "width": 25, "height": 5]), JSON(["id": "m", "name": "Коробка M", "length": 40, "width": 30, "height": 10]), JSON(["id": "l", "name": "Коробка L", "length": 50, "width": 40, "height": 20])] : p
-        return list.sorted { ($0["length"].int ?? 0) * ($0["width"].int ?? 0) * ($0["height"].int ?? 0) < ($1["length"].int ?? 0) * ($1["width"].int ?? 0) * ($1["height"].int ?? 0) }
+        let defaults: [[String: Any]] = [["id": "bag", "name": "Пакет", "length": 30, "width": 25, "height": 5],
+                                         ["id": "m", "name": "Коробка M", "length": 40, "width": 30, "height": 10],
+                                         ["id": "l", "name": "Коробка L", "length": 50, "width": 40, "height": 20]]
+        let list: [JSON] = p.isEmpty ? defaults.map { JSON($0) } : p
+        return list.sorted { ParcelField.vol($0) < ParcelField.vol($1) }
+    }
+    private static func vol(_ x: JSON) -> Int {
+        let a: Int = x["length"].int ?? 0, b: Int = x["width"].int ?? 0, c: Int = x["height"].int ?? 0
+        return a * b * c
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -189,9 +200,18 @@ struct ParcelField: View {
     }
     private var summary: String {
         let L = Int(l) ?? 0, W = Int(w) ?? 0, H = Int(h) ?? 0, G = Int(wt) ?? 0
-        let def = packs.first { $0["id"].str == cdek["defaultPack"].str } ?? packs.first ?? JSON([:])
-        let dims = L > 0 && W > 0 && H > 0 ? "\(L)×\(W)×\(H) см" : "упаковка по умолчанию «\(def["name"].str)» \(def["length"].int ?? 30)×\(def["width"].int ?? 25)×\(def["height"].int ?? 5) см"
-        let weight = G > 0 ? "\(G) г" : "вес по умолчанию \(cdek["pkg"]["weight"].int ?? 1000) г"
+        let list = packs
+        let defId = cdek["defaultPack"].str
+        let def: JSON = list.first(where: { $0["id"].str == defId }) ?? list.first ?? JSON(nil)
+        var dims = ""
+        if L > 0 && W > 0 && H > 0 {
+            dims = "\(L)×\(W)×\(H) см"
+        } else {
+            let dl: Int = def["length"].int ?? 30, dw: Int = def["width"].int ?? 25, dh: Int = def["height"].int ?? 5
+            dims = "упаковка по умолчанию «" + def["name"].str + "» \(dl)×\(dw)×\(dh) см"
+        }
+        let defW: Int = cdek["pkg"]["weight"].int ?? 1000
+        let weight = G > 0 ? "\(G) г" : "вес по умолчанию \(defW) г"
         return dims + ", " + weight
     }
     private func load() {
@@ -223,6 +243,9 @@ struct LookPick: View {
     @Binding var selected: [String]
     @ObservedObject private var admin = Admin.shared
     @State private var open = false
+    init(label: String, max: Int, selfId: String, selected: Binding<[String]>) {
+        self.label = label; self.max = max; self.selfId = selfId; _selected = selected
+    }
     private var all: [Product] { admin.data["products"].array.map(Product.init).filter { $0.id != selfId } }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
