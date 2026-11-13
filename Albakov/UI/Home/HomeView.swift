@@ -58,7 +58,8 @@ struct HomeView: View {
         .refreshable { await shop.load() }
     }
 
-    private var slides: [Slide] { shop.settings.slides.filter { $0.gender.isEmpty || shop.gender == nil || $0.gender == shop.gender } }
+    // Раздел, срок, акция и «кому показывать»: слайд «Зарегистрироваться» вошедшему не показываем
+    private var slides: [Slide] { shop.settings.slides.filter { $0.visible(gender: shop.gender, loggedIn: shop.user != nil, promos: shop.promotions) } }
     // Если новинок мало — дополняем последними поступлениями, чтобы ряд не выглядел пустым (как на сайте)
     private var newList: [Product] {
         var n = shop.visibleProducts.filter { $0.tags.contains("new") }
@@ -79,9 +80,13 @@ struct HeroSlider: View {
     @EnvironmentObject private var router: Router
     @EnvironmentObject private var shop: Shop
     @State private var page = 0
-    @State private var progress: CGFloat = 0
+    /// Когда начался показ текущего слайда. Полоса времени считается от этой отметки на каждом кадре экрана
+    /// (TimelineView), а не анимацией: так она идёт ровно и не подтормаживает, когда страница перерисовывается
+    /// или слайд перелистывается с анимацией (1.0.1).
+    @State private var started = Date()
     private var interval: Double { max(3, shop.settings.raw["slider"]["interval"].double ?? 7) }
     private var autoplay: Bool { !(shop.settings.raw["slider"]["autoplay"].exists && !shop.settings.raw["slider"]["autoplay"].bool) && slides.count > 1 }
+    private var cur: Int { slides.isEmpty ? 0 : min(page, slides.count - 1) }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -90,36 +95,37 @@ struct HeroSlider: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             if slides.count > 1 {
-                HStack(spacing: 8) {
-                    ForEach(slides.indices, id: \.self) { i in
-                        Button { withAnimation { page = i } } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(i + 1)").font(Theme.font(10, .medium)).kerning(0.8).foregroundStyle(Theme.text)
-                                ZStack(alignment: .leading) {
-                                    Rectangle().fill(Theme.lineStrong).frame(height: 1)
-                                    Rectangle().fill(LinearGradient(colors: [Theme.ink, Theme.accent], startPoint: .leading, endPoint: .trailing))
-                                        .frame(height: 2).scaleEffect(x: i == page ? (autoplay ? progress : 1) : 0, anchor: .leading)
-                                }
-                            }.frame(maxWidth: .infinity)
-                        }.buttonStyle(.plain)
+                TimelineView(.animation(minimumInterval: 1 / 60, paused: !autoplay)) { ctx in
+                    let p = autoplay ? CGFloat(min(1, max(0, ctx.date.timeIntervalSince(started) / interval))) : 1
+                    HStack(spacing: 8) {
+                        ForEach(slides.indices, id: \.self) { i in
+                            Button { page = i } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("\(i + 1)").font(Theme.font(10, .medium)).kerning(0.8).foregroundStyle(Theme.text)
+                                    ZStack(alignment: .leading) {
+                                        Rectangle().fill(Theme.lineStrong).frame(height: 1)
+                                        Rectangle().fill(LinearGradient(colors: [Theme.ink, Theme.accent], startPoint: .leading, endPoint: .trailing))
+                                            .frame(height: 2).scaleEffect(x: i == cur ? p : 0, anchor: .leading)
+                                    }
+                                }.frame(maxWidth: .infinity).contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                        }
                     }
-                }.padding(.horizontal, Theme.gutter).padding(.bottom, 22)
+                    .transaction { $0.animation = nil }
+                }
+                .padding(.horizontal, Theme.gutter).padding(.bottom, 22)
             }
         }
         .frame(height: 362)
         .overlay(alignment: .bottom) { Divider1() }
-        .onChange(of: page) { _ in restart() }
-        .onAppear(perform: restart)
+        .onChange(of: page) { _ in started = Date() }
+        .onChange(of: slides.count) { n in if page >= n { page = 0 } }
+        .onAppear { started = Date() }
         .task(id: page) {
             guard autoplay else { return }
             try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
-            if !Task.isCancelled { withAnimation(.easeInOut(duration: 0.8)) { page = (page + 1) % slides.count } }
+            if !Task.isCancelled, !slides.isEmpty { withAnimation(.easeInOut(duration: 0.6)) { page = (cur + 1) % slides.count } }
         }
-    }
-    private func restart() {
-        progress = 0
-        guard autoplay else { return }
-        withAnimation(.linear(duration: interval)) { progress = 1 }
     }
 
     private func slide(_ s: Slide) -> some View {

@@ -135,9 +135,25 @@ struct DeliveryMethod: Identifiable, Hashable {
 
 struct Slide: Identifiable {
     let id: String, eyebrow: String, title: String, text: String, image: String, btn1: (String, String), btn2: (String, String), gender: String
+    let startsAt: String, endsAt: String, promotionId: String, audience: String, code: String
     init(_ j: JSON) {
         id = j["id"].str; eyebrow = j["eyebrow"].str; title = Fmt.plain(j["title"].str); text = j["text"].str; image = j["image"].str; gender = j["gender"].str
         btn1 = (j["btn1"]["label"].str, j["btn1"]["link"].str); btn2 = (j["btn2"]["label"].str, j["btn2"]["link"].str)
+        startsAt = j["startsAt"].str; endsAt = j["endsAt"].str; promotionId = j["promotionId"].str; audience = j["audience"].str; code = j["code"].str
+    }
+    /// Кому показывать (как slideAudience на сайте): «guest» — только без входа, «user» — только вошедшим, «all» — всем.
+    /// Не задано: слайд с кнопкой «Регистрация» — только гостям, остальные — всем.
+    var who: String {
+        if ["guest", "user", "all"].contains(audience) { return audience }
+        return (btn1.1 + " " + btn2.1).contains("tab=register") ? "guest" : "all"
+    }
+    /// Виден ли слайд сейчас: раздел, срок, связанная акция и кому показывать — как slideVisible на сайте
+    func visible(gender g: String?, loggedIn: Bool, promos: [Promotion], now: Date = Date()) -> Bool {
+        if !gender.isEmpty, let g, gender != g { return false }
+        let win = Promotion(JSON(["active": true, "startsAt": startsAt, "endsAt": endsAt]))
+        if !win.inWindow(now) { return false }
+        if !promotionId.isEmpty { guard let p = promos.first(where: { $0.id == promotionId }), p.inWindow(now) else { return false } }
+        switch who { case "guest": return !loggedIn; case "user": return loggedIn; default: return true }
     }
 }
 
