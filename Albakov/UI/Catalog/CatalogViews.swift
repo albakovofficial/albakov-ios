@@ -257,7 +257,7 @@ struct SearchView: View {
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.ink, lineWidth: 1))
                 .padding(.horizontal, Theme.gutter)
                 if q.count >= 2 && results.isEmpty {
-                    EmptyState(icon: "magnifyingglass", title: "Ничего не нашлось", text: "Проверьте написание или поищите по-другому")
+                    EmptyState(icon: "magnifyingglass", title: "Ничего не нашлось")
                 } else if !results.isEmpty {
                     Text("Найдено: \(results.count)").font(Theme.font(14)).foregroundStyle(Theme.muted).padding(.horizontal, Theme.gutter)
                     ProductGrid(products: results, tab: nil, bag: true)

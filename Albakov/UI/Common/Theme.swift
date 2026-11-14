@@ -467,7 +467,8 @@ struct ErrorText: View {
 
 /// Пустой экран как на сайте: мягкая карточка, белый кружок со значком, тонкий заголовок, текст и чёрная кнопка
 struct EmptyState: View {
-    let icon: String, title: String, text: String
+    let icon: String, title: String
+    var text: String = ""
     var button: String? = nil
     var action: (() -> Void)? = nil
     var body: some View {
@@ -475,7 +476,7 @@ struct EmptyState: View {
             Image(systemName: icon).font(.system(size: 24, weight: .light)).foregroundStyle(Theme.accent)
                 .frame(width: 70, height: 70).background(Circle().fill(.white)).hairline(Circle())
             Text(title).font(Theme.font(26, .light)).kerning(-0.8).multilineTextAlignment(.center)
-            Text(text).font(Theme.font(15)).foregroundStyle(Theme.muted).multilineTextAlignment(.center).lineSpacing(4)
+            if !text.isEmpty { Text(text).font(Theme.font(15)).foregroundStyle(Theme.muted).multilineTextAlignment(.center).lineSpacing(4) }
             if let button, let action { PrimaryButton(title: button, action: action).frame(maxWidth: 230).padding(.top, 6) }
         }
         .padding(.horizontal, 24).padding(.vertical, 34).frame(maxWidth: .infinity)
