@@ -113,7 +113,8 @@ jobs:
           mkdir -p shots; i=0
           if [ "$STORE" = "true" ]; then
             # Только экраны покупателя; покупательница вымышленная (demo=buyer), панели управления нет
-            LIST='/ /menu /product/FIRST /catalog /cart?demo=1 /checkout?demo=1 /account?demo=buyer /order/d1?demo=buyer /account?tab=bonus&demo=buyer /account?tab=support&id=t1&demo=buyer /gift /track /sizes'
+            # 10 картинок App Store по порядку: главная, товар, таблица размеров товара, корзина, оформление, бонусы, заказ, кабинет, поддержка, сертификаты
+            LIST='/ /product/FIRST /product/FIRST?sizes=1&demo=buyer /cart?demo=1 /checkout?demo=1 /account?tab=bonus&demo=buyer /order/d1?demo=buyer /account?demo=buyer /account?tab=support&id=t1&demo=buyer /gift'
             for S in ${PATHS:-$LIST}; do
               i=$((i+1))
               xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -screen "$S" -gender men >/dev/null

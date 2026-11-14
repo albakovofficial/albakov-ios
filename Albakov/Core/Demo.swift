@@ -20,7 +20,8 @@ enum Demo {
             let data = try await real()
             guard var j = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return data }
             pub = (j["data"] as? [String: Any]) ?? [:]
-            products = (pub["products"] as? [[String: Any]]) ?? []
+            products = ((pub["products"] as? [[String: Any]]) ?? []).map(withFit)
+            pub["products"] = products; j["data"] = pub
             j["user"] = user; j["isAdmin"] = staff
             return try JSONSerialization.data(withJSONObject: j)
         }
@@ -60,6 +61,18 @@ enum Demo {
             if method == "GET" { return nil }   // остальные чтения — с сервера как есть
         }
         return try JSONSerialization.data(withJSONObject: out)
+    }
+
+    /// Таблица размеров для снимков, если у товара на сайте её ещё нет: мерки оверсайз-футболки по размерам товара
+    private static func withFit(_ p: [String: Any]) -> [String: Any] {
+        if let rows = (p["fit"] as? [String: Any])?["rows"] as? [Any], !rows.isEmpty { return p }
+        let base: [String: [Double]] = ["XS": [54, 68, 22], "S": [56, 70, 23], "M": [58, 72, 24], "L": [60, 74, 25], "XL": [62, 76, 26], "2XL": [64, 78, 27], "XXL": [64, 78, 27], "3XL": [66, 80, 28]]
+        var sizes: [String] = []
+        for c in (p["colors"] as? [[String: Any]]) ?? [] { for s in (c["sizes"] as? [[String: Any]]) ?? [] { if let z = s["size"] as? String, base[z] != nil, !sizes.contains(z) { sizes.append(z) } } }
+        guard sizes.count >= 2 else { return p }
+        var out = p
+        out["fit"] = ["rows": sizes.map { z in let m = base[z]!; return ["size": z, "w": m[0], "l": m[1], "sl": m[2]] }, "cols": [String](), "note": ""]
+        return out
     }
 
     private static var user: [String: Any] {

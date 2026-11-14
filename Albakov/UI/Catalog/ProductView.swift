@@ -144,6 +144,10 @@ struct ProductView: View {
                 if colorId == nil { colorId = parts.count > 1 ? parts[1] : (p.colors.first(where: { $0.stock > 0 })?.id ?? p.colors.first?.id) }
                 if size == nil, color.sizes.count == 1, color.sizes[0].stock > 0 { size = color.sizes[0].size }
                 shop.addRecent(p.id)
+                #if DEBUG
+                // Снимок для App Store: «/product/FIRST?sizes=1» — сразу открыть таблицу размеров
+                if (UserDefaults.standard.string(forKey: "screen") ?? "").contains("sizes=1") { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { showSizes = true } }
+                #endif
             }
         } else {
             EmptyState(icon: "bag", title: "Товар не найден", text: "Возможно, его уже нет в продаже").padding(.top, 60)
