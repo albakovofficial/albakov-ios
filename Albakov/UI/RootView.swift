@@ -28,7 +28,13 @@ struct RootView: View {
         .onChange(of: shop.loaded) { ok in
             guard ok else { return }
             // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны
-            if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty { if screen.contains("demo") { shop.demoCart() }; router.open(path: screen) }
+            if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty {
+                if screen.contains("demo") { shop.demoCart() }; router.open(path: screen)
+                #if DEBUG
+                // Снимок окна «Вышло обновление»: «-screen "/?update=1"»
+                if screen.contains("update=1") { update = AppUpdate.Info(version: "1.0.1", notes: "Новое: поддержка с номером обращения и фото, у каждой вещи своя таблица размеров, раздел «О бренде».\nИсправили: мелкие недочёты — всё работает стабильно.", url: URL(string: "https://apps.apple.com/ru/")!) }
+                #endif
+            }
             else { Task { let shown = await checkUpdate(); if !shown { scheduleAsk() } } }
         }
         // Вернулись в приложение спустя время — снова проверить, не вышла ли новая версия
