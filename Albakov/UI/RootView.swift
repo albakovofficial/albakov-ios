@@ -417,6 +417,8 @@ struct UpdateView: View {
             var line = raw.trimmingCharacters(in: .whitespaces)
             let low = line.lowercased()
             if low.hasPrefix("новое:") { fix = false; line = String(line.dropFirst(6)) }
+            else if low.hasPrefix("изменили:") { fix = false; line = String(line.dropFirst(9)) }
+            else if low.hasPrefix("улучшили:") { fix = false; line = String(line.dropFirst(9)) }
             else if low.hasPrefix("исправили:") { fix = true; line = String(line.dropFirst(10)) }
             line = line.trimmingCharacters(in: CharacterSet(charactersIn: " —-–•·")).trimmingCharacters(in: .whitespaces)
             if let f = line.first { out.append((f.uppercased() + line.dropFirst(), fix)) }   // с заглавной: «— поддержка …» → «Поддержка …»
