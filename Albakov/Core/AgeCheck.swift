@@ -59,14 +59,13 @@ enum AgeCheck {
 
 /// Окно в стиле ALBAKOV перед системным окном Apple (вариант 1 «Обложка 18+», утверждён 14.11):
 /// сверху обложка цвета раздела с крупным «18+», ниже заголовок, текст, три плашки и кнопка.
-/// При появлении «18+» плавно проявляется с лёгким увеличением, плашки выезжают по очереди.
+/// Окно просто выезжает снизу, как все окна приложения; отдельной анимации внутри нет (решение владельца 14.11).
 struct AgeCheckSheet: View {
     enum Step { case intro, minor, declined }
     @Binding var step: Step
     let onAdult: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var busy = false
-    @State private var shown = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -78,9 +77,9 @@ struct AgeCheckSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if step != .minor {
                     HStack(spacing: 8) {
-                        tile("18+", "без даты рождения", 0)
-                        tile("0", "документов и фото", 1)
-                        tile("1 раз", "и больше не спросим", 2)
+                        tile("18+", "без даты рождения")
+                        tile("0", "документов и фото")
+                        tile("1 раз", "и больше не спросим")
                     }.padding(.top, 4)
                 }
                 Spacer(minLength: 8)
@@ -97,7 +96,6 @@ struct AgeCheckSheet: View {
         }
         .presentationDetents([.height(640), .large])
         .presentationDragIndicator(.hidden)
-        .onAppear { withAnimation(.spring(response: 0.7, dampingFraction: 0.8).delay(0.15)) { shown = true } }
     }
 
     /// Обложка: цвет раздела, ALBAKOV, крупное «18+»
@@ -110,7 +108,6 @@ struct AgeCheckSheet: View {
             Spacer(minLength: 0)
             HStack(alignment: .bottom) {
                 Text("18+").font(Theme.font(104, .light)).kerning(-6).foregroundStyle(.white)
-                    .opacity(shown ? 1 : 0).scaleEffect(shown ? 1 : 0.86, anchor: .bottomLeading)
                 Spacer()
                 Text("ПРОВЕРКА\nВОЗРАСТА").font(Theme.font(11)).kerning(1.4).lineSpacing(3)
                     .multilineTextAlignment(.trailing).foregroundStyle(.white.opacity(0.85))
@@ -122,7 +119,7 @@ struct AgeCheckSheet: View {
         .background(Theme.accentGradient)
     }
 
-    private func tile(_ big: String, _ small: String, _ i: Int) -> some View {
+    private func tile(_ big: String, _ small: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(big).font(Theme.font(15, .medium)).foregroundStyle(Theme.accent)
             Text(small).font(Theme.font(11.5)).foregroundStyle(Theme.text).lineSpacing(1).fixedSize(horizontal: false, vertical: true)
@@ -130,8 +127,6 @@ struct AgeCheckSheet: View {
         .padding(.horizontal, 10).padding(.vertical, 12)
         .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.line, lineWidth: 1))
-        .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 14)
-        .animation(.spring(response: 0.6, dampingFraction: 0.85).delay(0.3 + Double(i) * 0.08), value: shown)
     }
 
     private var title: String {
