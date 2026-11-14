@@ -342,7 +342,7 @@ struct BonusBand: View {
         let title = Fmt.plain((h["bonusTitle"].string ?? "Возвращаем бонусами").replacingOccurrences(of: "{n}", with: "\(pct)"))
         let steps = [("bag", "Покупайте", "\(pct)% от суммы заказа возвращаем бонусами"),
                      ("cylinder.split.1x2", "Копите", "Бонусы приходят на счёт " + (creditDone ? "после получения заказа" : "после оплаты заказа")),
-                     ("creditcard", "Оплачивайте", "Тратьте на следующие покупки, хоть все сразу")]
+                     ("creditcard", "Оплачивайте", "До 100% стоимости покупки бонусами")]
         VStack(alignment: .leading, spacing: 22) {
             LoyalCard().padding(.horizontal, 4).padding(.top, 8)
             if !h["bonusEyebrow"].str.isEmpty { Eyebrow(text: h["bonusEyebrow"].str) }
