@@ -17,7 +17,7 @@ struct AccountView: View {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                         tile("shippingbox", "Заказы", ordersSub, on: tab == "orders") { withAnimation { tab = "orders" } }
                         tile("heart", "Избранное", "\(shop.favorites.count) \(Fmt.plural(shop.favorites.count, "товар", "товара", "товаров"))", on: tab == "favorites") { withAnimation { tab = "favorites" } }
-                        tile("arrow.left.arrow.right", "Обмен и возврат", "из своего заказа", on: tab == "exchange") { withAnimation { tab = "exchange" } }
+                        tile("arrow.left.arrow.right", "Обмен и возврат", "оформить по своему заказу", on: tab == "exchange") { withAnimation { tab = "exchange" } }
                         tile("text.bubble", "Поддержка", "ответим в чате", dot: u.supportUnread > 0) { router.push(.support, on: .account) }
                     }
                     if tab == "exchange" { Text("Откройте заказ и нажмите «Обменять размер или вернуть».").font(Theme.font(14)).foregroundStyle(Theme.muted).padding(.top, 6) }
@@ -136,8 +136,8 @@ struct AccountView: View {
             if orders.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     IconTile(icon: "bag", size: 44, fill: .white, tint: Theme.accent).padding(.bottom, 4)
-                    Text("Заказов пока нет").font(Theme.font(19, .medium))
-                    Text("Здесь появятся ваши покупки и где каждая из них сейчас").font(Theme.font(13.5)).foregroundStyle(Theme.muted).lineSpacing(3)
+                    Text("У Вас пока нет заказов").font(Theme.font(19, .medium))
+                    Text("Здесь будут отображаться Ваши покупки и информация об их текущем статусе").font(Theme.font(13.5)).foregroundStyle(Theme.muted).lineSpacing(3)
                     PrimaryButton(title: "Перейти в каталог", height: 46) { router.reset(.catalog) }.frame(width: 210).padding(.top, 6)
                 }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 22).fill(Theme.tile)).hairline(RoundedRectangle(cornerRadius: 22), 0.06)
@@ -285,7 +285,7 @@ struct OrdersView: View {
         List {
             if let error { Text(error).font(Theme.font(14)).foregroundStyle(Theme.danger) }
             if !loading && orders.isEmpty && error == nil {
-                EmptyState(icon: "shippingbox", title: "Заказов пока нет", text: "Здесь появятся ваши заказы и их статусы").listRowSeparator(.hidden)
+                EmptyState(icon: "shippingbox", title: "У Вас пока нет заказов", text: "Здесь будут отображаться Ваши покупки и информация об их текущем статусе").listRowSeparator(.hidden)
             }
             ForEach(orders) { o in
                 Button { router.push(.order(o.id), on: .account) } label: { OrderRow(order: o) }
