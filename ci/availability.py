@@ -1,15 +1,13 @@
 # Доступность ALBAKOV в App Store по странам через App Store Connect API (ключ — секреты ASC_*).
-# python3 ci/availability.py all-but-eu-cn  — все страны, кроме 27 стран ЕС и материкового Китая
-# python3 ci/availability.py show            — только показать, где приложение есть
+# python3 ci/availability.py cis   — только Россия и страны СНГ, в остальных странах приложение убирается
+# python3 ci/availability.py show  — только показать, где приложение есть
 import os, sys, time, json, urllib.request, urllib.error
 import jwt  # PyJWT
 
 BUNDLE = 'ru.albakovofficial.app'
 API = 'https://api.appstoreconnect.apple.com'
-# 27 стран ЕС (закон DSA: без статуса трейдера там нельзя) и материковый Китай (нужен номер ICP)
-EU = {'AUT', 'BEL', 'BGR', 'HRV', 'CYP', 'CZE', 'DNK', 'EST', 'FIN', 'FRA', 'DEU', 'GRC', 'HUN', 'IRL', 'ITA', 'LVA',
-      'LTU', 'LUX', 'MLT', 'NLD', 'POL', 'PRT', 'ROU', 'SVK', 'SVN', 'ESP', 'SWE'}
-OFF = EU | {'CHN'}
+# Россия и СНГ: Армения, Азербайджан, Беларусь, Казахстан, Киргизия, Молдова, Таджикистан, Туркменистан, Узбекистан
+CIS = {'RUS', 'ARM', 'AZE', 'BLR', 'KAZ', 'KGZ', 'MDA', 'TJK', 'TKM', 'UZB'}
 
 
 def token():
@@ -45,12 +43,12 @@ def main(mode):
         sys.exit(f'::error::Apple вернула только {len(items)} стран — менять не стану, проверьте в App Store Connect')
     changed = 0
     for tid, code, available in items:
-        want = code not in OFF
+        want = code in CIS
         if available != want:
             call('PATCH', f'/v1/territoryAvailabilities/{tid}',
                  {'data': {'type': 'territoryAvailabilities', 'id': tid, 'attributes': {'available': want}}})
             changed += 1
-    print(f'Изменено стран: {changed}. Теперь доступно везде, кроме ЕС ({len(EU)}) и материкового Китая.')
+    print(f'Изменено стран: {changed}. Теперь доступно в России и СНГ.')
     main('show')
 
 

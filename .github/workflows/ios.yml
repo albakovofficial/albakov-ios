@@ -36,7 +36,7 @@ on:
         type: string
         default: ''
       availability:
-        description: 'Страны App Store: show — показать, all-but-eu-cn — все, кроме ЕС и материкового Китая (без сборки)'
+        description: 'Страны App Store: show — показать, cis — только Россия и СНГ (без сборки)'
         type: string
         default: ''
       runner:
