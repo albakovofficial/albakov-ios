@@ -57,54 +57,83 @@ enum AgeCheck {
     }
 }
 
-/// Окно в стиле ALBAKOV перед системным окном Apple: зачем это нужно и что именно узнает магазин
+/// Окно в стиле ALBAKOV перед системным окном Apple (вариант 1 «Обложка 18+», утверждён 14.11):
+/// сверху обложка цвета раздела с крупным «18+», ниже заголовок, текст, три плашки и кнопка.
+/// При появлении «18+» плавно проявляется с лёгким увеличением, плашки выезжают по очереди.
 struct AgeCheckSheet: View {
     enum Step { case intro, minor, declined }
     @Binding var step: Step
     let onAdult: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var busy = false
+    @State private var shown = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ZStack {
-                Circle().fill(Theme.accentGradient)
-                Image(systemName: icon).font(.system(size: 24, weight: .light)).foregroundStyle(.white)
-            }
-            .frame(width: 56, height: 56)
-            Text(title).font(Theme.font(24, .light)).kerning(-0.6).foregroundStyle(Theme.text).fixedSize(horizontal: false, vertical: true)
-            Text(text).font(Theme.font(14.5)).foregroundStyle(Theme.muted).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
-            if step != .minor {
-                VStack(alignment: .leading, spacing: 10) {
-                    row("checkmark.shield", "Узнаем только «18+» — без даты рождения")
-                    row("doc.text.magnifyingglass", "Без документов и фото")
-                    row("clock.arrow.circlepath", "Спросим один раз")
+        VStack(alignment: .leading, spacing: 0) {
+            cover
+            VStack(alignment: .leading, spacing: 14) {
+                Text(title).font(Theme.font(24, .light)).kerning(-0.6).foregroundStyle(Theme.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(text).font(Theme.font(14)).foregroundStyle(Theme.muted).lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                if step != .minor {
+                    HStack(spacing: 8) {
+                        tile("18+", "без даты рождения", 0)
+                        tile("0", "документов и фото", 1)
+                        tile("1 раз", "и больше не спросим", 2)
+                    }.padding(.top, 4)
                 }
-                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.tint))
+                Spacer(minLength: 8)
+                if step == .minor {
+                    PrimaryButton(title: "Понятно") { dismiss() }
+                } else {
+                    PrimaryButton(title: step == .declined ? "Поделиться возрастом" : "Продолжить", busy: busy) { Task { await ask() } }
+                    Button("Не сейчас") { dismiss() }
+                        .font(Theme.font(14)).foregroundStyle(Theme.muted)
+                        .frame(maxWidth: .infinity).frame(height: 40)
+                }
             }
-            Spacer(minLength: 0)
-            if step == .minor {
-                PrimaryButton(title: "Понятно") { dismiss() }
-            } else {
-                PrimaryButton(title: step == .declined ? "Поделиться возрастом" : "Продолжить", busy: busy, arrow: true) { Task { await ask() } }
-                Button("Не сейчас") { dismiss() }
-                    .font(Theme.font(14, .medium)).foregroundStyle(Theme.muted)
-                    .frame(maxWidth: .infinity).frame(height: 40)
-            }
+            .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 10)
         }
-        .padding(.horizontal, 24).padding(.top, 28).padding(.bottom, 12)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .presentationDetents([.height(640), .large])
+        .presentationDragIndicator(.hidden)
+        .onAppear { withAnimation(.spring(response: 0.7, dampingFraction: 0.8).delay(0.15)) { shown = true } }
     }
 
-    private var icon: String {
-        switch step {
-        case .intro: return "person.badge.shield.checkmark"
-        case .minor: return "figure.and.child.holdinghands"
-        case .declined: return "hand.raised"
+    /// Обложка: цвет раздела, ALBAKOV, крупное «18+»
+    private var cover: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack {
+                Text("ALBAKOV").font(Theme.font(13)).kerning(5).foregroundStyle(.white).frame(maxWidth: .infinity, alignment: .leading)
+                Capsule().fill(.white.opacity(0.45)).frame(width: 36, height: 4)
+            }
+            Spacer(minLength: 0)
+            HStack(alignment: .bottom) {
+                Text("18+").font(Theme.font(104, .light)).kerning(-6).foregroundStyle(.white)
+                    .opacity(shown ? 1 : 0).scaleEffect(shown ? 1 : 0.86, anchor: .bottomLeading)
+                Spacer()
+                Text("ПРОВЕРКА\nВОЗРАСТА").font(Theme.font(11)).kerning(1.4).lineSpacing(3)
+                    .multilineTextAlignment(.trailing).foregroundStyle(.white.opacity(0.85))
+                    .padding(.bottom, 10)
+            }
         }
+        .padding(.horizontal, 24).padding(.top, 14).padding(.bottom, 14)
+        .frame(height: 210)
+        .background(Theme.accentGradient)
     }
+
+    private func tile(_ big: String, _ small: String, _ i: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(big).font(Theme.font(15, .medium)).foregroundStyle(Theme.accent)
+            Text(small).font(Theme.font(11.5)).foregroundStyle(Theme.text).lineSpacing(1).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.line, lineWidth: 1))
+        .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 14)
+        .animation(.spring(response: 0.6, dampingFraction: 0.85).delay(0.3 + Double(i) * 0.08), value: shown)
+    }
+
     private var title: String {
         switch step {
         case .intro: return "Один шаг перед заказом"
@@ -114,15 +143,9 @@ struct AgeCheckSheet: View {
     }
     private var text: String {
         switch step {
-        case .intro: return "В вашем регионе закон требует, чтобы заказ оформлял взрослый. Сейчас Apple покажет окно — нажмите «Поделиться»."
+        case .intro: return "В вашем регионе закон требует, чтобы заказ оформлял взрослый. Apple покажет окно — нажмите «Поделиться»."
         case .minor: return "Покупки в приложении доступны с 18 лет. Попросите родителя оформить заказ — корзина сохранится."
         case .declined: return "Это требование закона в вашем регионе. Магазин узнает только, что вам есть 18."
-        }
-    }
-    private func row(_ icon: String, _ t: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 15, weight: .regular)).foregroundStyle(Theme.accent).frame(width: 22)
-            Text(t).font(Theme.font(13.5)).foregroundStyle(Theme.text)
         }
     }
     private func ask() async {
