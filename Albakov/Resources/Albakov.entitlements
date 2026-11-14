@@ -12,5 +12,8 @@
 		<!-- Пароли от albakovofficial.ru из «Связки ключей» подставляются в форму входа. -->
 		<string>webcredentials:albakovofficial.ru</string>
 	</array>
+	<!-- Проверка возраста перед заказом (законы штатов США): окно Apple «Поделиться возрастной категорией» -->
+	<key>com.apple.developer.declared-age-range</key>
+	<true/>
 </dict>
 </plist>

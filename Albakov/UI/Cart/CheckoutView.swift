@@ -8,6 +8,8 @@ struct CheckoutView: View {
     @EnvironmentObject private var router: Router
 
     @State private var firstName = ""
+    @State private var ageAsk = false
+    @State private var ageStep: AgeCheckSheet.Step = .intro
     @State private var lastName = ""
     @State private var phone = ""
     @State private var email = ""
@@ -113,6 +115,7 @@ struct CheckoutView: View {
         .onAppear(perform: prefill)
         .onDisappear { if placed == nil && ![router.home, router.catalog, router.favorites, router.cart, router.account].contains(where: { $0.contains(.checkout) }) { shop.buyNow = nil } }
         .task(id: quoteKey) { await recalc() }
+        .sheet(isPresented: $ageAsk) { AgeCheckSheet(step: $ageStep) { Task { await place() } } }
         .sheet(isPresented: $pickCity) { CityPicker { city = $0; point = nil; pickCity = false } }
         .sheet(isPresented: $pickPoint) { if let c = city { PointPicker(city: c, cod: payment == "cod") { point = $0; pickPoint = false } } }
         .fullScreenCover(item: $payURL) { url in
@@ -273,6 +276,8 @@ struct CheckoutView: View {
         guard let m = method else { error = "Выберите способ доставки"; return }
         if (m.isPvz || m.isDoor) && shop.cdekReady && city == nil { error = "Выберите город"; return }
         if m.isPvz && shop.cdekReady && point == nil { error = "Выберите пункт выдачи"; return }
+        // Возраст: только где этого требует закон (США и др.), один раз — окно ALBAKOV, затем окно Apple
+        if await AgeCheck.needed() { ageStep = .intro; ageAsk = true; return }
         busy = true; defer { busy = false }
         var b = body0
         b["idem"] = idem
