@@ -31,6 +31,10 @@ on:
         description: 'Проверка дизайна: только эти экраны через пробел (пусто — все)'
         type: string
         default: ''
+      build:
+        description: 'Номер сборки для TestFlight (пусто — номер запуска)'
+        type: string
+        default: ''
       runner:
         description: 'Mac на GitHub (по умолчанию Intel: Mac на Apple Silicon у GitHub часто в очереди)'
         type: choice
@@ -184,9 +188,9 @@ jobs:
             VERSION=$(grep -E 'MARKETING_VERSION:' project.yml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "BUILD=${{ inputs.build || github.run_number }}" >> "$GITHUB_ENV"
           plutil -replace teamID -string "$APPLE_TEAM_ID" ci/ExportOptions.plist
-          echo "Версия $VERSION, сборка ${{ github.run_number }}"
+          echo "Версия $VERSION, сборка ${{ inputs.build || github.run_number }}"
 
       # Архив подписываем «для себя» (ad-hoc, с нашими entitlements): обычная подпись разработчика требует
       # зарегистрированного iPhone, а для TestFlight она и не нужна. Настоящую подпись App Store ставит экспорт ниже.

@@ -24,7 +24,7 @@ struct RootView: View {
         .background(KeyboardDismisser())
         .animation(.easeOut(duration: 0.35), value: shop.loaded)
         .sheet(isPresented: $askPush) { PushAskSheet().presentationDetents([.medium, .large]) }
-        .sheet(item: $update) { UpdateSheet(info: $0).presentationDetents([.medium, .large]) }
+        .fullScreenCover(item: $update) { UpdateView(info: $0) }
         .onChange(of: shop.loaded) { ok in
             guard ok else { return }
             // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны
@@ -32,7 +32,7 @@ struct RootView: View {
                 if screen.contains("demo") { shop.demoCart() }; router.open(path: screen)
                 #if DEBUG
                 // Снимок окна «Вышло обновление»: «-screen "/?update=1"»
-                if screen.contains("update=1") { update = AppUpdate.Info(version: "1.0.1", notes: "Новое: поддержка с номером обращения и фото, у каждой вещи своя таблица размеров, раздел «О бренде».\nИсправили: мелкие недочёты — всё работает стабильно.", url: URL(string: "https://apps.apple.com/ru/")!) }
+                if screen.contains("update=1") { update = AppUpdate.Info(version: "1.0.1", notes: "Новое:\n— поддержка с номером обращения и фото\n— у каждой вещи своя таблица размеров\n— раздел «О бренде»\nИсправили: мелкие недочёты — всё работает стабильно", url: URL(string: "https://apps.apple.com/ru/")!) }
                 #endif
             }
             else { Task { let shown = await checkUpdate(); if !shown { scheduleAsk() } } }
@@ -317,34 +317,88 @@ enum AppUpdate {
     }
 }
 
-/// Окно «Вышло обновление»: значок приложения, номер версии, что нового, кнопка в App Store
-struct UpdateSheet: View {
+/// Окно «Вышло обновление» (1.0.1, вариант A): весь экран в цветах значка, светящийся знак, номер версии,
+/// «Что нового» из App Store на стеклянной карточке; строки «Новое: …» и «Исправили: …» — отдельными пунктами
+struct UpdateView: View {
     let info: AppUpdate.Info
     @Environment(\.dismiss) private var dismiss
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 14) {
-                Image("AppIconSmall").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 15))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("ALBAKOV").font(Theme.font(12, .medium)).kerning(1.6).foregroundStyle(Theme.muted)
-                    Text("Версия \(info.version)").font(Theme.font(13, .medium)).foregroundStyle(.white)
-                        .padding(.horizontal, 10).padding(.vertical, 4).background(Capsule().fill(Theme.accentGradient))
+        VStack(spacing: 0) {
+            Image("Logo").resizable().scaledToFit().frame(width: 84).colorInvert()
+                .shadow(color: .white.opacity(0.35), radius: 16)
+                .padding(.top, 34)
+            Text("ВЕРСИЯ \(info.version)").font(Theme.font(12.5, .semibold)).kerning(2.5)
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .background(Capsule().fill(.white.opacity(0.1))).overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                .padding(.top, 24)
+            Text("Вышло обновление").font(Theme.font(36, .light)).kerning(-0.8).multilineTextAlignment(.center).padding(.top, 18)
+            Text("Обновите приложение, чтобы всё работало как надо. Новая версия уже в App Store.")
+                .font(Theme.font(14.5)).foregroundStyle(.white.opacity(0.66)).multilineTextAlignment(.center).lineSpacing(3).padding(.top, 12)
+            let items = Self.items(info.notes)
+            if !items.isEmpty {
+                // Короткий список — карточка по высоте текста, длинный — листается внутри карточки
+                ViewThatFits(in: .vertical) {
+                    card(items)
+                    ScrollView(showsIndicators: false) { card(items) }.clipShape(RoundedRectangle(cornerRadius: 24))
                 }
+                .padding(.top, 26)
             }
-            Text("Вышло обновление").font(Theme.font(26, .light))
-            Text("Обновите приложение, чтобы всё работало как надо.\nНовая версия уже в App Store.").font(Theme.font(15)).foregroundStyle(Theme.muted)
-            if !info.notes.isEmpty {
-                ScrollView {
-                    Text(info.notes).font(Theme.font(14)).foregroundStyle(Theme.text).frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 20)
+            Button { UIApplication.shared.open(info.url) } label: {
+                HStack(spacing: 10) {
+                    Text("Обновить").font(Theme.font(16, .semibold))
+                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
+                        .frame(width: 30, height: 30).background(Circle().fill(Theme.ink))
                 }
-                .frame(maxHeight: 140).padding(14)
-                .background(RoundedRectangle(cornerRadius: 18).fill(Theme.surface)).hairline(RoundedRectangle(cornerRadius: 18), 0.06)
-            }
-            Spacer(minLength: 0)
-            PrimaryButton(title: "Обновить") { UIApplication.shared.open(info.url) }
-            GhostButton(title: "Позже") { dismiss() }
+                .foregroundStyle(Theme.ink).frame(maxWidth: .infinity).frame(height: 56).background(Capsule().fill(.white))
+            }.buttonStyle(.plain)
+            Button("Позже") { dismiss() }.font(Theme.font(14.5, .medium)).foregroundStyle(.white.opacity(0.7)).padding(.top, 16).padding(.bottom, 8)
         }
-        .padding(20)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Self.background.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+    }
+
+    private func card(_ items: [(text: String, fix: Bool)]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("ЧТО НОВОГО").font(Theme.font(11.5, .semibold)).kerning(2).foregroundStyle(.white.opacity(0.55))
+            ForEach(Array(items.enumerated()), id: \.offset) { _, it in
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: it.fix ? "checkmark" : "sparkle").font(.system(size: 10, weight: .semibold))
+                        .frame(width: 22, height: 22).background(Circle().fill(.white.opacity(0.12)))
+                    Text(it.text).font(Theme.font(14.5)).lineSpacing(2).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 24).fill(.white.opacity(0.07)))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.white.opacity(0.12), lineWidth: 1))
+    }
+
+    /// Фон как у значка: бордо слева сверху, синий справа снизу, графит посередине
+    private static var background: some View {
+        ZStack {
+            Color(hex: "#121419")
+            RadialGradient(colors: [Color(hex: "#821f35").opacity(0.95), .clear], center: UnitPoint(x: -0.1, y: -0.05), startRadius: 0, endRadius: 420)
+            RadialGradient(colors: [Color(hex: "#3a78b7").opacity(0.75), .clear], center: UnitPoint(x: 1.1, y: 1.05), startRadius: 0, endRadius: 460)
+        }
+    }
+
+    /// «Что нового» из App Store → пункты: «Новое: …» и «Исправили: …» начинают группу, «— …» и «• …» — пункты внутри
+    static func items(_ notes: String) -> [(text: String, fix: Bool)] {
+        var out: [(text: String, fix: Bool)] = [], fix = false
+        for raw in notes.components(separatedBy: .newlines) {
+            var line = raw.trimmingCharacters(in: .whitespaces)
+            let low = line.lowercased()
+            if low.hasPrefix("новое:") { fix = false; line = String(line.dropFirst(6)) }
+            else if low.hasPrefix("исправили:") { fix = true; line = String(line.dropFirst(10)) }
+            line = line.trimmingCharacters(in: CharacterSet(charactersIn: " —-–•·")).trimmingCharacters(in: .whitespaces)
+            if !line.isEmpty { out.append((line, fix)) }
+        }
+        return out
     }
 }
 
