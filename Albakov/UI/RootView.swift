@@ -7,26 +7,30 @@ struct RootView: View {
     @State private var askPush = false
     @State private var update: AppUpdate.Info?
     @State private var checkedAt = Date.distantPast
+    // Заставка: главная раскрывается кругом от знака, когда каталог загружен и заставка показана не меньше 1,2 с
+    @State private var splashShown = false
+    @State private var reveal: CGFloat = 0
+    @State private var splashDone = false
 
     var body: some View {
         ZStack {
             Color.white.ignoresSafeArea()
+            if !splashDone { SplashView() }
             if shop.loaded {
                 // Цвет раздела меняется вместе с разделом — экраны перерисовываются (переходы во вкладках хранит Router)
-                MainTabs().id(shop.gender ?? "all").transition(.opacity)
+                MainTabs().id(shop.gender ?? "all").mask(CircleReveal(progress: reveal))
             } else if let err = shop.loadError {
-                OfflineView(text: err) { Task { await shop.load() } }
-            } else {
-                SplashView()
+                OfflineView(text: err) { Task { await shop.load() } }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.white.ignoresSafeArea())
             }
             ToastView()
         }
         .background(KeyboardDismisser())
-        .animation(.easeOut(duration: 0.35), value: shop.loaded)
+        .task { try? await Task.sleep(nanoseconds: 1_200_000_000); splashShown = true; revealIfReady() }
         .sheet(isPresented: $askPush) { PushAskSheet().presentationDetents([.medium, .large]) }
         .fullScreenCover(item: $update) { UpdateView(info: $0) }
         .onChange(of: shop.loaded) { ok in
             guard ok else { return }
+            revealIfReady()
             // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны
             if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty {
                 if screen.contains("demo") { shop.demoCart() }; router.open(path: screen)
@@ -41,6 +45,12 @@ struct RootView: View {
         .onChange(of: phase) { p in
             if p == .active, shop.loaded, update == nil, !askPush, Date().timeIntervalSince(checkedAt) > 6 * 3600 { Task { await checkUpdate() } }
         }
+    }
+
+    private func revealIfReady() {
+        guard shop.loaded, splashShown, reveal == 0 else { return }
+        withAnimation(.timingCurve(0.6, 0, 0.2, 1, duration: 0.75)) { reveal = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { splashDone = true }
     }
 
     /// Окно «Вышло обновление», если в App Store версия новее установленной
@@ -229,29 +239,53 @@ struct DestView: View {
 }
 
 // Заставка: знак AV и ALBAKOV, как в шапке сайта, под ними тонкая линия загрузки
-struct BrandMark: View {
+/// Фон в цветах значка: бордо слева сверху, синий справа снизу, графит посередине (заставка, окно «Вышло обновление»)
+struct BrandBackground: View {
     var body: some View {
-        VStack(spacing: 22) {
-            Image("Logo").resizable().scaledToFit().frame(width: 84, height: 84)
-            HStack(alignment: .top, spacing: 2) {
-                Image("Wordmark").resizable().scaledToFit().frame(width: 150)
-                Text("®").font(.system(size: 6)).foregroundStyle(Theme.ink.opacity(0.85)).offset(y: -3)
+        ZStack {
+            Color(hex: "#121419")
+            RadialGradient(colors: [Color(hex: "#821f35").opacity(0.95), .clear], center: UnitPoint(x: -0.1, y: -0.05), startRadius: 0, endRadius: 420)
+            RadialGradient(colors: [Color(hex: "#3a78b7").opacity(0.75), .clear], center: UnitPoint(x: 1.1, y: 1.05), startRadius: 0, endRadius: 460)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// Заставка при входе (вариант B, 14.11): знак проступает из размытия и вспыхивает, надпись ALBAKOV выезжает слева
+struct SplashView: View {
+    @State private var mark = false
+    @State private var word = false
+    @State private var glow = false
+    var body: some View {
+        ZStack {
+            BrandBackground()
+            VStack(spacing: 26) {
+                Image("Logo").resizable().scaledToFit().frame(width: 96, height: 96).colorInvert()
+                    .shadow(color: .white.opacity(glow ? 0.45 : 0), radius: glow ? 22 : 0)
+                    .blur(radius: mark ? 0 : 14).scaleEffect(mark ? 1 : 1.18).opacity(mark ? 1 : 0)
+                Image("Wordmark").resizable().scaledToFit().frame(width: 170).colorInvert()
+                    .mask(Rectangle().scaleEffect(x: word ? 1 : 0.001, anchor: .leading))
+                    .opacity(word ? 1 : 0)
             }
+            .offset(y: -20)
+        }
+        .onAppear {
+            withAnimation(.timingCurve(0.2, 0.7, 0.2, 1, duration: 0.9)) { mark = true }
+            withAnimation(.timingCurve(0.3, 0.7, 0.2, 1, duration: 0.7).delay(0.35)) { word = true }
+            withAnimation(.easeInOut(duration: 0.7).delay(0.7)) { glow = true }
         }
     }
 }
 
-struct SplashView: View {
-    @State private var progress: CGFloat = 0
+/// Маска «круг из центра знака»: 0 — ничего не видно, 1 — весь экран
+struct CircleReveal: View {
+    let progress: CGFloat
     var body: some View {
-        VStack(spacing: 28) {
-            BrandMark()
-            ZStack(alignment: .leading) {
-                Rectangle().fill(Theme.ink.opacity(0.12))
-                Rectangle().fill(Theme.ink).frame(width: 150 * progress)
-            }.frame(width: 150, height: 1)
+        GeometryReader { g in
+            let d = hypot(g.size.width, g.size.height) * 1.15 * progress
+            Circle().frame(width: d, height: d).position(x: g.size.width / 2, y: g.size.height * 0.46)
         }
-        .onAppear { withAnimation(.timingCurve(0.25, 0.7, 0.3, 1, duration: 2.6)) { progress = 0.82 } }
+        .ignoresSafeArea()
     }
 }
 
@@ -356,7 +390,7 @@ struct UpdateView: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Self.background.ignoresSafeArea())
+        .background(BrandBackground())
         .preferredColorScheme(.dark)
     }
 
@@ -374,15 +408,6 @@ struct UpdateView: View {
         .padding(18)
         .background(RoundedRectangle(cornerRadius: 24).fill(.white.opacity(0.07)))
         .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.white.opacity(0.12), lineWidth: 1))
-    }
-
-    /// Фон как у значка: бордо слева сверху, синий справа снизу, графит посередине
-    private static var background: some View {
-        ZStack {
-            Color(hex: "#121419")
-            RadialGradient(colors: [Color(hex: "#821f35").opacity(0.95), .clear], center: UnitPoint(x: -0.1, y: -0.05), startRadius: 0, endRadius: 420)
-            RadialGradient(colors: [Color(hex: "#3a78b7").opacity(0.75), .clear], center: UnitPoint(x: 1.1, y: 1.05), startRadius: 0, endRadius: 460)
-        }
     }
 
     /// «Что нового» из App Store → пункты: «Новое: …» и «Исправили: …» начинают группу, «— …» и «• …» — пункты внутри
