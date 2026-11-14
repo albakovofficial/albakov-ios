@@ -325,9 +325,10 @@ struct UpdateView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Знак, заголовок и список — посередине между верхом экрана и кнопками
+            Spacer(minLength: 24)
             Image("Logo").resizable().scaledToFit().frame(width: 84).colorInvert()
                 .shadow(color: .white.opacity(0.35), radius: 16)
-                .padding(.top, 34)
             Text("ВЕРСИЯ \(info.version)").font(Theme.font(12.5, .semibold)).kerning(2.5)
                 .padding(.horizontal, 16).padding(.vertical, 8)
                 .background(Capsule().fill(.white.opacity(0.1))).overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
