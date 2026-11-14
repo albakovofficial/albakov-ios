@@ -345,13 +345,10 @@ struct UpdateView: View {
                 .padding(.top, 26)
             }
             Spacer(minLength: 20)
+            // «Обновить» — страница ALBAKOV в приложении App Store
             Button { UIApplication.shared.open(info.url) } label: {
-                HStack(spacing: 10) {
-                    Text("Обновить").font(Theme.font(16, .semibold))
-                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
-                        .frame(width: 30, height: 30).background(Circle().fill(Theme.ink))
-                }
-                .foregroundStyle(Theme.ink).frame(maxWidth: .infinity).frame(height: 56).background(Capsule().fill(.white))
+                Text("Обновить").font(Theme.font(16, .semibold)).foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity).frame(height: 56).background(Capsule().fill(.white))
             }.buttonStyle(.plain)
             Button("Позже") { dismiss() }.font(Theme.font(14.5, .medium)).foregroundStyle(.white.opacity(0.7)).padding(.top, 16).padding(.bottom, 8)
         }
