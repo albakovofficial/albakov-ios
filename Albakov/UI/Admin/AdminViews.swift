@@ -17,7 +17,7 @@ final class Admin: ObservableObject {
     func load() async {
         loading = true; defer { loading = false }
         do { data = try await API.shared.json("GET", "admin/data")["data"]; error = nil }
-        catch { self.error = error.localizedDescription }
+        catch { self.error = error.userMessage }
     }
 }
 
@@ -276,7 +276,7 @@ struct AdminOrderView: View {
     private func patch(_ b: [String: Any]) async {
         busy = true; error = nil; defer { busy = false }
         do { _ = try await API.shared.raw("PATCH", "admin/orders/\(id)", body: b); await admin.load(); Haptic.success(); Toast.shared.show("Сохранено") }
-        catch { self.error = error.localizedDescription; Haptic.error() }
+        catch { self.error = error.userMessage; Haptic.error() }
     }
 }
 
@@ -324,7 +324,7 @@ struct BonusGrantSheet: View {
             PrimaryButton(title: "Начислить") {
                 Task {
                     do { _ = try await API.shared.raw("POST", "admin/users/\(user["id"].str)/bonus", body: ["amount": Int(amount) ?? 0, "note": note]); await Admin.shared.load(); Haptic.success(); dismiss() }
-                    catch { self.error = error.localizedDescription }
+                    catch { self.error = error.userMessage }
                 }
             }
             Spacer()
@@ -416,7 +416,7 @@ struct AdminPushView: View {
         guard let e = push.endpoint else { return }
         testing = true; testMsg = nil; defer { testing = false }
         do { _ = try await API.shared.raw("POST", "push/test", body: ["endpoint": e, "scope": "staff"]); testMsg = "Отправили — уведомление появится через пару секунд"; Haptic.success() }
-        catch { testMsg = error.localizedDescription; Haptic.error() }
+        catch { testMsg = error.userMessage; Haptic.error() }
     }
     private func broadcast(test: Bool) async {
         busy = true; error = nil; defer { busy = false; armed = false }
@@ -424,7 +424,7 @@ struct AdminPushView: View {
             let j = try await API.shared.json("POST", "admin/push/broadcast", body: ["title": title, "body": text, "url": link, "test": test])
             Toast.shared.show(test ? "Пробное отправлено" : "Доставлено: \(j["sent"].int ?? 0) из \(j["to"].int ?? 0)"); Haptic.success()
             if !test { await load() }
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error.userMessage }
     }
 }
 

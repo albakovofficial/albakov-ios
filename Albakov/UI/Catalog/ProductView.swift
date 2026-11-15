@@ -351,6 +351,6 @@ struct NotifySheet: View {
         do {
             let r = try await API.shared.json("POST", "notify", body: ["productId": product.id, "colorId": color.id, "size": chosen, "email": email, "consent": true])
             withAnimation { done = r["already"].bool }
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error.userMessage }
     }
 }

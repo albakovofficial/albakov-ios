@@ -437,7 +437,7 @@ struct ImageField: View {
     private func upload(_ it: PhotosPickerItem?) async {
         guard let it, let data = try? await it.loadTransferable(type: Data.self) else { return }
         busy = true; defer { busy = false; item = nil }
-        do { value = try await API.shared.upload(ImageKit.jpeg(data)) } catch { Toast.shared.show(error.localizedDescription) }
+        do { value = try await API.shared.upload(ImageKit.jpeg(data)) } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -548,7 +548,7 @@ struct SettingsForm: View {
         if let e = apply(&s, doc.v), !e.isEmpty { error = e; Haptic.error(); return }
         busy = true; defer { busy = false }
         do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Haptic.success(); Toast.shared.show("Сохранено") }
-        catch { self.error = error.localizedDescription; Haptic.error() }
+        catch { self.error = error.userMessage; Haptic.error() }
     }
 }
 
@@ -659,17 +659,17 @@ struct CollectionEdit: View {
             let r = try await AdminAPI.upsert(cfg.key, next)
             doc.v = next; await AdminAPI.reload(); Haptic.success(); Toast.shared.show(notifyMsg("Сохранено", r["notify"]))
             if isNew { router.pop(on: .account); router.push(.adminItem(cfg.key, next["id"] as? String ?? ""), on: .account) }
-        } catch { self.error = error.localizedDescription; Haptic.error() }
+        } catch { self.error = error.userMessage; Haptic.error() }
     }
     private func duplicate() async {
         guard let dup = cfg.duplicate else { return }
         let copy = dup(doc.v)
         do { _ = try await AdminAPI.upsert(cfg.key, copy); await AdminAPI.reload(); Toast.shared.show("Создана копия"); router.push(.adminItem(cfg.key, copy["id"] as? String ?? ""), on: .account) }
-        catch { Toast.shared.show(error.localizedDescription) }
+        catch { Toast.shared.show(error.userMessage) }
     }
     private func remove() async {
         if let why = cfg.canDelete?(JSON(doc.v)) { error = why; return }
         do { try await AdminAPI.delete(cfg.key, id); await AdminAPI.reload(); Toast.shared.show("Удалено"); router.pop(on: .account) }
-        catch { self.error = error.localizedDescription }
+        catch { self.error = error.userMessage }
     }
 }

@@ -188,12 +188,12 @@ struct GiftView: View {
             OrderTokens.save(id, r["token"].str)
             placed = (id, r["token"].str)
             router.reset(.account, to: [.orders, .order(id)])   // 1.0.3: оплата — кнопкой на странице заказа
-        } catch { self.error = error.localizedDescription; Haptic.error() }
+        } catch { self.error = error.userMessage; Haptic.error() }
     }
     private func check() async {
         let c = checkCode.trimmingCharacters(in: .whitespaces); guard !c.isEmpty else { return }
         do { checked = try await API.shared.json("POST", "gifts/check", body: ["code": c])["gift"]; checkError = nil }
-        catch { checked = JSON(nil); checkError = error.localizedDescription }
+        catch { checked = JSON(nil); checkError = error.userMessage }
     }
 }
 
@@ -224,6 +224,6 @@ struct TrackView: View {
             let r = try await API.shared.json("POST", "track", body: ["number": number, "phone": phone])
             OrderTokens.save(r["id"].str, r["token"].str)
             router.push(.order(r["id"].str))
-        } catch { self.error = error.localizedDescription; Haptic.error() }
+        } catch { self.error = error.userMessage; Haptic.error() }
     }
 }

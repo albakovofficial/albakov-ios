@@ -95,7 +95,7 @@ final class SupportAttachments: ObservableObject {
                 if let i = items.firstIndex(where: { $0.id == item.id }) { items[i].name = r["file"].str }
             } catch {
                 items.removeAll { $0.id == item.id }
-                Toast.shared.show(error.localizedDescription)
+                Toast.shared.show(error.userMessage)
             }
         }
     }
@@ -502,7 +502,7 @@ struct NewTicketSheet: View {
             let r = try await API.shared.json("POST", "support", body: ["topic": topic, "orderId": orderId, "text": text, "files": att.names])
             Haptic.success(); Toast.shared.show("Обращение № \(r["ticket"]["number"].str) отправлено")
             created(r["ticket"]["id"].str)
-        } catch { self.error = error.localizedDescription; Haptic.error() }
+        } catch { self.error = error.userMessage; Haptic.error() }
     }
 }
 
@@ -579,7 +579,7 @@ struct TicketView: View {
         do {
             let r = try await API.shared.json("POST", "support/\(id)", body: ["text": draft, "files": att.names])
             t = r["ticket"]; draft = ""; att.clear(); Haptic.tap()
-        } catch { Toast.shared.show(error.localizedDescription); Haptic.error() }
+        } catch { Toast.shared.show(error.userMessage); Haptic.error() }
     }
     private func close() async {
         if let r = try? await API.shared.json("POST", "support/\(id)/close") { t = r["ticket"]; Haptic.success(); Toast.shared.show("Рады, что помогли") }
@@ -765,7 +765,7 @@ struct AdminTicketView: View {
     }
     private func patch(_ b: [String: Any]) async {
         do { _ = try await API.shared.raw("PATCH", "admin/support/\(id)", body: b); await load(); Haptic.success() }
-        catch { Toast.shared.show(error.localizedDescription) }
+        catch { Toast.shared.show(error.userMessage) }
     }
     private func send() async {
         busy = true; defer { busy = false }
@@ -774,7 +774,7 @@ struct AdminTicketView: View {
             t = r["ticket"]; draft = ""; att.clear(); Haptic.success()
             Toast.shared.show(note ? "Заметка сохранена" : r["mailed"].bool ? "Ответ отправлен и продублирован на почту" : "Ответ отправлен")
             note = false
-        } catch { Toast.shared.show(error.localizedDescription); Haptic.error() }
+        } catch { Toast.shared.show(error.userMessage); Haptic.error() }
     }
 }
 
@@ -855,6 +855,6 @@ private struct SupportTemplatesSheet: View {
         busy = true; defer { busy = false }
         let body: [[String: Any]] = list.map { ["title": $0.0, "text": $0.1] }
         do { let r = try await API.shared.json("PUT", "admin/support/templates", body: ["templates": body]); saved(r["templates"].array); Haptic.success(); dismiss() }
-        catch { Toast.shared.show(error.localizedDescription) }
+        catch { Toast.shared.show(error.userMessage) }
     }
 }

@@ -376,7 +376,7 @@ struct StoreServiceCard: View {
     }
     private func saveSeq() async {
         do { let r = try await AdminAPI.post("order-seq", ["next": Int(seq) ?? 0]); seq = String(r["next"].int ?? Int(seq) ?? 0); Toast.shared.show("Следующий заказ получит № \(seq)") }
-        catch { Toast.shared.show(error.localizedDescription) }
+        catch { Toast.shared.show(error.userMessage) }
     }
     private func li(_ k: String, _ v: String, bad: Bool = false) -> some View {
         HStack(alignment: .top) { Text(k).font(Theme.font(13.5)).foregroundStyle(Theme.muted); Spacer(minLength: 10); Text(v).font(Theme.font(13.5)).foregroundStyle(bad ? Theme.danger : Theme.text).multilineTextAlignment(.trailing) }

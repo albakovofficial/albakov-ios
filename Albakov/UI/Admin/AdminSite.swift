@@ -40,7 +40,7 @@ private enum SlideKit {
     }
     @MainActor static func save(_ cfg: [String: Any], _ msg: String) async -> Bool {
         var s = Admin.shared.data["settings"].dictAny; s["slider"] = cfg
-        do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Toast.shared.show(msg); return true } catch { Toast.shared.show(error.localizedDescription); return false }
+        do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Toast.shared.show(msg); return true } catch { Toast.shared.show(error.userMessage); return false }
     }
 }
 
@@ -306,7 +306,7 @@ struct AdminBrand: View {
         if (s["storeName"] as? String ?? "").trimmingCharacters(in: .whitespaces).isEmpty { error = "Укажите название магазина"; return }
         busy = true; defer { busy = false }
         var x = admin.data["settings"].dictAny; x["storeName"] = s["storeName"]; x["brand"] = b
-        do { try await AdminAPI.saveSettings(x); await AdminAPI.reload(); Haptic.success(); Toast.shared.show("Логотип сохранён") } catch { self.error = error.localizedDescription }
+        do { try await AdminAPI.saveSettings(x); await AdminAPI.reload(); Haptic.success(); Toast.shared.show("Логотип сохранён") } catch { self.error = error.userMessage }
     }
 }
 
@@ -339,7 +339,7 @@ private struct LogoSlot: View {
             let url = try await API.shared.upload(r.png, mime: "image/png")
             set(["src": url, "w": r.w, "h": r.h])
             if let n = r.note { Toast.shared.show(n) }
-        } catch { Toast.shared.show(error.localizedDescription) }
+        } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -446,13 +446,13 @@ struct AdminStaff: View {
         .task { await load() }
         .refreshable { await load() }
         .confirmationDialog("Забрать доступ к панели?", isPresented: Binding(get: { del != nil }, set: { if !$0 { del = nil } }), titleVisibility: .visible) {
-            Button("Забрать доступ", role: .destructive) { if let x = del { Task { do { _ = try await API.shared.raw("DELETE", "admin/staff/" + x["userId"].str); Toast.shared.show("Доступ забран"); await load() } catch { Toast.shared.show(error.localizedDescription) } } } }
+            Button("Забрать доступ", role: .destructive) { if let x = del { Task { do { _ = try await API.shared.raw("DELETE", "admin/staff/" + x["userId"].str); Toast.shared.show("Доступ забран"); await load() } catch { Toast.shared.show(error.userMessage) } } } }
         }
     }
     private func row(_ t: String, _ s: String) -> some View { VStack(alignment: .leading, spacing: 2) { Text(t).font(Theme.font(14.5, .medium)); Text(s).font(Theme.font(12.5)).foregroundStyle(Theme.muted) } }
     private func initials(_ n: String) -> String { String((n.isEmpty ? "?" : n).split(separator: " ").compactMap(\.first).prefix(2)).uppercased() }
     private func load() async {
-        do { list = try await API.shared.json("GET", "admin/staff")["staff"].array; error = nil } catch { self.error = error.localizedDescription }
+        do { list = try await API.shared.json("GET", "admin/staff")["staff"].array; error = nil } catch { self.error = error.userMessage }
     }
     private func add() async {
         error = nil
@@ -462,9 +462,9 @@ struct AdminStaff: View {
         do {
             list = try await API.shared.json("POST", "admin/staff", body: ["phone": ph, "role": role])["staff"].array
             phone = ""; Toast.shared.show("Доступ выдан — человек увидит «Панель управления» в меню, когда войдёт в аккаунт")
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error.userMessage }
     }
     private func change(_ id: String, _ r: String, _ name: String) async {
-        do { list = try await API.shared.json("PUT", "admin/staff/" + id, body: ["role": r])["staff"].array; Toast.shared.show("Роль изменена: " + name) } catch { Toast.shared.show(error.localizedDescription) }
+        do { list = try await API.shared.json("PUT", "admin/staff/" + id, body: ["role": r])["staff"].array; Toast.shared.show("Роль изменена: " + name) } catch { Toast.shared.show(error.userMessage) }
     }
 }

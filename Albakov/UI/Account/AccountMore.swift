@@ -97,7 +97,7 @@ struct ProfileView: View {
         if !newPassword.isEmpty { b["newPassword"] = newPassword }
         if !current.isEmpty { b["currentPassword"] = current }
         do { _ = try await API.shared.raw("PUT", "me", body: b); await shop.refreshUser(); current = ""; newPassword = ""; Haptic.success(); Toast.shared.show("Сохранено") }
-        catch { self.error = error.localizedDescription; Haptic.error() }
+        catch { self.error = error.userMessage; Haptic.error() }
     }
 }
 
@@ -148,7 +148,7 @@ struct DeleteAccountSheet: View {
         do {
             try await shop.deleteAccount(password: password)
             Haptic.success(); dismiss(); router.reset(.account); Toast.shared.show("Аккаунт удалён")
-        } catch { self.error = error.localizedDescription; Haptic.error() }
+        } catch { self.error = error.userMessage; Haptic.error() }
     }
 }
 

@@ -50,7 +50,7 @@ final class Shop: ObservableObject {
             setUser(User(j["user"]), staff: j["isAdmin"].bool, merge: true)
             loaded = true; loadError = nil; loadedAt = Date()
         } catch {
-            loadError = error.localizedDescription
+            loadError = error.userMessage
         }
     }
 

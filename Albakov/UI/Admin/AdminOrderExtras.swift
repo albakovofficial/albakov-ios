@@ -53,7 +53,7 @@ struct OrderRequestsSection: View {
             let r = try await act(o["id"].str, "request", "POST", ["id": rid, "action": action, "note": note])
             await AdminAPI.reload(); Haptic.success()
             Toast.shared.show(r["exchange"].exists ? "Создан заказ-обмен № \(r["exchange"]["number"].str) — отправьте его как обычно" : action == "decline" ? "Заявка отклонена, резерв размера снят" : "Готово")
-        } catch { Toast.shared.show(error.localizedDescription) }
+        } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -133,7 +133,7 @@ struct OrderRefundSection: View {
         armed = false; error = nil
         if lines.isEmpty && !delivery { amount = 0; return }
         do { let r = try await act(o["id"].str, "refund", "POST", payload(true)); amount = r["amount"].int ?? 0; deducted = r["deducted"].int ?? 0 }
-        catch { amount = 0; self.error = error.localizedDescription }
+        catch { amount = 0; self.error = error.userMessage }
     }
     private func refund() async {
         guard amount > 0 else { return }
@@ -143,7 +143,7 @@ struct OrderRefundSection: View {
             let r = try await act(o["id"].str, "refund", "POST", payload(false))
             await AdminAPI.reload(); Haptic.success(); open = false; lines = [:]; armed = false; key = uid("rf")
             Toast.shared.show("Возврат \(Fmt.rub(r["refund"]["amount"].int ?? 0)) оформлен" + (r["refund"]["mailedAt"].exists ? ", покупателю отправлено письмо" : ""))
-        } catch { self.error = error.localizedDescription; armed = false }
+        } catch { self.error = error.userMessage; armed = false }
     }
 }
 
@@ -271,18 +271,18 @@ struct OrderCdekSection: View {
     private func create() async {
         busy = true; error = nil; defer { busy = false }
         do { _ = try await act(o["id"].str, "cdek", "POST", ["pkg": ["weight": w, "length": l, "width": wd, "height": h]]); await admin.load(); Haptic.success(); Toast.shared.show("Отправление создано в СДЭК") }
-        catch { self.error = error.localizedDescription }
+        catch { self.error = error.userMessage }
     }
     private func simple(_ path: String, _ method: String, _ ok: String, _ body: [String: Any] = [:]) async {
         error = nil
-        do { _ = try await act(o["id"].str, path, method, body); await admin.load(); Toast.shared.show(ok) } catch { self.error = error.localizedDescription }
+        do { _ = try await act(o["id"].str, path, method, body); await admin.load(); Toast.shared.show(ok) } catch { self.error = error.userMessage }
     }
     private func printDoc(_ kind: String) async {
         do {
             let d = try await API.shared.raw("GET", "admin/orders/\(o["id"].str)/cdek-print", query: ["kind": kind])
             let u = FileManager.default.temporaryDirectory.appendingPathComponent((kind == "barcode" ? "naklejka-" : "nakladnaya-") + o["number"].str + ".pdf")
             try d.write(to: u); pdf = u
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error.userMessage }
     }
 }
 
@@ -360,7 +360,7 @@ struct OrderDeleteSheet: View {
             _ = try await API.shared.raw("DELETE", "admin/orders/\(o["id"].str)")
             await Admin.shared.load(); Haptic.success(); dismiss(); done()
             Toast.shared.show("Заказ № \(o["number"].str) удалён")
-        } catch { self.error = error.localizedDescription; busy = false; Haptic.error() }
+        } catch { self.error = error.userMessage; busy = false; Haptic.error() }
     }
 }
 

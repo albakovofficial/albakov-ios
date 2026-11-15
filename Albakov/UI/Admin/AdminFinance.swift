@@ -31,7 +31,7 @@ final class FinanceEngine: ObservableObject {
             """)
             guard c.objectForKeyedSubscript("Finance")?.isUndefined == false else { error = "Не загрузился модуль расчёта"; return false }
             ctx = c; return true
-        } catch { self.error = error.localizedDescription; return false }
+        } catch { self.error = error.userMessage; return false }
     }
     func report(_ input: [String: Any], kind: String, shift: Int, from: String, to: String) -> JSON {
         guard let ctx, let d = try? JSONSerialization.data(withJSONObject: input) else { return JSON(nil) }
@@ -240,10 +240,10 @@ struct ExpenseSheet: View {
         do {
             if let e = expense { _ = try await API.shared.json("PUT", "admin/finance/expenses/\(e["id"].str)", body: b) } else { _ = try await AdminAPI.post("finance/expenses", b) }
             done(); dismiss()
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error.userMessage }
     }
     private func remove(_ id: String) async {
-        do { _ = try await API.shared.raw("DELETE", "admin/finance/expenses/\(id)"); done(); dismiss() } catch { self.error = error.localizedDescription }
+        do { _ = try await API.shared.raw("DELETE", "admin/finance/expenses/\(id)"); done(); dismiss() } catch { self.error = error.userMessage }
     }
 }
 
@@ -276,7 +276,7 @@ struct FinanceCosts: View {
         busy = true; defer { busy = false }
         var v: [String: Any] = [:]
         for p in admin.data["products"].array { let s = costs[p["id"].str] ?? ""; v[p["id"].str] = s.isEmpty ? "" : (Double(s.replacingOccurrences(of: ",", with: ".")) ?? 0) }
-        do { _ = try await API.shared.json("PUT", "admin/finance/costs", body: ["costs": v]); await admin.load(); Toast.shared.show("Себестоимость сохранена") } catch { Toast.shared.show(error.localizedDescription) }
+        do { _ = try await API.shared.json("PUT", "admin/finance/costs", body: ["costs": v]); await admin.load(); Toast.shared.show("Себестоимость сохранена") } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -310,7 +310,7 @@ struct FinanceSettings: View {
         for i in cats.indices where (cats[i]["id"] as? String ?? "").hasPrefix("r") || (cats[i]["id"] as? String ?? "").isEmpty { cats[i]["id"] = uid("fc") }
         let v: [String: Any] = ["taxRate": d["taxRate"].double ?? 0, "rates": ["sbp": ["yk": d["sbpYk"].double ?? 0, "partner": d["sbpPartner"].double ?? 0], "other": ["yk": d["otherYk"].double ?? 0, "partner": d["otherPartner"].double ?? 0]],
                                 "partnerMin": d["partnerMin"].double ?? 0, "codFee": d["codFee"].double ?? 0, "categories": cats, "costs": admin.data["finance"]["costs"].raw ?? [String: Any]()]
-        do { _ = try await API.shared.json("PUT", "admin/finance/settings", body: ["value": v]); await admin.load(); Toast.shared.show("Сохранено") } catch { Toast.shared.show(error.localizedDescription) }
+        do { _ = try await API.shared.json("PUT", "admin/finance/settings", body: ["value": v]); await admin.load(); Toast.shared.show("Сохранено") } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -401,7 +401,7 @@ struct AdminAnalytics: View {
                     TextField("Код Google Search Console", text: $go).autocorrectionDisabled().textInputAutocapitalization(.never)
                     Toggle("Сразу сообщать Яндексу о новых и изменённых товарах", isOn: $indexnow).tint(Theme.ink)
                     Button("Сохранить") { Task { await saveSeo() } }.font(Theme.font(15, .medium))
-                    Button("Отправить все страницы в Яндекс") { Task { do { let r = try await AdminAPI.post("seo-ping"); await admin.load(); Toast.shared.show("Яндекс получил \(r["last"]["count"].int ?? 0) адресов") } catch { Toast.shared.show(error.localizedDescription) } } }
+                    Button("Отправить все страницы в Яндекс") { Task { do { let r = try await AdminAPI.post("seo-ping"); await admin.load(); Toast.shared.show("Яндекс получил \(r["last"]["count"].int ?? 0) адресов") } catch { Toast.shared.show(error.userMessage) } } }
                 }
             }
         }
@@ -423,13 +423,13 @@ struct AdminAnalytics: View {
         let id = mk.filter(\.isNumber)
         if !mk.isEmpty && !(5...12).contains(id.count) { Toast.shared.show("Номер счётчика — это 5–12 цифр"); return }
         var s = admin.data["settings"].dictAny; s["metrika"] = ["id": id, "webvisor": webvisor]
-        do { try await AdminAPI.saveSettings(s); await admin.load(); Toast.shared.show(id.isEmpty ? "Метрика отключена" : "Метрика подключена") } catch { Toast.shared.show(error.localizedDescription) }
+        do { try await AdminAPI.saveSettings(s); await admin.load(); Toast.shared.show(id.isEmpty ? "Метрика отключена" : "Метрика подключена") } catch { Toast.shared.show(error.userMessage) }
     }
     private func saveSeo() async {
         let a = code(ya), b = code(go)
         let bad = { (c: String) in !c.isEmpty && c.range(of: #"^[A-Za-z0-9_-]{6,120}$"#, options: .regularExpression) == nil }
         if bad(a) || bad(b) { Toast.shared.show("Код — это латинские буквы и цифры. Скопируйте его из кабинета ещё раз"); return }
         var s = admin.data["settings"].dictAny; var seo = (s["seo"] as? [String: Any]) ?? [:]; seo["yandex"] = a; seo["google"] = b; seo["indexnow"] = indexnow; s["seo"] = seo
-        do { try await AdminAPI.saveSettings(s); await admin.load(); Toast.shared.show("Сохранено. Теперь нажмите «Проверить» в кабинете поисковика") } catch { Toast.shared.show(error.localizedDescription) }
+        do { try await AdminAPI.saveSettings(s); await admin.load(); Toast.shared.show("Сохранено. Теперь нажмите «Проверить» в кабинете поисковика") } catch { Toast.shared.show(error.userMessage) }
     }
 }

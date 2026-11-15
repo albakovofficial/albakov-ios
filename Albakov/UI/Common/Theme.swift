@@ -500,6 +500,8 @@ final class Toast: ObservableObject {
     static let shared = Toast()
     @Published var text: String?
     private var task: Task<Void, Never>?
+    /// Сообщение об ошибке: отменённый запрос (nil) не показываем (1.0.3)
+    func show(_ t: String?) { if let t, !t.isEmpty { show(t) } }
     func show(_ t: String) {
         task?.cancel(); text = t
         task = Task { @MainActor in try? await Task.sleep(nanoseconds: 2_400_000_000); if !Task.isCancelled { self.text = nil } }

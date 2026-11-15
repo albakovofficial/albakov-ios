@@ -234,7 +234,7 @@ struct AuthView: View {
                 let r = try await API.shared.json("POST", "auth/forgot", body: ["login": login])
                 code = CodeStep(id: r["id"].str, email: r["email"].str, kind: "reset")
             }
-        } catch { self.error = error.localizedDescription; Haptic.error() }
+        } catch { self.error = error.userMessage; Haptic.error() }
     }
 }
 
@@ -272,7 +272,7 @@ struct CodeSheet: View {
             if step.kind == "reset" { b["password"] = password }
             let r = try await API.shared.json("POST", path, body: b)
             Haptic.success(); done(r)
-        } catch { self.error = error.localizedDescription; Haptic.error() }
+        } catch { self.error = error.userMessage; Haptic.error() }
     }
 }
 
@@ -313,7 +313,7 @@ struct OrdersView: View {
             }
             orders.forEach { shop.returnExpired($0) }   // время на оплату вышло — вещи снова в корзине
             error = nil
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error.userMessage }
         loading = false
     }
 }
@@ -462,7 +462,7 @@ struct OrderView: View {
     }
     private func load() async {
         do { order = Order(try await API.shared.json("GET", "orders/\(id)", query: OrderTokens.all[id].map { ["t": $0] } ?? [:])["order"]); error = nil }
-        catch { self.error = error.localizedDescription }
+        catch { self.error = error.userMessage }
     }
     private func info(_ t: String, _ v: String) -> some View {
         VStack(alignment: .leading, spacing: 6) { Text(t).font(Theme.font(12.5)).foregroundStyle(Theme.muted); Text(v).font(Theme.font(14.5)) }.frame(maxWidth: .infinity, alignment: .leading)
@@ -549,7 +549,7 @@ struct RequestSheet: View {
         do {
             let r = try await API.shared.json("POST", "orders/\(order.id)/request", body: b)
             updated(Order(r["order"])); Haptic.success(); Toast.shared.show("Заявка оформлена — подробности в письме"); dismiss()
-        } catch { self.error = error.localizedDescription; Haptic.error() }
+        } catch { self.error = error.userMessage; Haptic.error() }
     }
 }
 

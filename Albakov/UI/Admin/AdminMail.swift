@@ -66,7 +66,7 @@ private struct MailLetters: View {
         }
     }
     private func send(_ key: String) async {
-        do { let s = try await API.shared.json("POST", "admin/mail-catalog", body: ["key": key, "to": to]); Toast.shared.show("Отправлено на " + s["sent"].str) } catch { Toast.shared.show(error.localizedDescription) }
+        do { let s = try await API.shared.json("POST", "admin/mail-catalog", body: ["key": key, "to": to]); Toast.shared.show("Отправлено на " + s["sent"].str) } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -100,7 +100,7 @@ private struct MailAlerts: View {
         Section("Проверить") {
             Text("Пришлём пример письма — посмотрите, как оно выглядит и не попадает ли в спам.").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
             ForEach(MailAlerts.kinds, id: \.0) { k in
-                Button(k.1) { Task { do { let r = try await AdminAPI.post("owner-notify/test", ["kind": k.0]); Toast.shared.show("Отправили «\(k.1)» на \(r["to"].str)") } catch { Toast.shared.show(error.localizedDescription) } } }
+                Button(k.1) { Task { do { let r = try await AdminAPI.post("owner-notify/test", ["kind": k.0]); Toast.shared.show("Отправили «\(k.1)» на \(r["to"].str)") } catch { Toast.shared.show(error.userMessage) } } }
             }
         }
         .onAppear {
@@ -112,7 +112,7 @@ private struct MailAlerts: View {
         if !email.isEmpty && email.range(of: #"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"#, options: .regularExpression) == nil { Toast.shared.show("Проверьте адрес почты"); return }
         var s = admin.data["settings"].dictAny
         s["ownerNotify"] = ["email": email, "events": ev] as [String: Any]
-        do { try await AdminAPI.saveSettings(s); await admin.load(); Toast.shared.show(msg) } catch { Toast.shared.show(error.localizedDescription) }
+        do { try await AdminAPI.saveSettings(s); await admin.load(); Toast.shared.show(msg) } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -148,8 +148,8 @@ private struct MailNotify: View {
             }
             Section("Проверить письмо") {
                 TextField("Ваша почта", text: $to).keyboardType(.emailAddress).textInputAutocapitalization(.never)
-                Button("Отправить пример") { Task { do { _ = try await AdminAPI.post("mail/test", ["to": to]); Toast.shared.show("Пример отправлен на \(to). Учтите: сохранённый текст, а не черновик.") } catch { Toast.shared.show(error.localizedDescription) } } }.disabled(to.isEmpty || !mailReady)
-                Button("Отправить письма регистрации: код и приветствие") { Task { do { _ = try await AdminAPI.post("mail/test-account", ["to": to]); Toast.shared.show("Отправили на \(to) два письма") } catch { Toast.shared.show(error.localizedDescription) } } }.disabled(to.isEmpty || !mailReady)
+                Button("Отправить пример") { Task { do { _ = try await AdminAPI.post("mail/test", ["to": to]); Toast.shared.show("Пример отправлен на \(to). Учтите: сохранённый текст, а не черновик.") } catch { Toast.shared.show(error.userMessage) } } }.disabled(to.isEmpty || !mailReady)
+                Button("Отправить письма регистрации: код и приветствие") { Task { do { _ = try await AdminAPI.post("mail/test-account", ["to": to]); Toast.shared.show("Отправили на \(to) два письма") } catch { Toast.shared.show(error.userMessage) } } }.disabled(to.isEmpty || !mailReady)
             }
             .onAppear { if tpl.v.isEmpty { var t = MailNotify.def; for (k, v) in n.dict where k != "enabled" { t[k] = v.str }; tpl.v = t } }
         } else {
@@ -164,7 +164,7 @@ private struct MailNotify: View {
             }
             Section {
                 Picker("", selection: $f) { Text("Ждут").tag("waiting"); Text("Отправлены").tag("done"); Text("Отменены").tag("canceled"); Text("Все").tag("all") }.pickerStyle(.segmented)
-                if !ready.isEmpty { Button("Отправить письма сейчас (\(ready.count))") { Task { do { let r = try await AdminAPI.post("waitlist/send"); await admin.load(); Toast.shared.show(notifyMsg("Готово", r["notify"])) } catch { Toast.shared.show(error.localizedDescription) } } }.font(Theme.font(15, .medium)) }
+                if !ready.isEmpty { Button("Отправить письма сейчас (\(ready.count))") { Task { do { let r = try await AdminAPI.post("waitlist/send"); await admin.load(); Toast.shared.show(notifyMsg("Готово", r["notify"])) } catch { Toast.shared.show(error.userMessage) } } }.font(Theme.font(15, .medium)) }
                 if list.isEmpty { Text(f == "waiting" ? "Заявок нет. Когда покупатель попросит сообщить о поступлении, заявка появится здесь." : "Пусто").font(Theme.font(13.5)).foregroundStyle(Theme.muted) }
                 ForEach(list.indices, id: \.self) { i in
                     let w = list[i], x = info(w)
@@ -176,7 +176,7 @@ private struct MailNotify: View {
                 }
             }
             .confirmationDialog("Удалить заявку?", isPresented: Binding(get: { delId != nil }, set: { if !$0 { delId = nil } }), titleVisibility: .visible) {
-                Button("Удалить", role: .destructive) { if let id = delId { Task { do { _ = try await API.shared.raw("DELETE", "admin/waitlist/\(id)"); await admin.load(); Toast.shared.show("Заявка удалена") } catch { Toast.shared.show(error.localizedDescription) } } } }
+                Button("Удалить", role: .destructive) { if let id = delId { Task { do { _ = try await API.shared.raw("DELETE", "admin/waitlist/\(id)"); await admin.load(); Toast.shared.show("Заявка удалена") } catch { Toast.shared.show(error.userMessage) } } } }
             }
         }
     }
@@ -188,7 +188,7 @@ private struct MailNotify: View {
     }
     private func setEnabled(_ v: Bool) async {
         var s = admin.data["settings"].dictAny; var n = (s["notify"] as? [String: Any]) ?? MailNotify.def; n["enabled"] = v; s["notify"] = n
-        do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Toast.shared.show(v ? "Кнопка «Сообщить о поступлении» включена" : "Кнопка выключена: покупатели её не увидят") } catch { Toast.shared.show(error.localizedDescription) }
+        do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Toast.shared.show(v ? "Кнопка «Сообщить о поступлении» включена" : "Кнопка выключена: покупатели её не увидят") } catch { Toast.shared.show(error.userMessage) }
     }
     private func saveTpl() async {
         let t = tpl.v.mapValues { "\($0)" }
@@ -198,7 +198,7 @@ private struct MailNotify: View {
         let found = (try? NSRegularExpression(pattern: #"\{[^}]*\}"#))?.matches(in: all, range: NSRange(all.startIndex..., in: all)).compactMap { Range($0.range, in: all).map { String(all[$0]) } } ?? []
         if let bad = found.first(where: { !ok.contains($0) }) { Toast.shared.show("Неизвестная подстановка \(bad). Используйте подстановки из списка"); return }
         var s = admin.data["settings"].dictAny; var n: [String: Any] = t; n["enabled"] = !(admin.data["settings"]["notify"]["enabled"].exists && !admin.data["settings"]["notify"]["enabled"].bool); s["notify"] = n
-        do { try await AdminAPI.saveSettings(s); await admin.load(); Toast.shared.show("Текст письма сохранён") } catch { Toast.shared.show(error.localizedDescription) }
+        do { try await AdminAPI.saveSettings(s); await admin.load(); Toast.shared.show("Текст письма сохранён") } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -226,6 +226,6 @@ private struct MailSmtp: View {
         var m = doc.v
         if doc.str("host").isEmpty || doc.str("user").isEmpty { Toast.shared.show("Укажите сервер и логин"); return }
         if doc.str("fromEmail").isEmpty { m["fromEmail"] = doc.str("user") }
-        do { _ = try await AdminAPI.post("mail", ["mail": m]); Toast.shared.show("Настройки почты сохранены. Проверьте их: отправьте себе любое письмо во вкладке «Письма»"); saved() } catch { Toast.shared.show(error.localizedDescription) }
+        do { _ = try await AdminAPI.post("mail", ["mail": m]); Toast.shared.show("Настройки почты сохранены. Проверьте их: отправьте себе любое письмо во вкладке «Письма»"); saved() } catch { Toast.shared.show(error.userMessage) }
     }
 }

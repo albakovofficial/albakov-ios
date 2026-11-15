@@ -85,7 +85,7 @@ struct AdminGifts: View {
         months = String(c["months"].int ?? 12); min = String(c["min"].int ?? 3000); max = String(c["max"].int ?? 100000)
     }
     private func post(_ path: String, _ ok: String) async {
-        do { _ = try await AdminAPI.post(path); await admin.load(); Toast.shared.show(ok) } catch { Toast.shared.show(error.localizedDescription) }
+        do { _ = try await AdminAPI.post(path); await admin.load(); Toast.shared.show(ok) } catch { Toast.shared.show(error.userMessage) }
     }
     private func save() async {
         error = nil
@@ -93,7 +93,7 @@ struct AdminGifts: View {
         if n.isEmpty { error = "Укажите хотя бы один номинал"; return }
         var s = admin.data["settings"].dictAny
         s["gifts"] = ["enabled": enabled, "nominals": Array(n), "months": Swift.max(1, Swift.min(36, Int(months) ?? 12)), "min": Swift.max(100, Int(min) ?? 1000), "max": Swift.max(1000, Int(max) ?? 100000)]
-        do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Toast.shared.show("Сохранено") } catch { self.error = error.localizedDescription }
+        do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Toast.shared.show("Сохранено") } catch { self.error = error.userMessage }
     }
 }
 
@@ -127,7 +127,7 @@ struct IssueGiftSheet: View {
         do {
             let r = try await AdminAPI.post("gifts", ["amount": Int(amount) ?? 0, "toName": name, "toEmail": email, "message": msg])
             await Admin.shared.load(); Toast.shared.show("Сертификат \(r["gift"]["code"].str) выпущен" + (r["sent"].bool ? " и отправлен" : "")); dismiss()
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error.userMessage }
     }
 }
 

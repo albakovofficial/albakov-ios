@@ -132,7 +132,7 @@ struct AdminPayment: View {
     }
     private func saveSecret() async {
         do { showSecret(try await AdminAPI.post("payment-secret", ["secret": secret.trimmingCharacters(in: .whitespaces)])); secret = ""; Toast.shared.show("Ключ сохранён"); await shop.refreshUser() }
-        catch { Toast.shared.show(error.localizedDescription) }
+        catch { Toast.shared.show(error.userMessage) }
     }
     private func saveCdek() async {
         cdekState = ("Проверяем ключи в СДЭК…", nil)
@@ -143,7 +143,7 @@ struct AdminPayment: View {
             cdekState = r["checked"].bool ? ("Подключено" + (c["test"].bool ? " (тестовая среда)" : "") + " — покупатели выбирают пункт из списка", true)
                 : (r["error"].string ?? (!r["hasSecret"].bool ? "Введите Secure password" : "Не удалось проверить ключи"), false)
             await AdminAPI.reload()
-        } catch { cdekState = (error.localizedDescription, false) }
+        } catch { cdekState = (error.userMessage ?? "", false) }
     }
     private func save() async {
         error = nil
@@ -160,7 +160,7 @@ struct AdminPayment: View {
                         "yookassa": ["shopId": (yk["shopId"].map { "\($0)" } ?? "").trimmingCharacters(in: .whitespaces), "sendReceipt": JSON(yk["sendReceipt"]).bool,
                                      "taxSystem": JSON(yk["taxSystem"]).int ?? 2, "vatCode": JSON(yk["vatCode"]).int ?? 1]] as [String: Any]
         var d = s["delivery"] as? [String: Any] ?? [:]; d["methods"] = ms; s["delivery"] = d
-        do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Haptic.success(); Toast.shared.show("Сохранено") } catch { self.error = error.localizedDescription }
+        do { try await AdminAPI.saveSettings(s); await AdminAPI.reload(); Haptic.success(); Toast.shared.show("Сохранено") } catch { self.error = error.userMessage }
     }
 }
 
@@ -343,6 +343,6 @@ private struct CdekShipCard: View {
         do {
             _ = try await AdminAPI.post("cdek", req); await Admin.shared.load()
             state = point != nil ? ("Сохранено", true) : ("Сохранено. Укажите пункт отгрузки — без него отправление не создать", false)
-        } catch { state = (error.localizedDescription, false) }
+        } catch { state = (error.userMessage ?? "", false) }
     }
 }

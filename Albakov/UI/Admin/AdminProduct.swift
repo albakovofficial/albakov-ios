@@ -233,7 +233,7 @@ struct ColorPhotos: View {
         busy = true; defer { busy = false; picks = [] }
         for it in items {
             guard let d = try? await it.loadTransferable(type: Data.self) else { continue }
-            do { images.append(try await API.shared.upload(ImageKit.jpeg(d))) } catch { Toast.shared.show(error.localizedDescription) }
+            do { images.append(try await API.shared.upload(ImageKit.jpeg(d))) } catch { Toast.shared.show(error.userMessage) }
         }
     }
 }
@@ -502,11 +502,11 @@ struct ReceiveSheet: View {
             await AdminAPI.reload(); Haptic.success()
             Toast.shared.show("Принято на склад: \(r["receipt"]["qty"].int ?? 0) шт." + ((r["receipt"]["total"].int ?? 0) > 0 ? ", закупка \(Fmt.rub(r["receipt"]["total"].int ?? 0)) записана в «Финансы»" : ""))
             dismiss()
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error.userMessage }
     }
     private func cancel(_ id: String) async {
         do { _ = try await API.shared.raw("DELETE", "admin/finance/receive/\(id)"); await AdminAPI.reload(); Toast.shared.show("Приход отменён: остатки и закупка возвращены") }
-        catch { self.error = error.localizedDescription }
+        catch { self.error = error.userMessage }
     }
 }
 
@@ -562,27 +562,27 @@ struct ProductsBulkView: View {
         busy = true; defer { busy = false }
         let v = Double(value.replacingOccurrences(of: "−", with: "-").replacingOccurrences(of: ",", with: ".")) ?? 0
         do { let r = try await AdminAPI.post("products/bulk", ["ids": Array(picked), "action": action, "value": v]); await AdminAPI.reload(); Toast.shared.show(notifyMsg("Изменено: \(r["changed"].int ?? 0)", r["notify"])) }
-        catch { Toast.shared.show(error.localizedDescription) }
+        catch { Toast.shared.show(error.userMessage) }
     }
     private func deleteMany() async {
         do { let r = try await AdminAPI.post("products/delete-many", ["ids": Array(picked)]); picked = []; await AdminAPI.reload(); Toast.shared.show("Удалено: \(r["deleted"].int ?? 0)") }
-        catch { Toast.shared.show(error.localizedDescription) }
+        catch { Toast.shared.show(error.userMessage) }
     }
     private func export() async {
         do {
             let d = try await API.shared.raw("GET", "admin/products/stock.csv")
             let u = FileManager.default.temporaryDirectory.appendingPathComponent("ostatki.csv"); try d.write(to: u); exportURL = u
-        } catch { Toast.shared.show(error.localizedDescription) }
+        } catch { Toast.shared.show(error.userMessage) }
     }
     private func importCsv(_ r: Result<URL, Error>) async {
         guard case .success(let u) = r else { return }
         let ok = u.startAccessingSecurityScopedResource(); defer { if ok { u.stopAccessingSecurityScopedResource() } }
         guard let d = try? Data(contentsOf: u) else { return }
         csvText = String(data: d, encoding: .utf8) ?? String(data: d, encoding: .windowsCP1251) ?? ""
-        do { preview = try await AdminAPI.post("products/stock", ["csv": csvText, "dry": true]) } catch { Toast.shared.show(error.localizedDescription) }
+        do { preview = try await AdminAPI.post("products/stock", ["csv": csvText, "dry": true]) } catch { Toast.shared.show(error.userMessage) }
     }
     private func applyCsv() async {
         do { let r = try await AdminAPI.post("products/stock", ["csv": csvText]); preview = JSON(nil); await AdminAPI.reload(); Toast.shared.show(notifyMsg("Остатки обновлены: \(r["changed"].int ?? 0)", r["notify"])) }
-        catch { Toast.shared.show(error.localizedDescription) }
+        catch { Toast.shared.show(error.userMessage) }
     }
 }
