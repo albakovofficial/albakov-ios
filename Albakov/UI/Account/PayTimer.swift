@@ -26,23 +26,14 @@ struct PayTimerCard: View {
             let hot = left <= PayClock.hot
             let tone = hot ? PayClock.red : Theme.accent
             VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top) {
+                HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Заказ ждёт оплаты").font(Theme.font(17, .medium))
                         Text("Вещи отложены за вами").font(Theme.font(13)).foregroundStyle(Theme.muted)
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text(PayClock.mmss(left)).font(Theme.font(28, .light)).monospacedDigit().foregroundStyle(tone)
-                        Text("осталось").font(Theme.font(11.5)).foregroundStyle(hot ? tone : Theme.muted)
-                    }
+                    PayRing(left: left, hot: hot, tone: tone)
                 }
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(tone.opacity(0.14))
-                        Capsule().fill(tone).frame(width: g.size.width * max(0, min(1, left / PayClock.window)))
-                    }
-                }.frame(height: 5)
                 PayCheckList(order: order)
                 Text(left <= 0 ? "Время вышло — проверяем, не прошла ли оплата…" : hot ? "Меньше 5 минут — потом заказ отменится, а вещи вернутся в корзину" : "Не успеете — заказ отменится, а вещи вернутся в вашу корзину")
                     .font(Theme.font(12.5)).foregroundStyle(hot ? tone : Theme.muted).fixedSize(horizontal: false, vertical: true)
@@ -54,6 +45,30 @@ struct PayTimerCard: View {
             .animation(.easeInOut(duration: 0.4), value: hot)
             .onChange(of: left <= -75) { gone in if gone && !fired { fired = true; onExpire() } }   // сервер ждёт ЮKassa минуту и отменяет — обновим заказ
         }
+    }
+}
+
+/// Таймер оплаты — кольцо в цвете раздела: тает вместе со временем; последние 5 минут — красное и мягко пульсирует
+struct PayRing: View {
+    let left: TimeInterval, hot: Bool, tone: Color
+    @Environment(\.accessibilityReduceMotion) private var still
+    var body: some View {
+        let frac = max(0, min(1, left / PayClock.window))
+        let beat = hot && !still && Int(left.rounded(.up)) % 2 == 0
+        ZStack {
+            Circle().fill(RadialGradient(colors: [tone.opacity(hot ? 0.10 : 0.05), .clear], center: .init(x: 0.5, y: 0.4), startRadius: 0, endRadius: 54))
+            Circle().stroke(tone.opacity(0.14), lineWidth: 5)
+            Circle().trim(from: 0, to: frac).stroke(tone, style: StrokeStyle(lineWidth: 5, lineCap: .round)).rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 1), value: frac)
+            Circle().stroke(tone.opacity(beat ? 0.10 : 0), lineWidth: 8).padding(-6).animation(.easeInOut(duration: 0.9), value: beat)
+            VStack(spacing: 3) {
+                Text(PayClock.mmss(left)).font(Theme.font(23)).monospacedDigit().foregroundStyle(hot ? tone : Theme.text)
+                Text("осталось").font(Theme.font(10.5)).kerning(0.5).foregroundStyle(hot ? tone : Theme.muted)
+            }
+        }
+        .frame(width: 104, height: 104)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Осталось \(Int(max(0, left)) / 60) мин \(Int(max(0, left)) % 60) с на оплату")
     }
 }
 
