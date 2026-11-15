@@ -111,7 +111,12 @@ struct OrderRefundSection: View {
                     if (o["delivery"]["price"].int ?? 0) > 0 && !o["deliveryRefunded"].bool {
                         Toggle("Доставка — \(Fmt.rub(o["delivery"]["price"].int ?? 0))", isOn: Binding(get: { delivery }, set: { delivery = $0; Task { await calc() } })).font(Theme.font(14)).tint(Theme.ink)
                     }
-                    Toggle("Вернуть товар на склад (вещь вернулась к вам)", isOn: $restock).font(Theme.font(14)).tint(Theme.ink)
+                    // заказ отменён — товар вернулся на склад ещё при отмене, второй раз не прибавляем (аудит H-2)
+                    if o["status"].str == "canceled" {
+                        Text("Товар уже на складе — он вернулся туда, когда заказ отменили").font(Theme.font(13)).foregroundStyle(Theme.muted)
+                    } else {
+                        Toggle("Вернуть товар на склад (вещь вернулась к вам)", isOn: $restock).font(Theme.font(14)).tint(Theme.ink)
+                    }
                     if retCost > 0 { Toggle("Удержать обратную доставку СДЭК — \(Fmt.rub(retCost))", isOn: Binding(get: { deduct }, set: { deduct = $0; Task { await calc() } })).font(Theme.font(14)).tint(Theme.ink) }
                     TextField("Причина, для себя — например, не подошёл размер", text: $reason).font(Theme.font(14))
                     HStack { Text("К возврату").font(Theme.font(15)); Spacer(); Text(Fmt.rub(amount) + (deducted > 0 ? " (удержано \(Fmt.rub(deducted)))" : "")).font(Theme.font(17, .medium)) }
@@ -127,7 +132,7 @@ struct OrderRefundSection: View {
     }
     private func row(_ k: String, _ v: String) -> some View { HStack(alignment: .top) { Text(k).font(Theme.font(13)).foregroundStyle(Theme.muted); Spacer(); Text(v).font(Theme.font(13.5)).multilineTextAlignment(.trailing).textSelection(.enabled) } }
     private func payload(_ dry: Bool) -> [String: Any] {
-        ["lines": lines.map { ["idx": $0.key, "qty": $0.value] }, "delivery": delivery, "restock": restock, "reason": reason, "dry": dry, "key": key, "deduct": deduct ? retCost : 0]
+        ["lines": lines.map { ["idx": $0.key, "qty": $0.value] }, "delivery": delivery, "restock": restock && o["status"].str != "canceled", "reason": reason, "dry": dry, "key": key, "deduct": deduct ? retCost : 0]
     }
     private func calc() async {
         armed = false; error = nil
