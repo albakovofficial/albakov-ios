@@ -108,7 +108,7 @@ struct PayCheckList: View {
     }
 }
 
-/// Время вышло: заказ отменён, вещи в наличии уже в корзине — «Перейти в корзину»; если всё разобрали — «В каталог»
+/// Время вышло: заказ отменён, вещи в наличии уже в корзине — «Оформить заново» (ведёт в корзину); если всё разобрали — «В каталог»
 struct PayExpiredCard: View {
     let order: Order
     @EnvironmentObject private var shop: Shop
@@ -139,7 +139,7 @@ struct PayExpiredCard: View {
             Text(back.isEmpty ? "Загляните в каталог — там много нового, а этих размеров может появиться ещё." : "Успейте оформить заново, пока вещи в наличии.")
                 .font(Theme.font(13)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true)
             if back.isEmpty { PrimaryButton(title: "В каталог") { router.reset(.catalog) } }
-            else { PrimaryButton(title: "Перейти в корзину") { shop.ensureInCart(order); router.reset(.cart) } }
+            else { PrimaryButton(title: "Оформить заново") { shop.ensureInCart(order); router.reset(.cart) } }
         }
         .padding(20)
         .background(RoundedRectangle(cornerRadius: 22).fill(.white).shadow(color: Theme.ink.opacity(0.06), radius: 18, y: 8))
