@@ -18,6 +18,10 @@ on:
         description: 'Снимки: разные iPhone, крупный шрифт, тёмная тема, без интернета'
         type: boolean
         default: true
+      full_shots:
+        description: 'Все экраны на маленьком и обычном iPhone (долго)'
+        type: boolean
+        default: false
       only:
         description: 'Только эти тесты через пробел, например test03_CheckoutValidationAndDoubleTap (пусто — все)'
         type: string
@@ -92,15 +96,21 @@ jobs:
       - name: Собрать приложение и тесты
         run: |
           set -o pipefail
+          # тесты ходят в копию магазина на этом Mac (адрес меняется только в рабочей копии на GitHub)
+          plutil -replace AlbakovBaseURL -string "http://127.0.0.1:3998" Albakov/Resources/Info.plist
+          plutil -replace NSAppTransportSecurity -json '{"NSAllowsArbitraryLoads":true}' Albakov/Resources/Info.plist
+          # тестовый раннер в симуляторе Xcode 26 должен быть подписан — подпись «для себя» (без профиля)
           xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug \
-            -destination "id=$SMALL" -derivedDataPath build CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log | grep -E "error:|TEST BUILD (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)" || true
+            -destination "id=$SMALL" -derivedDataPath build CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            2>&1 | tee build.log | grep -E "error:|TEST BUILD (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)" || true
           grep -qE "TEST BUILD SUCCEEDED|BUILD SUCCEEDED" build.log
+          # копия для снимков — с боевым адресом магазина, заново подписанная
           APP=build/Build/Products/Debug-iphonesimulator/Albakov.app
-          # копия для снимков — с боевым адресом магазина; тесты — в копию магазина на этом Mac
           cp -R "$APP" "$RUNNER_TEMP/Albakov-prod.app"
-          plutil -replace AlbakovBaseURL -string "http://127.0.0.1:3998" "$APP/Info.plist"
-          plutil -replace NSAppTransportSecurity -json '{"NSAllowsArbitraryLoads":true}' "$APP/Info.plist"
-          plutil -p "$APP/Info.plist" | grep -E "AlbakovBaseURL|NSAllows"
+          plutil -replace AlbakovBaseURL -string "https://albakovofficial.ru" "$RUNNER_TEMP/Albakov-prod.app/Info.plist"
+          plutil -remove NSAppTransportSecurity "$RUNNER_TEMP/Albakov-prod.app/Info.plist"
+          codesign --force --sign - --preserve-metadata=entitlements "$RUNNER_TEMP/Albakov-prod.app"
+          plutil -p "$APP/Info.plist" | grep -E "AlbakovBaseURL|NSAllows"; codesign -dv "$APP" 2>&1 | grep -E "Signature|Identifier" || true
 
       - name: Копия магазина и посредник
         if: inputs.tests
@@ -113,6 +123,7 @@ jobs:
       - name: UI-тесты покупки
         if: inputs.tests
         continue-on-error: true
+        timeout-minutes: 50
         env:
           ONLY: ${{ inputs.only }}
         run: |
@@ -145,26 +156,31 @@ jobs:
       - name: Снимки экранов (боевые товары, только чтение)
         if: inputs.shots
         continue-on-error: true
+        timeout-minutes: 45
+        env:
+          FULL: ${{ inputs.full_shots }}
         run: |
           PROD="$RUNNER_TEMP/Albakov-prod.app"
+          to() { local t=$1; shift; perl -e 'alarm shift; exec @ARGV' "$t" "$@"; }   # команда симулятора не дольше t секунд
           shoot() {  # папка udid экраны…
             local NAME=$1 UDID=$2; shift 2; mkdir -p "out/shots/$NAME"
-            xcrun simctl boot "$UDID" 2>/dev/null || true; xcrun simctl bootstatus "$UDID" -b >/dev/null
-            xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 2>/dev/null || true
-            xcrun simctl install "$UDID" "$PROD"
+            to 120 xcrun simctl boot "$UDID" 2>/dev/null || true; to 240 xcrun simctl bootstatus "$UDID" -b >/dev/null || true
+            to 30 xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 2>/dev/null || true
+            to 180 xcrun simctl install "$UDID" "$PROD" || echo "не установилось на $NAME"
             local i=0
             for S in "$@"; do
               i=$((i+1))
-              xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -AppleLanguages "(ru)" -AppleLocale ru_RU -screen "$S" >/dev/null 2>&1
-              sleep 12
-              xcrun simctl io "$UDID" screenshot "out/shots/$NAME/$(printf %02d $i)$(echo "$S" | tr '/?=&' '____' | cut -c1-40).png" >/dev/null 2>&1
+              to 60 xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -AppleLanguages "(ru)" -AppleLocale ru_RU -screen "$S" >/dev/null 2>&1 || echo "не запустилось: $NAME $S"
+              sleep 15
+              to 60 xcrun simctl io "$UDID" screenshot "out/shots/$NAME/$(printf %02d $i)$(echo "$S" | tr '/?=&' '____' | cut -c1-40).png" >/dev/null 2>&1 || echo "нет снимка: $NAME $S"
             done
           }
           BUYER=(/ /catalog "/catalog?cat=FIRSTCAT" /product/FIRST "/product/FIRST?sizes=1&demo=buyer" "/cart?demo=1" "/checkout?demo=1" /account "/account?demo=buyer" "/order/d1?demo=buyer" "/account?tab=bonus&demo=buyer" "/account?tab=support&id=t1&demo=buyer" /gift /track /menu /favorites)
           KEY=(/ /product/FIRST "/cart?demo=1" "/checkout?demo=1" "/order/d1?demo=buyer" "/account?demo=buyer" /gift)
-          shoot 1-small "$SMALL" "${BUYER[@]}"
-          shoot 2-standard "$STD" "${BUYER[@]}"
-          shoot 3-promax "$MAX" "${BUYER[@]}"
+          if [ "$FULL" = "true" ]; then shoot 1-small "$SMALL" "${BUYER[@]}"; shoot 2-standard "$STD" "${BUYER[@]}"; fi
+          to 120 xcrun simctl shutdown "$SMALL" || true
+          shoot 3-promax "$MAX" "${KEY[@]}"
+          to 120 xcrun simctl shutdown "$MAX" || true
           xcrun simctl ui "$SMALL" content_size accessibility-extra-extra-extra-large
           shoot 4-small-huge-text "$SMALL" "${KEY[@]}"
           xcrun simctl ui "$SMALL" content_size large
