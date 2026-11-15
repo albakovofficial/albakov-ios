@@ -261,6 +261,8 @@ struct Order: Identifiable, Hashable {
     let subtotal: Int, total: Int, saleDiscount: Int, promoDiscount: Int, promoCode: String, bonusUsed: Int, giftUsed: Int, bonusEarn: Int
     let deliveryName: String, deliveryPrice: Int, city: String, address: String
     let payMethod: String, payStatus: String, payUrl: String
+    /// Срок оплаты (1.0.3): 15 минут с оформления; вышел — заказ отменён, вещи вернулись в продажу
+    let payBy: Date?, payExpired: Bool
     let customerName: String, phone: String, email: String, comment: String
     let trackNumber: String, trackURL: String, cdekStatus: String
     let requestOk: Bool, requestWhy: String
@@ -277,6 +279,7 @@ struct Order: Identifiable, Hashable {
         let d = j["delivery"]
         deliveryName = d["name"].str; deliveryPrice = d["price"].int ?? 0; city = d["city"].str; address = d["address"].str
         payMethod = j["payment"]["method"].str; payStatus = j["payment"]["status"].str; payUrl = j["payUrl"].str
+        payBy = ISO.date(j["payBy"].str); payExpired = j["payExpired"].bool
         let c = j["customer"]
         customerName = [c["firstName"].str, c["lastName"].str].filter { !$0.isEmpty }.joined(separator: " ")
         phone = c["phone"].str; email = c["email"].str; comment = j["comment"].str
@@ -308,14 +311,20 @@ struct Order: Identifiable, Hashable {
     var paid: Bool { payStatus == "paid" }
     /// Онлайн-оплата ещё не прошла и её можно продолжить (1.0.2): ссылка ЮKassa сохранена в заказе
     var awaitingPay: Bool { payMethod == "online" && payStatus == "pending" && status != "canceled" && !payUrl.isEmpty }
+    /// Секунд до конца срока оплаты по часам сервера (skew = серверное время − время телефона)
+    func payLeft(at now: Date, skew: TimeInterval) -> TimeInterval { guard let payBy else { return .infinity }; return payBy.timeIntervalSince(now.addingTimeInterval(skew)) }
 }
 
 struct OrderItem: Hashable {
     let productId: String, slug: String, name: String, colorId: String, color: String, size: String, qty: Int, price: Int, image: String
+    let sku: String, artKind: String, artTone: String
     init(_ j: JSON) {
         productId = j["productId"].str; slug = j["slug"].str; name = j["name"].str; colorId = j["colorId"].str; color = j["color"].str
         size = j["size"].str; qty = j["qty"].int ?? 1; price = j["price"].int ?? 0; image = j["image"].str
+        sku = j["sku"].str; artKind = j["art"]["kind"].string ?? "tee"; artTone = j["art"]["tone"].string ?? "#3a3632"
     }
+    /// «Молочный · XS · 1 шт. · арт. ALB-0010»
+    var meta: String { [color, size, "\(qty) шт.", sku.isEmpty ? "" : "арт. " + sku].filter { !$0.isEmpty }.joined(separator: " · ") }
 }
 
 enum ISO {

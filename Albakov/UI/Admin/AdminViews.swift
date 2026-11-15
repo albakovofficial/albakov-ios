@@ -161,7 +161,7 @@ struct AdminOrdersView: View {
     private var list: [Order] {
         admin.orders.filter { o in
             (filter == "all" || (filter == "active" ? ["new", "processing"].contains(o.status) : o.status == filter)) &&
-            (q.isEmpty || ("\(o.number) \(o.customerName) \(o.phone) \(o.email)").lowercased().contains(q.lowercased()))
+            (q.isEmpty || ("\(o.number) \(o.customerName) \(o.phone) \(o.email) " + o.items.map { $0.sku + " " + $0.name }.joined(separator: " ")).lowercased().contains(q.lowercased()))
         }
     }
     var body: some View {
@@ -173,7 +173,7 @@ struct AdminOrdersView: View {
             ForEach(list) { o in Button { router.push(.adminOrder(o.id), on: .account) } label: { OrderRow(order: o, admin: true) }.foregroundStyle(Theme.text) }
         }
         .listStyle(.plain)
-        .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Номер, имя, телефон")
+        .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Номер, имя, телефон, артикул")
         .navigationTitle("Заказы").navigationBarTitleDisplayMode(.inline)
         .task { if !admin.data.exists { await admin.load() } }   // открыт сразу из push или ссылки — минуя главную панели
         .refreshable { await admin.load() }
@@ -198,6 +198,8 @@ struct AdminOrderView: View {
                         Text(Fmt.date(o.createdAt, time: true)).font(Theme.font(13)).foregroundStyle(Theme.muted)
                         Text("\(Fmt.rub(o.total)) · \(o.payMethodText.lowercased()) · \(o.payStatusText)")
                             .font(Theme.font(14, .medium)).foregroundStyle(o.paid || o.payMethod == "cod" ? Theme.text : Theme.danger)
+                        if o.awaitingPay && o.payBy != nil { PayLeftLabel(order: o, prefix: "Покупатель оплачивает · осталось ") }
+                        else if o.payExpired { Text("Время на оплату вышло — заказ отменён автоматически").font(Theme.font(12)).foregroundStyle(Theme.muted) }
                     }.padding(.vertical, 4)
                     Menu {
                         ForEach(["new", "processing", "shipped", "done", "canceled", "returned"], id: \.self) { s in

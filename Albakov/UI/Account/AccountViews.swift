@@ -8,6 +8,7 @@ struct AccountView: View {
     @State private var orders: [Order] = []
     @State private var bonusLog: [JSON] = []
     @State private var confirmLogout = false
+    @State private var payURL: URL?
 
     var body: some View {
         if let u = shop.user {
@@ -27,6 +28,7 @@ struct AccountView: View {
             }
             .refreshable { await load() }
             .task { await load() }
+            .fullScreenCover(item: $payURL) { url in PaymentSheet(url: url) { _ in payURL = nil; Task { await load() } } }
         } else {
             AuthView()
         }
@@ -144,7 +146,7 @@ struct AccountView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(orders) { o in
-                        Button { router.push(.order(o.id), on: .account) } label: { OrderRow(order: o).padding(14).softCard(18) }.buttonStyle(Pressable())
+                        OrderCard(order: o, open: { router.push(.order(o.id), on: .account) }, pay: { payURL = $0 }).padding(14).softCard(18)
                     }
                 }
             }
@@ -281,6 +283,7 @@ struct OrdersView: View {
     @State private var orders: [Order] = []
     @State private var loading = true
     @State private var error: String?
+    @State private var payURL: URL?
     var body: some View {
         List {
             if let error { Text(error).font(Theme.font(14)).foregroundStyle(Theme.danger) }
@@ -288,10 +291,13 @@ struct OrdersView: View {
                 EmptyState(icon: "shippingbox", title: "У Вас пока нет заказов", text: "Здесь будут отображаться Ваши покупки и информация об их текущем статусе").listRowSeparator(.hidden)
             }
             ForEach(orders) { o in
-                Button { router.push(.order(o.id), on: .account) } label: { OrderRow(order: o) }
+                OrderCard(order: o, open: { router.push(.order(o.id), on: .account) }, pay: { payURL = $0 }).buttonStyle(.borderless)
             }
         }
         .listStyle(.plain)
+        .fullScreenCover(item: $payURL) { url in
+            PaymentSheet(url: url) { _ in payURL = nil; Task { await load() } }
+        }
         .overlay { if loading { ProgressView() } }
         .navigationTitle("Мои заказы").navigationBarTitleDisplayMode(.inline)
         .task { await load() }
@@ -315,19 +321,46 @@ struct OrderRow: View {
     let order: Order
     var admin = false
     var body: some View {
+        let n = order.items.reduce(0) { $0 + $1.qty }
+        let first = order.items.first
         HStack(alignment: .top, spacing: 12) {
-            RemoteImage(path: order.items.first?.image ?? "").frame(width: 58, height: 76).clipShape(RoundedRectangle(cornerRadius: 10))
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
+            OrderThumbs(items: order.items, w: admin ? 46 : 52)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
                     Text("№ \(order.number)").font(Theme.font(15, .medium))
-                    Spacer()
+                    Spacer(minLength: 6)
                     StatusPill(status: order.status, admin: admin)
                 }
-                if admin { Text(order.customerName).font(Theme.font(13.5)).foregroundStyle(Theme.text) }
-                Text("\(Fmt.date(order.createdAt, time: admin)) · \(order.items.reduce(0) { $0 + $1.qty }) шт. · \(Fmt.rub(order.total))").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
-                if admin && !order.paid && order.payMethod == "online" { Text("Не оплачен").font(Theme.font(11.5, .medium)).foregroundStyle(Theme.danger) }
+                if let first {
+                    Text(first.name).font(Theme.font(14)).lineLimit(1).padding(.top, 2)
+                    Text(first.meta).font(Theme.font(12)).foregroundStyle(Theme.muted).lineLimit(2)
+                    if order.items.count > 1 { Text("и ещё \(order.items.count - 1) \(Fmt.plural(order.items.count - 1, "вещь", "вещи", "вещей"))").font(Theme.font(12)).foregroundStyle(Theme.dim) }
+                }
+                if admin { Text(order.customerName + " · " + order.payMethodText).font(Theme.font(12.5)).foregroundStyle(Theme.text).lineLimit(1).padding(.top, 2) }
+                HStack(alignment: .firstTextBaseline) {
+                    Text(Fmt.date(order.createdAt, time: admin)).font(Theme.font(12)).foregroundStyle(Theme.muted)
+                    Spacer()
+                    Text("\(n) шт. · ").font(Theme.font(12)).foregroundColor(Theme.muted) + Text(Fmt.rub(order.total)).font(Theme.font(14, .medium)).foregroundColor(Theme.text)
+                }.padding(.top, 2)
+                if admin && order.awaitingPay && order.payBy != nil { PayLeftLabel(order: order) }
+                else if admin && !order.paid && order.payMethod == "online" && order.status != "canceled" { Text("Не оплачен").font(Theme.font(11.5, .medium)).foregroundStyle(Theme.danger) }
             }
         }.padding(.vertical, 6)
+    }
+}
+
+/// Карточка в «Моих заказах»: строка заказа + «Оплатить · осталось 12:48», пока время есть
+struct OrderCard: View {
+    let order: Order
+    let open: () -> Void
+    let pay: (URL) -> Void
+    var body: some View {
+        VStack(spacing: 12) {
+            Button(action: open) { OrderRow(order: order).contentShape(Rectangle()) }.buttonStyle(.plain)
+            if order.awaitingPay, order.payBy != nil, let u = URL(string: order.payUrl), PayClock.left(order, Date()) > 0 {
+                PayNowButton(order: order) { pay(u) }
+            }
+        }
     }
 }
 
@@ -359,12 +392,17 @@ struct OrderView: View {
                         Text("от \(Fmt.date(o.createdAt))").font(Theme.font(14)).foregroundStyle(Theme.muted)
                     }
                     // Оплата онлайн не прошла (окно закрыли, связь пропала) — оплатить можно отсюда, как на сайте (1.0.2)
-                    if o.awaitingPay, let u = URL(string: o.payUrl) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Заказ ждёт оплаты").font(Theme.font(17, .medium))
-                            Text("Вещи отложены за вами. Оплатите заказ, чтобы мы начали его собирать.").font(Theme.font(13.5)).foregroundStyle(Theme.muted)
-                            PrimaryButton(title: "Оплатить · \(Fmt.rub(o.total))") { payURL = u }
-                        }.padding(18).softCard(20)
+                    // 1.0.3: 15 минут на оплату с обратным отсчётом; вышло — «Оформить заново»
+                    if o.payExpired { PayExpiredCard(order: o) }
+                    else if o.awaitingPay, let u = URL(string: o.payUrl) {
+                        if o.payBy != nil { PayTimerCard(order: o, onPay: { payURL = u }, onExpire: { Task { await load() } }) }
+                        else {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Заказ ждёт оплаты").font(Theme.font(17, .medium))
+                                Text("Вещи отложены за вами. Оплатите заказ, чтобы мы начали его собирать.").font(Theme.font(13.5)).foregroundStyle(Theme.muted)
+                                PrimaryButton(title: "Оплатить · \(Fmt.rub(o.total))") { payURL = u }
+                            }.padding(18).softCard(20)
+                        }
                     }
                     OrderSteps(status: o.status)
                     if !o.trackNumber.isEmpty, let u = URL(string: o.trackURL) {
@@ -376,10 +414,10 @@ struct OrderView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(o.items.enumerated()), id: \.offset) { _, it in
                             HStack(alignment: .top, spacing: 12) {
-                                ProductImage(path: it.image, kind: "tee", tone: "#3a3632").frame(width: 64, height: 84).background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 12))
+                                ProductImage(path: it.image, kind: it.artKind, tone: it.artTone).frame(width: 64, height: 84).background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 12))
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(it.name).font(Theme.font(14.5))
-                                    Text([it.color, "размер " + it.size, it.qty > 1 ? "\(it.qty) шт." : ""].filter { !$0.isEmpty }.joined(separator: " · ")).font(Theme.font(12.5)).foregroundStyle(Theme.muted)
+                                    Text(it.meta).font(Theme.font(12.5)).foregroundStyle(Theme.muted)
                                     Text(Fmt.rub(it.price * it.qty)).font(Theme.font(14, .medium))
                                 }
                             }.padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading).overlay(alignment: .bottom) { Divider1() }

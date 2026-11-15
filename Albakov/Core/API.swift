@@ -75,6 +75,7 @@ final class API {
         do { (data, resp) = try await session.data(for: req) }
         catch let e as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed].contains(e.code) { throw APIError.offline }
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        if let d = (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Date") { ServerClock.sync(d) }
         if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any], obj["ok"] as? Bool == false || status >= 400 {
             throw APIError(message: obj["error"] as? String ?? "Что-то пошло не так. Попробуйте ещё раз.", status: status)
         }
@@ -131,4 +132,12 @@ private struct AnyDecodable: Decodable {
         else if let o = try? c.decode([String: AnyDecodable].self) { value = o.mapValues { $0.value ?? NSNull() } }
         else { value = nil }
     }
+}
+
+/// Часы сервера (1.0.3): срок оплаты считаем по ним, а не по часам телефона — если на телефоне время сбито, отсчёт всё равно верный.
+enum ServerClock {
+    /// Серверное время − время телефона, в секундах
+    private(set) static var skew: TimeInterval = 0
+    private static let f: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "GMT"); f.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"; return f }()
+    static func sync(_ header: String) { if let d = f.date(from: header) { skew = d.timeIntervalSinceNow + 0.5 } }
 }

@@ -86,12 +86,13 @@ enum Demo {
         let color = (p["colors"] as? [[String: Any]])?.first ?? [:]
         let price = p["price"] as? Int ?? 3199
         let item: [String: Any] = ["productId": p["id"] ?? "", "slug": p["slug"] ?? "", "name": p["name"] ?? "Футболка", "colorId": color["id"] ?? "", "color": color["name"] ?? "Чёрный",
-                                   "size": "M", "qty": 1, "price": price, "image": (color["images"] as? [String])?.first ?? ""]
+                                   "size": "M", "qty": 1, "price": price, "image": (color["images"] as? [String])?.first ?? "", "sku": p["sku"] ?? "ALB-0001"]
         let names = name.split(separator: " ").map(String.init)
         return ["id": id, "number": number, "createdAt": iso(-hoursAgo), "status": status, "items": [item],
                 "subtotal": price, "total": price, "saleDiscount": 0, "promoDiscount": 0, "bonusUsed": 0, "bonusEarn": price / 20,
                 "delivery": ["name": "СДЭК, пункт выдачи", "price": 0, "city": "Москва", "address": "ул. Тверская, 7"],
                 "payment": ["method": pay, "status": paid ? "paid" : "pending"],
+                "payUrl": pay == "online" && !paid ? "https://yoomoney.ru/checkout/demo" : "", "payBy": pay == "online" && !paid ? iso(0.2) : "",
                 "customer": ["firstName": names.first ?? "", "lastName": names.last ?? "", "phone": "79990000000", "email": "anna@example.com"],
                 "tracking": status == "shipped" ? ["number": "1234567890", "url": ""] : [:],
                 "requestState": ["ok": status == "done", "why": status == "done" ? "" : "Обмен и возврат — после получения"],
