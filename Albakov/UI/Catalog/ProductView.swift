@@ -70,7 +70,7 @@ struct ProductView: View {
                         }
                         FlowRow(spacing: 8) {
                             ForEach(color.sizes, id: \.size) { s in
-                                Chip(title: s.size, on: size == s.size, out: s.stock <= 0 && !pre) { withAnimation(.easeOut(duration: 0.15)) { size = s.size; sizeHint = false; qty = 1 } }
+                                Chip(title: s.size, on: size == s.size, out: s.stock <= 0 && !pre, inBag: s.stock > 0 && bagged(p, color, s.size) >= s.stock) { withAnimation(.easeOut(duration: 0.15)) { size = s.size; sizeHint = false; qty = 1 } }
                             }
                         }
                         Text(stockNote(p, color, pre)).font(Theme.font(14)).foregroundStyle(stockLow(color) ? Theme.warn : Theme.muted)
@@ -210,7 +210,14 @@ struct ProductView: View {
         Fmt.date(ISO.date(p.preorderShip + "T12:00:00Z")).replacingOccurrences(of: #" \d{4}$"#, with: "", options: .regularExpression)
     }
 
-    private func stockLow(_ c: PColor) -> Bool { (c.sizes.first { $0.size == size }?.stock ?? 9) <= 2 }
+    /// Сколько штук этого цвета и размера уже лежит в корзине: склад списывается только при заказе,
+    /// поэтому «осталось» считаем за вычетом корзины (1.0.3)
+    private func bagged(_ p: Product, _ c: PColor, _ size: String?) -> Int {
+        guard let size else { return 0 }
+        return shop.cart.first { $0.productId == p.id && $0.colorId == c.id && $0.size == size }?.qty ?? 0
+    }
+    private func left(_ p: Product, _ c: PColor) -> Int? { c.sizes.first { $0.size == size }.map { $0.stock - bagged(p, c, size) } }
+    private func stockLow(_ c: PColor) -> Bool { guard let p = shop.product(pid), let l = left(p, c) else { return false }; return l <= 2 }
     private func stockNote(_ p: Product, _ c: PColor, _ pre: Bool) -> String {
         let s = c.sizes.first { $0.size == size }, any = c.sizes.contains { $0.stock > 0 }
         if pre, let s, s.stock <= 0 { return "Предзаказ" + (p.preorderShip.isEmpty ? "" : " · отправим " + shipDate(p)) + (p.preorderLimit > 0 ? " · осталось \(p.preorderLeft) \(Fmt.plural(p.preorderLeft, "место", "места", "мест"))" : "") }
@@ -218,8 +225,10 @@ struct ProductView: View {
         if !any && (s == nil || s!.stock <= 0) { return notifyOn ? "Этого цвета сейчас нет. Оставьте почту — напишем, когда он появится." : "Этого цвета сейчас нет" }
         guard let s else { return "Выберите размер" }
         if s.stock <= 0 { return "Размера \(s.size) сейчас нет. Можем сообщить на почту, когда он появится." }
-        if s.stock <= 2 { return "Осталось \(s.stock) шт." }
-        return "В наличии"
+        let inBag = bagged(p, c, s.size), l = s.stock - inBag
+        if l <= 0 { return s.stock == 1 ? "Последний размер \(s.size) уже в вашей корзине" : "Все \(s.stock) шт. размера \(s.size) уже в вашей корзине" }
+        if l <= 2 { return "Осталось \(l) шт." + (inBag > 0 ? " · ещё \(inBag) в вашей корзине" : "") }
+        return inBag > 0 ? "В наличии · \(inBag) шт. уже в корзине" : "В наличии"
     }
     private func waitMode(_ p: Product, _ c: PColor, _ pre: Bool) -> Bool {
         if pre { return false }
@@ -238,9 +247,12 @@ struct ProductView: View {
         let wait = waitMode(p, color, pre), any = color.stock > 0
         let s = color.sizes.first { $0.size == size }
         let preMode = pre && ((s != nil && s!.stock <= 0) || (s == nil && !any))
-        let maxQ = s.map { $0.stock > 0 ? $0.stock : pre ? (p.preorderLeft == Int.max ? 99 : p.preorderLeft) : 0 } ?? 99
+        let maxQ = s.map { $0.stock > 0 ? max(1, $0.stock - bagged(p, color, $0.size)) : pre ? (p.preorderLeft == Int.max ? 99 : p.preorderLeft) : 0 } ?? 99
+        let full = s.map { $0.stock > 0 && bagged(p, color, $0.size) >= $0.stock } ?? false   // всё, что есть, уже в корзине
         return HStack(spacing: 10) {
-            if !wait {
+            if full {
+                PrimaryButton(title: "Уже в корзине · перейти") { router.reset(.cart) }
+            } else if !wait {
                 HStack(spacing: 0) {
                     Button { qty = max(1, qty - 1) } label: { Image(systemName: "minus").frame(width: 40, height: 50) }
                     Text("\(qty)").font(Theme.font(16)).frame(minWidth: 24)
@@ -249,10 +261,12 @@ struct ProductView: View {
                 .font(.system(size: 12, weight: .light)).foregroundStyle(Theme.text)
                 .background(Capsule().fill(Theme.surface)).hairline(Capsule())
             }
-            if wait {
-                GhostButton(title: "Сообщить о поступлении", icon: "bell", height: 54) { notify = true }
-            } else {
-                PrimaryButton(title: preMode ? "Оформить предзаказ" : any ? "Добавить в корзину" : "Нет в наличии в этом цвете", disabled: !any && !pre) { add(p, color, pre) }
+            if !full {
+                if wait {
+                    GhostButton(title: "Сообщить о поступлении", icon: "bell", height: 54) { notify = true }
+                } else {
+                    PrimaryButton(title: preMode ? "Оформить предзаказ" : any ? "Добавить в корзину" : "Нет в наличии в этом цвете", disabled: !any && !pre) { add(p, color, pre) }
+                }
             }
         }
         .padding(.horizontal, Theme.gutter).padding(.top, 10).padding(.bottom, 8)
@@ -264,7 +278,10 @@ struct ProductView: View {
         let inCart = shop.cart.first { $0.productId == p.id && $0.colorId == color.id && $0.size == size }?.qty ?? 0
         if pre && s.stock <= 0 {
             if p.preorderLeft != Int.max && inCart + qty > p.preorderLeft { Toast.shared.show("По предзаказу осталось \(p.preorderLeft) \(Fmt.plural(p.preorderLeft, "место", "места", "мест"))"); return }
-        } else if inCart + qty > s.stock { Toast.shared.show("В наличии только \(s.stock) шт. этого размера в цвете «\(color.name)»"); return }
+        } else if inCart + qty > s.stock {
+            let l = s.stock - inCart
+            Toast.shared.show(l <= 0 ? "Все \(s.stock) шт. этого размера уже в вашей корзине" : "Можно добавить ещё \(l) шт. — \(inCart) уже в корзине"); return
+        }
         shop.add(p, color: color.id, size: size, qty: qty)
         Haptic.success(); Toast.shared.show("Добавлено в корзину")
     }

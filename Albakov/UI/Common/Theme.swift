@@ -210,6 +210,8 @@ struct Chip: View {
     var on = false
     var out = false
     var height: CGFloat = 44
+    /// Все оставшиеся штуки этого размера уже в корзине покупателя — значок сумки в углу
+    var inBag = false
     let action: () -> Void
     var body: some View {
         Button(action: { Haptic.tap(); action() }) {
@@ -219,6 +221,13 @@ struct Chip: View {
                 .background(Capsule().fill(on ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(Theme.surface)))
                 .overlay(Capsule().strokeBorder(Theme.ink.opacity(on ? 0 : 0.07), lineWidth: 1))
                 .overlay(out ? Rectangle().fill(on ? Color.white.opacity(0.7) : Theme.dim.opacity(0.7)).frame(height: 1).rotationEffect(.degrees(-22)).padding(.horizontal, 10) : nil)
+                .overlay(alignment: .topTrailing) {
+                    if inBag {
+                        Image(systemName: "bag.fill").font(.system(size: 8.5, weight: .semibold)).foregroundStyle(.white)
+                            .frame(width: 19, height: 19).background(Circle().fill(Theme.accent)).overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
+                            .offset(x: 4, y: -4)
+                    }
+                }
         }.buttonStyle(Pressable())
     }
 }

@@ -187,7 +187,7 @@ struct GiftView: View {
             let id = r["order"]["id"].str
             OrderTokens.save(id, r["token"].str)
             placed = (id, r["token"].str)
-            if let s = r["payUrl"].string, let u = URL(string: s) { payURL = u } else { router.reset(.account, to: [.orders, .order(id)]) }
+            router.reset(.account, to: [.orders, .order(id)])   // 1.0.3: оплата — кнопкой на странице заказа
         } catch { self.error = error.localizedDescription; Haptic.error() }
     }
     private func check() async {

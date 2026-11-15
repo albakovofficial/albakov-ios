@@ -317,7 +317,8 @@ struct CheckoutView: View {
             placed = (id, token)
             if shop.buyNow != nil { shop.buyNow = nil } else { shop.clearCart() }
             Haptic.success()
-            if let s = r["payUrl"].string, let u = URL(string: s) { payURL = u } else { openOrder(id, toast: "Спасибо! Заказ оформлен") }
+            // 1.0.3: онлайн-оплата — сначала страница заказа с отсчётом и кнопкой «Оплатить», ЮKassa — по нажатию
+            if !r["payUrl"].str.isEmpty { openOrder(id, toast: "Заказ оформлен — осталось оплатить") } else { openOrder(id, toast: "Спасибо! Заказ оформлен") }
         } catch let e as APIError where e.status == 0 {
             // связь пропала: заказ мог успеть оформиться — повторное нажатие вернёт его же, второго не будет
             self.error = "Связь прервалась. Нажмите кнопку ещё раз — если заказ уже оформлен, мы просто откроем его, второго не будет."; Haptic.error()
@@ -406,7 +407,10 @@ struct CityPicker: View {
                 do {
                     let r = try await API.shared.json("GET", "cdek/cities", query: ["q": q])
                     list = r["cities"].array.map { CdekCity(code: $0["code"].int ?? 0, city: $0["city"].str, region: $0["region"].str) }; error = nil
-                } catch { self.error = error.localizedDescription }
+                } catch {
+                    // 1.0.3: каждая новая буква отменяет прошлый поиск — системное «отменено» не показываем
+                    if !Task.isCancelled && !error.isCancel { self.error = error.localizedDescription }
+                }
             }
         }
     }
@@ -446,7 +450,7 @@ struct PointPicker: View {
                 do {
                     let r = try await API.shared.json("GET", "cdek/points", query: ["city": String(city.code)])
                     all = r["points"].array.map { CdekPoint(code: $0["code"].str, type: $0["type"].str, address: $0["address"].str, hours: $0["hours"].str, metro: $0["metro"].str, cod: $0["cod"].bool) }
-                } catch { self.error = error.localizedDescription }
+                } catch { if !Task.isCancelled && !error.isCancel { self.error = error.localizedDescription } }
                 loading = false
             }
         }

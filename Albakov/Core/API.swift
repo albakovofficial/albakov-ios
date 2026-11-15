@@ -141,3 +141,8 @@ enum ServerClock {
     private static let f: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "GMT"); f.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"; return f }()
     static func sync(_ header: String) { if let d = f.date(from: header) { skew = d.timeIntervalSinceNow + 0.5 } }
 }
+
+extension Error {
+    /// Запрос отменён (ушли с экрана, ввели следующую букву) — это не ошибка для покупателя
+    var isCancel: Bool { self is CancellationError || (self as? URLError)?.code == .cancelled || (self as NSError).code == NSURLErrorCancelled }
+}
