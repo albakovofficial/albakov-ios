@@ -1,0 +1,191 @@
+# Аудит приложения в симуляторе iPhone (только ручной запуск; на TestFlight и App Store не влияет).
+# 1) UI-тесты покупки (audit/AuditUITests.swift): приложение Debug ходит в копию магазина на этом же Mac
+#    (albakov-shop с тестовыми товарами) через посредника ci/audit-proxy.js, который умеет рвать связь,
+#    замедлять её и отвечать 502. Боевой сайт и настоящие заказы не затрагиваются.
+# 2) Снимки экранов с боевыми товарами (только чтение; всё, что меняет данные, в демо-режиме не уходит):
+#    маленький, обычный и большой iPhone, крупный системный шрифт, тёмная тема, запуск без интернета.
+# Результат — ветка audit-shots этого репозитория: снимки, итоги тестов, журналы.
+name: Аудит (симулятор)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tests:
+        description: 'UI-тесты покупки на копии магазина'
+        type: boolean
+        default: true
+      shots:
+        description: 'Снимки: разные iPhone, крупный шрифт, тёмная тема, без интернета'
+        type: boolean
+        default: true
+      only:
+        description: 'Только эти тесты через пробел, например test03_CheckoutValidationAndDoubleTap (пусто — все)'
+        type: string
+        default: ''
+      runner:
+        description: 'Mac на GitHub'
+        type: choice
+        options: [macos-15-intel, macos-26, macos-15]
+        default: macos-15-intel
+
+concurrency:
+  group: audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Аудит в симуляторе
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 150
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Копия магазина (albakov-shop)
+        uses: actions/checkout@v4
+        with:
+          repository: albakovofficial/albakov-shop
+          path: shop
+
+      - name: Выбрать Xcode 26
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: Проект с целью аудита (project.yml не меняется)
+        run: |
+          brew install xcodegen
+          ruby -ryaml -e '
+            s = YAML.load_file("project.yml")
+            s["targets"]["AlbakovAudit"] = {
+              "type" => "bundle.ui-testing", "platform" => "iOS",
+              "sources" => [{ "path" => "audit" }],
+              "dependencies" => [{ "target" => "Albakov" }],
+              "settings" => { "base" => { "PRODUCT_BUNDLE_IDENTIFIER" => "ru.albakovofficial.audit", "GENERATE_INFOPLIST_FILE" => "YES",
+                                          "TEST_TARGET_NAME" => "Albakov", "SWIFT_VERSION" => "5.0" } } }
+            s["schemes"] = { "AlbakovAudit" => { "build" => { "targets" => { "Albakov" => "all", "AlbakovAudit" => ["test"] } },
+                                                  "test" => { "config" => "Debug", "targets" => ["AlbakovAudit"] } } }
+            File.write("audit-project.yml", s.to_yaml)'
+          xcodegen generate --spec audit-project.yml
+
+      - name: Симуляторы
+        run: |
+          pick() {
+            xcrun simctl list devices available -j | python3 -c '
+          import json, sys, re
+          want = sys.argv[1]
+          d = json.load(sys.stdin)["devices"]
+          xs = [x for k, v in d.items() if "iOS" in k for x in v]
+          f = lambda p: next((x["udid"] for x in xs if p(x["name"])), "")
+          if want == "small": print(f(lambda n: "SE" in n) or f(lambda n: "16e" in n) or f(lambda n: "mini" in n))
+          elif want == "max": print(f(lambda n: "Pro Max" in n) or f(lambda n: "Plus" in n))
+          else: print(f(lambda n: re.fullmatch(r"iPhone \d+", n) is not None) or f(lambda n: "Pro" in n and "Max" not in n))' "$1"
+          }
+          SMALL=$(pick small)
+          if [ -z "$SMALL" ]; then SMALL=$(xcrun simctl create "Аудит SE" com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation 2>/dev/null || true); fi
+          if [ -z "$SMALL" ]; then SMALL=$(pick std); fi
+          STD=$(pick std); MAX=$(pick max)
+          echo "SMALL=$SMALL" >> "$GITHUB_ENV"; echo "STD=$STD" >> "$GITHUB_ENV"; echo "MAX=$MAX" >> "$GITHUB_ENV"
+          xcrun simctl list devices | grep -E "$SMALL|$STD|$MAX"
+
+      - name: Собрать приложение и тесты
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug \
+            -destination "id=$SMALL" -derivedDataPath build CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log | grep -E "error:|TEST BUILD (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)" || true
+          grep -qE "TEST BUILD SUCCEEDED|BUILD SUCCEEDED" build.log
+          APP=build/Build/Products/Debug-iphonesimulator/Albakov.app
+          # копия для снимков — с боевым адресом магазина; тесты — в копию магазина на этом Mac
+          cp -R "$APP" "$RUNNER_TEMP/Albakov-prod.app"
+          plutil -replace AlbakovBaseURL -string "http://127.0.0.1:3998" "$APP/Info.plist"
+          plutil -replace NSAppTransportSecurity -json '{"NSAllowsArbitraryLoads":true}' "$APP/Info.plist"
+          plutil -p "$APP/Info.plist" | grep -E "AlbakovBaseURL|NSAllows"
+
+      - name: Копия магазина и посредник
+        if: inputs.tests
+        run: |
+          cd shop && (PORT=3999 PUBLIC_URL=http://127.0.0.1:3998 nohup node server.js > ../server.log 2>&1 &) && cd ..
+          (nohup node ci/audit-proxy.js 3998 3999 > proxy.log 2>&1 &)
+          sleep 4
+          curl -s http://127.0.0.1:3998/api/state | head -c 160; echo
+
+      - name: UI-тесты покупки
+        if: inputs.tests
+        continue-on-error: true
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          RUN=$(ls build/Build/Products/*.xctestrun | head -1)
+          SEL=""; for t in $ONLY; do SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; done
+          xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed" || true
+
+      - name: Итоги тестов и снимки из них
+        if: inputs.tests
+        continue-on-error: true
+        run: |
+          mkdir -p out/tests
+          xcrun xcresulttool get test-results tests --path audit.xcresult > out/tests.json || true
+          xcrun xcresulttool get test-results summary --path audit.xcresult > out/summary.json || true
+          xcrun xcresulttool export attachments --path audit.xcresult --output-path out/tests || true
+          python3 - <<'PY'
+          import json, os, re
+          m = os.path.join('out/tests', 'manifest.json')
+          if os.path.exists(m):
+              for t in json.load(open(m)):
+                  test = re.sub(r'\W+', '_', t.get('testIdentifier', 'test'))[-60:]
+                  for a in t.get('attachments', []):
+                      src = os.path.join('out/tests', a['exportedFileName'])
+                      name = re.sub(r'[/\\:]+', '-', a.get('suggestedHumanReadableName', a['exportedFileName']))
+                      if os.path.exists(src): os.rename(src, os.path.join('out/tests', test + '__' + name))
+          PY
+          cp test.log server.log proxy.log out/ 2>/dev/null || true
+          ls out/tests | head -80
+
+      - name: Снимки экранов (боевые товары, только чтение)
+        if: inputs.shots
+        continue-on-error: true
+        run: |
+          PROD="$RUNNER_TEMP/Albakov-prod.app"
+          shoot() {  # папка udid экраны…
+            local NAME=$1 UDID=$2; shift 2; mkdir -p "out/shots/$NAME"
+            xcrun simctl boot "$UDID" 2>/dev/null || true; xcrun simctl bootstatus "$UDID" -b >/dev/null
+            xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 2>/dev/null || true
+            xcrun simctl install "$UDID" "$PROD"
+            local i=0
+            for S in "$@"; do
+              i=$((i+1))
+              xcrun simctl launch --terminate-running-process "$UDID" ru.albakovofficial.app -AppleLanguages "(ru)" -AppleLocale ru_RU -screen "$S" >/dev/null 2>&1
+              sleep 12
+              xcrun simctl io "$UDID" screenshot "out/shots/$NAME/$(printf %02d $i)$(echo "$S" | tr '/?=&' '____' | cut -c1-40).png" >/dev/null 2>&1
+            done
+          }
+          BUYER=(/ /catalog "/catalog?cat=FIRSTCAT" /product/FIRST "/product/FIRST?sizes=1&demo=buyer" "/cart?demo=1" "/checkout?demo=1" /account "/account?demo=buyer" "/order/d1?demo=buyer" "/account?tab=bonus&demo=buyer" "/account?tab=support&id=t1&demo=buyer" /gift /track /menu /favorites)
+          KEY=(/ /product/FIRST "/cart?demo=1" "/checkout?demo=1" "/order/d1?demo=buyer" "/account?demo=buyer" /gift)
+          shoot 1-small "$SMALL" "${BUYER[@]}"
+          shoot 2-standard "$STD" "${BUYER[@]}"
+          shoot 3-promax "$MAX" "${BUYER[@]}"
+          xcrun simctl ui "$SMALL" content_size accessibility-extra-extra-extra-large
+          shoot 4-small-huge-text "$SMALL" "${KEY[@]}"
+          xcrun simctl ui "$SMALL" content_size large
+          xcrun simctl ui "$STD" content_size extra-extra-extra-large
+          shoot 5-standard-xxxl-text "$STD" "${KEY[@]}"
+          xcrun simctl ui "$STD" content_size large
+          xcrun simctl ui "$STD" appearance dark
+          shoot 6-standard-dark "$STD" "${KEY[@]}"
+          xcrun simctl ui "$STD" appearance light
+          # без интернета: адрес магазина ведёт в никуда
+          echo "127.0.0.1 albakovofficial.ru" | sudo tee -a /etc/hosts >/dev/null; sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder || true
+          shoot 7-offline "$STD" / /product/FIRST /cart "/order/d1"
+          sudo sed -i '' '/albakovofficial.ru/d' /etc/hosts; sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder || true
+          ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i albakov > out/crashes.txt || echo "сбоев приложения нет" > out/crashes.txt
+          cat out/crashes.txt
+
+      - name: Сохранить в ветку audit-shots
+        if: always()
+        run: |
+          mkdir -p out && cd out
+          find . -name "*.png" -exec sips -Z 1200 {} \; >/dev/null 2>&1 || true
+          git init -q && git checkout -q -b audit-shots
+          git -c user.name=ci -c user.email=ci@albakovofficial.ru add . && git -c user.name=ci -c user.email=ci@albakovofficial.ru commit -qm "Аудит ${{ github.sha }}" || true
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" audit-shots
