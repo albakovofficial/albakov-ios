@@ -253,7 +253,8 @@ struct DotTitle: View {
     var size: CGFloat = 30
     var dot = true
     var body: some View {
-        (Text(text).foregroundColor(Theme.text) + Text(dot ? "." : "").foregroundColor(Theme.accent))
+        // без точки в конце заголовка — везде (владелец 15.11); параметр dot оставлен, чтобы не трогать вызовы
+        Text(text).foregroundColor(Theme.text)
             .font(Theme.font(size, .light)).kerning(-size * 0.035).lineSpacing(-2)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -269,7 +270,8 @@ struct HSub: View {
     }
 }
 
-/// Заголовок раздела на главной: тонкий заголовок с точкой + капсула «Весь каталог →»
+/// Заголовок раздела на главной: тонкий заголовок и капсула «Смотреть все →» в одну строку
+/// (капсула раздела «мужчинам» убрана — владелец 15.11; параметр sub оставлен для совместимости вызовов)
 struct SectionTitle: View {
     let title: String
     var sub: String? = nil
@@ -277,16 +279,11 @@ struct SectionTitle: View {
     var onAction: (() -> Void)? = nil
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            DotTitle(text: title, size: 30, dot: sub == nil)
-            if let sub { HSub(text: sub) }
+            DotTitle(text: title, size: 30).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 6)
-            if let action, let onAction, sub == nil { MoreButton(title: action, action: onAction) }
+            if let action, let onAction { MoreButton(title: action, action: onAction).fixedSize() }
         }
         .padding(.horizontal, Theme.gutter)
-        .overlay(alignment: .bottomLeading) {
-            if let action, let onAction, sub != nil { MoreButton(title: action, action: onAction).padding(.horizontal, Theme.gutter).offset(y: 52) }
-        }
-        .padding(.bottom, sub != nil && action != nil ? 52 : 0)
     }
 }
 
