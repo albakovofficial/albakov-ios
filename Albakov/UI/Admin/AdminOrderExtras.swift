@@ -174,8 +174,6 @@ struct OrderCdekSection: View {
             if o["payment"]["method"].str == "cod" { Text("Оплата при получении: СДЭК возьмёт с покупателя \(Fmt.rub((o["total"].int ?? 0) - (o["refunded"].int ?? 0)))").font(Theme.font(13, .medium)) }
             if !c.exists {
                 if !sp.exists { Text("Сначала укажите пункт отгрузки: «Оплата и доставка» → «Отправка заказов в СДЭК».").font(Theme.font(13)).foregroundStyle(Theme.warn) }
-                if !o["cdekAutoError"].str.isEmpty { Text("Автоматически не создалось: \(o["cdekAutoError"].str). Создайте кнопкой ниже.").font(Theme.font(13)).foregroundStyle(Theme.danger) }
-                else if o["cdekAutoAt"].exists { Text("Отправление создаётся автоматически — потяните экран вниз через несколько секунд").font(Theme.font(13)).foregroundStyle(Theme.muted) }
                 HStack(spacing: 6) { num("Вес, г", $w); num("Д, см", $l); num("Ш, см", $wd); num("В, см", $h) }
                 let unpaid = o["payment"]["method"].str == "online" && o["payment"]["status"].str != "paid"
                 Button(unpaid ? "Заказ ещё не оплачен" : "Создать отправление в СДЭК") { Task { await create() } }
