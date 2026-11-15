@@ -248,6 +248,7 @@ private struct CdekShipCard: View {
     @State private var retPhone = ""
     @State private var part = false
     @State private var tryOn = false
+    @State private var autoShip = true
     @State private var loaded = false
     @State private var cityPick = false
     @State private var city: CdekCity?
@@ -291,6 +292,8 @@ private struct CdekShipCard: View {
             }
             Field(label: "Возвраты получает (имя или ИП)", text: $retName, placeholder: "ИП Фамилия Имя Отчество")
             VStack(alignment: .leading, spacing: 4) { Field(label: "Телефон для возвратов", text: $retPhone, placeholder: "+7 (___) ___-__-__", keyboard: .phonePad); Text("СДЭК позвонит, когда возврат придёт в ваш пункт").font(Theme.font(11.5)).foregroundStyle(Theme.dim) }
+            // Автоматическое отправление (1.0.2): COD — сразу после оформления, онлайн — сразу после оплаты
+            Toggle(isOn: $autoShip) { VStack(alignment: .leading, spacing: 2) { Text("Создавать отправление автоматически").font(Theme.font(14.5, .medium)); Text("Заказ с оплатой при получении — сразу после оформления, онлайн — после оплаты. Останется распечатать наклейку и сдать посылку. Не получится — придёт уведомление").font(Theme.font(12)).foregroundStyle(Theme.muted) } }.tint(Theme.ink)
             Text("Услуги для покупателя (включите, если они есть в вашем договоре со СДЭК)").font(Theme.font(13)).foregroundStyle(Theme.muted)
             Toggle(isOn: $part) { VStack(alignment: .leading, spacing: 2) { Text("Частичный выкуп").font(Theme.font(14.5, .medium)); Text("Покупатель забирает только то, что подошло, остальное СДЭК везёт вам обратно").font(Theme.font(12)).foregroundStyle(Theme.muted) } }.tint(Theme.ink)
             Toggle(isOn: $tryOn) { VStack(alignment: .leading, spacing: 2) { Text("Примерка").font(Theme.font(14.5, .medium)); Text("Покупатель может примерить вещи при получении").font(Theme.font(12)).foregroundStyle(Theme.muted) } }.tint(Theme.ink)
@@ -309,6 +312,7 @@ private struct CdekShipCard: View {
             weight = String(c["pkg"]["weight"].int ?? 1000)
             retName = c["returnTo"]["name"].str; retPhone = c["returnTo"]["phone"].str.isEmpty ? "" : Fmt.phone(c["returnTo"]["phone"].str)
             part = c["services"]["partDeliv"].bool; tryOn = c["services"]["tryOn"].bool
+            autoShip = !(c["autoShip"].exists && !c["autoShip"].bool)
             loaded = true
         }
         .sheet(isPresented: $cityPick) { CityPicker { c in cityPick = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { city = c } } }
@@ -338,7 +342,7 @@ private struct CdekShipCard: View {
         if packs.isEmpty { state = ("Нужна хотя бы одна упаковка", false); return }
         let ps = packs.map { x -> [String: Any] in var y = x; if (y["name"] as? String ?? "").trimmingCharacters(in: .whitespaces).isEmpty { y["name"] = "Упаковка" }; return y }
         var req: [String: Any] = ["check": false, "tariff": tariff, "tariffDoor": tariffDoor, "packs": ps, "defaultPack": defPack,
-                                   "pkg": ["weight": weight, "length": 30, "width": 25, "height": 10], "services": ["partDeliv": part, "tryOn": tryOn], "returnTo": ["name": retName, "phone": retPhone]]
+                                   "pkg": ["weight": weight, "length": 30, "width": 25, "height": 10], "services": ["partDeliv": part, "tryOn": tryOn], "autoShip": autoShip, "returnTo": ["name": retName, "phone": retPhone]]
         req["shipmentPoint"] = point.map { $0 as Any } ?? NSNull()
         do {
             _ = try await AdminAPI.post("cdek", req); await Admin.shared.load()
