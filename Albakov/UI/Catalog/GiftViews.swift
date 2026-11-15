@@ -20,6 +20,8 @@ struct GiftView: View {
     @State private var offer = false
     @State private var consent = false
     @State private var busy = false
+    /// Ключ повтора покупки (1.0.2): повтор после обрыва связи вернёт тот же сертификат
+    @State private var giftIdem = UUID().uuidString.replacingOccurrences(of: "-", with: "")
     @State private var error: String?
     @State private var payURL: URL?
     @State private var placed: (id: String, token: String)?
@@ -178,9 +180,10 @@ struct GiftView: View {
         busy = true; defer { busy = false }
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
         let b: [String: Any] = ["amount": sum, "toName": toName, "toEmail": toEmail, "message": message, "fromName": fromName, "sendAt": onDate ? f.string(from: sendAt) : "",
-                                "customer": ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email], "consent": true]
+                                "customer": ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email], "consent": true, "idem": giftIdem]
         do {
             let r = try await API.shared.json("POST", "gifts", body: b)
+            giftIdem = UUID().uuidString.replacingOccurrences(of: "-", with: "")
             let id = r["order"]["id"].str
             OrderTokens.save(id, r["token"].str)
             placed = (id, r["token"].str)

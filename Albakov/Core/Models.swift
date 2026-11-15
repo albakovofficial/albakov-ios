@@ -260,7 +260,7 @@ struct Order: Identifiable, Hashable {
     let items: [OrderItem]
     let subtotal: Int, total: Int, saleDiscount: Int, promoDiscount: Int, promoCode: String, bonusUsed: Int, giftUsed: Int, bonusEarn: Int
     let deliveryName: String, deliveryPrice: Int, city: String, address: String
-    let payMethod: String, payStatus: String
+    let payMethod: String, payStatus: String, payUrl: String
     let customerName: String, phone: String, email: String, comment: String
     let trackNumber: String, trackURL: String, cdekStatus: String
     let requestOk: Bool, requestWhy: String
@@ -276,7 +276,7 @@ struct Order: Identifiable, Hashable {
         promoCode = j["promoCode"].str; bonusUsed = j["bonusUsed"].int ?? 0; giftUsed = j["giftUsed"].int ?? 0; bonusEarn = j["bonusEarn"].int ?? 0
         let d = j["delivery"]
         deliveryName = d["name"].str; deliveryPrice = d["price"].int ?? 0; city = d["city"].str; address = d["address"].str
-        payMethod = j["payment"]["method"].str; payStatus = j["payment"]["status"].str
+        payMethod = j["payment"]["method"].str; payStatus = j["payment"]["status"].str; payUrl = j["payUrl"].str
         let c = j["customer"]
         customerName = [c["firstName"].str, c["lastName"].str].filter { !$0.isEmpty }.joined(separator: " ")
         phone = c["phone"].str; email = c["email"].str; comment = j["comment"].str
@@ -306,6 +306,8 @@ struct Order: Identifiable, Hashable {
         return "не оплачен"
     }
     var paid: Bool { payStatus == "paid" }
+    /// Онлайн-оплата ещё не прошла и её можно продолжить (1.0.2): ссылка ЮKassa сохранена в заказе
+    var awaitingPay: Bool { payMethod == "online" && payStatus == "pending" && status != "canceled" && !payUrl.isEmpty }
 }
 
 struct OrderItem: Hashable {

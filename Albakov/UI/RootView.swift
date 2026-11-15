@@ -31,19 +31,22 @@ struct RootView: View {
         .onChange(of: shop.loaded) { ok in
             guard ok else { return }
             revealIfReady()
-            // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны
+            #if DEBUG
+            // Проверка на GitHub: приложение запускают с «-screen /catalog» и снимают экраны (только сборка Debug)
             if let screen = UserDefaults.standard.string(forKey: "screen"), !screen.isEmpty {
                 if screen.contains("demo") { shop.demoCart() }; router.open(path: screen)
-                #if DEBUG
                 // Снимок окна «Вышло обновление»: «-screen "/?update=1"»
                 if screen.contains("update=1") { update = AppUpdate.Info(version: "1.0.1", notes: "Новое:\n— поддержка с номером обращения и фото\n— у каждой вещи своя таблица размеров\n— раздел «О бренде»\nИсправили: мелкие недочёты — всё работает стабильно", url: URL(string: "https://apps.apple.com/ru/")!) }
-                #endif
+                return
             }
-            else { Task { let shown = await checkUpdate(); if !shown { scheduleAsk() } } }
+            #endif
+            Task { let shown = await checkUpdate(); if !shown { scheduleAsk() } }
         }
         // Вернулись в приложение спустя время — снова проверить, не вышла ли новая версия
         .onChange(of: phase) { p in
             if p == .active, shop.loaded, update == nil, !askPush, Date().timeIntervalSince(checkedAt) > 6 * 3600 { Task { await checkUpdate() } }
+            // цены и остатки могли измениться, пока приложение было свёрнуто (1.0.2)
+            if p == .active, shop.loaded, Date().timeIntervalSince(shop.loadedAt) > 600 { Task { await shop.load() } }
         }
     }
 

@@ -348,6 +348,7 @@ struct OrderView: View {
     @State private var order: Order?
     @State private var error: String?
     @State private var request = false
+    @State private var payURL: URL?
     var body: some View {
         ScrollView {
             if let o = order {
@@ -356,6 +357,14 @@ struct OrderView: View {
                         StatusPill(status: o.status)
                         DotTitle(text: "Заказ № \(o.number)", size: 32)
                         Text("от \(Fmt.date(o.createdAt))").font(Theme.font(14)).foregroundStyle(Theme.muted)
+                    }
+                    // Оплата онлайн не прошла (окно закрыли, связь пропала) — оплатить можно отсюда, как на сайте (1.0.2)
+                    if o.awaitingPay, let u = URL(string: o.payUrl) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Заказ ждёт оплаты").font(Theme.font(17, .medium))
+                            Text("Вещи отложены за вами. Оплатите заказ, чтобы мы начали его собирать.").font(Theme.font(13.5)).foregroundStyle(Theme.muted)
+                            PrimaryButton(title: "Оплатить · \(Fmt.rub(o.total))") { payURL = u }
+                        }.padding(18).softCard(20)
                     }
                     OrderSteps(status: o.status)
                     if !o.trackNumber.isEmpty, let u = URL(string: o.trackURL) {
@@ -407,6 +416,9 @@ struct OrderView: View {
         .task { await load() }
         .refreshable { await load() }
         .sheet(isPresented: $request) { if let o = order { RequestSheet(order: o) { order = $0 } } }
+        .fullScreenCover(item: $payURL) { url in
+            PaymentSheet(url: url) { _ in payURL = nil; Task { await load(); if order?.paid == true { Toast.shared.show("Оплата получена") } } }
+        }
     }
     private func load() async {
         do { order = Order(try await API.shared.json("GET", "orders/\(id)", query: OrderTokens.all[id].map { ["t": $0] } ?? [:])["order"]); error = nil }

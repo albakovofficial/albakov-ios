@@ -1,4 +1,5 @@
 import SwiftUI
+import CryptoKit
 import WebKit
 
 // Оформление заказа: контакты, доставка (пункт СДЭК, курьер, самовывоз), оплата, промокод, бонусы.
@@ -35,7 +36,9 @@ struct CheckoutView: View {
     @State private var pickPoint = false
     @State private var payURL: URL?
     @State private var placed: (id: String, token: String)?
-    @State private var idem = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+    /// Ключ повтора заказа (1.0.2): одинаков для одной и той же корзины и данных, пока заказ не оформлен —
+    /// повторное нажатие или повтор после обрыва связи, даже с нового экрана оформления, не создадут второй заказ
+    @AppStorage("checkoutNonce") private var nonce = UUID().uuidString
 
     private var method: DeliveryMethod? { shop.settings.delivery.first { $0.id == deliveryId } }
     private var onlineOk: Bool { shop.settings.payOnline && shop.payReady }
@@ -121,7 +124,8 @@ struct CheckoutView: View {
         .fullScreenCover(item: $payURL) { url in
             PaymentSheet(url: url) { finished in
                 payURL = nil
-                if let p = placed { openOrder(p.id, paid: finished) }
+                // окно закрыли до оплаты — заказ сохранён и ждёт оплаты; вернулись со страницы оплаты — статус покажет заказ
+                if let p = placed { openOrder(p.id, toast: finished ? "Спасибо! Заказ оформлен" : "Заказ ждёт оплаты — оплатить можно в заказе") }
             }
         }
     }
@@ -276,31 +280,42 @@ struct CheckoutView: View {
         guard let m = method else { error = "Выберите способ доставки"; return }
         if (m.isPvz || m.isDoor) && shop.cdekReady && city == nil { error = "Выберите город"; return }
         if m.isPvz && shop.cdekReady && point == nil { error = "Выберите пункт выдачи"; return }
+        guard !busy else { return }
+        // Кнопка блокируется сразу, до проверки возраста: двойное нажатие не отправит заказ дважды (1.0.2)
+        busy = true; defer { busy = false }
         // Возраст: только где этого требует закон (США и др.), один раз — окно ALBAKOV, затем окно Apple
         if await AgeCheck.needed() { ageStep = .intro; ageAsk = true; return }
-        busy = true; defer { busy = false }
         var b = body0
-        b["idem"] = idem
         if !quote["gift"]["ok"].bool { b.removeValue(forKey: "gift") }   // недействительный сертификат в заказ не передаём, как на сайте
         b["customer"] = ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email]
         b["consent"] = consent
         b["comment"] = comment
         if let p = point { b["pvz"] = p.code }
         if m.isDoor || !(shop.cdekReady && m.isPvz) { b["address"] = address; b["city"] = city?.city ?? cityText }
+        b["idem"] = Self.idem(nonce, b)
         do {
             let r = try await API.shared.json("POST", "orders", body: b)
+            nonce = UUID().uuidString   // заказ оформлен: следующий будет новым
             let id = r["order"]["id"].str, token = r["token"].str
             OrderTokens.save(id, token)
             placed = (id, token)
             if shop.buyNow != nil { shop.buyNow = nil } else { shop.clearCart() }
             Haptic.success()
-            if let s = r["payUrl"].string, let u = URL(string: s) { payURL = u } else { openOrder(id, paid: false) }
+            if let s = r["payUrl"].string, let u = URL(string: s) { payURL = u } else { openOrder(id, toast: "Спасибо! Заказ оформлен") }
+        } catch let e as APIError where e.status == 0 {
+            // связь пропала: заказ мог успеть оформиться — повторное нажатие вернёт его же, второго не будет
+            self.error = "Связь прервалась. Нажмите кнопку ещё раз — если заказ уже оформлен, мы просто откроем его, второго не будет."; Haptic.error()
         } catch { self.error = error.localizedDescription; Haptic.error() }
     }
-    private func openOrder(_ id: String, paid: Bool) {
+    /// Ключ повтора: случайная часть + содержимое заказа. Другая корзина или данные — другой ключ
+    static func idem(_ nonce: String, _ b: [String: Any]) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: b, options: [.sortedKeys])) ?? Data()
+        return SHA256.hash(data: Data(nonce.utf8) + data).map { String(format: "%02x", $0) }.joined().prefix(40).description
+    }
+    private func openOrder(_ id: String, toast: String) {
         router.reset(.cart)
         router.reset(.account, to: [.orders, .order(id)])
-        Toast.shared.show("Спасибо! Заказ оформлен")
+        Toast.shared.show(toast)
         Task { await shop.refreshUser() }
     }
 }

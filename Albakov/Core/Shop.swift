@@ -9,6 +9,8 @@ final class Shop: ObservableObject {
 
     @Published private(set) var loaded = false
     @Published private(set) var loadError: String?
+    /// Когда каталог загружен с сервера: при возврате в приложение спустя 10 минут — обновить цены и остатки
+    private(set) var loadedAt = Date.distantPast
     @Published private(set) var settings = Settings(JSON(nil))
     @Published private(set) var categories: [Category] = []
     @Published private(set) var products: [Product] = []
@@ -46,7 +48,7 @@ final class Shop: ObservableObject {
             let j = try await API.shared.json("GET", "state")
             apply(j["data"])
             setUser(User(j["user"]), staff: j["isAdmin"].bool, merge: true)
-            loaded = true; loadError = nil
+            loaded = true; loadError = nil; loadedAt = Date()
         } catch {
             loadError = error.localizedDescription
         }
