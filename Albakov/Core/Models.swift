@@ -306,6 +306,7 @@ struct Order: Identifiable, Hashable {
     var payStatusText: String {
         if paid { return "оплачен" }
         if payStatus == "refunded" { return "деньги возвращены" }
+        if payStatus == "canceled" { return "оплата не прошла" }
         return "не оплачен"
     }
     var paid: Bool { payStatus == "paid" }

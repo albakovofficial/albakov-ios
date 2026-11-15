@@ -388,7 +388,8 @@ struct OrderView: View {
             if let o = order {
                 VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 8) {
-                        StatusPill(status: o.status)
+                        // ждёт оплаты или время вышло — статус заказа не нужен, всё говорит карточка оплаты
+                        if !(o.awaitingPay || o.payExpired) { StatusPill(status: o.status) }
                         DotTitle(text: "Заказ № \(o.number)", size: 32)
                         Text("от \(Fmt.date(o.createdAt))").font(Theme.font(14)).foregroundStyle(Theme.muted)
                     }
