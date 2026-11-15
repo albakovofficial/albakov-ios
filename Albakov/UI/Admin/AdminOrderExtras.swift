@@ -287,13 +287,12 @@ struct OrderCdekSection: View {
 }
 
 /// Удаление заказа — для тестовых и ошибочных
+/// 1.0.3: окно открывает сам экран заказа (sheet на Section внутри List с первого раза закрывался сам)
 struct OrderDeleteSection: View {
-    let o: JSON
-    @EnvironmentObject private var router: Router
-    @State private var confirm = false
+    let open: () -> Void
     var body: some View {
         Section {
-            Button { Haptic.tap(); confirm = true } label: {
+            Button { Haptic.tap(); open() } label: {
                 HStack(spacing: 14) {
                     Image(systemName: "trash").font(.system(size: 15, weight: .medium)).foregroundStyle(Theme.danger)
                         .frame(width: 38, height: 38).background(Circle().fill(Theme.danger.opacity(0.1)))
@@ -306,10 +305,6 @@ struct OrderDeleteSection: View {
                 }.padding(.vertical, 4).contentShape(Rectangle())
             }.buttonStyle(.plain)
         } header: { Text("Удаление") }
-        .sheet(isPresented: $confirm) {
-            OrderDeleteSheet(o: o) { router.pop(on: .account) }
-                .presentationDetents([.height(o["payment"]["status"].str == "paid" ? 560 : 500)])
-        }
     }
 }
 

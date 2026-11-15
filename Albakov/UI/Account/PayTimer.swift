@@ -1,11 +1,11 @@
 import SwiftUI
 
-/* Время на оплату (1.0.3): 15 минут с оформления, отсчёт по часам сервера.
+/* Время на оплату (1.0.3): 10 минут — как у страницы ЮKassa, отсчёт от создания платежа по часам сервера.
    Последние 5 минут — красным. Время вышло — сервер отменяет заказ и возвращает вещи в продажу,
    а здесь появляется «Оформить заново»: вещи, которые ещё в наличии, снова в корзине. */
 
 enum PayClock {
-    static let window: TimeInterval = 15 * 60
+    static let window: TimeInterval = 10 * 60
     static let hot: TimeInterval = 5 * 60
     static let red = Color(hex: "#b42318")
     static func mmss(_ s: TimeInterval) -> String { let t = max(0, Int(s.rounded(.up))); return String(format: "%02d:%02d", t / 60, t % 60) }
@@ -43,15 +43,15 @@ struct PayTimerCard: View {
                         Capsule().fill(tone).frame(width: g.size.width * max(0, min(1, left / PayClock.window)))
                     }
                 }.frame(height: 5)
-                Text(hot ? "Меньше 5 минут — потом заказ отменится, а вещи вернутся в продажу" : "Если не оплатить, заказ отменится, а вещи вернутся в продажу")
+                Text(left <= 0 ? "Время вышло — проверяем, не прошла ли оплата…" : hot ? "Меньше 5 минут — потом заказ отменится, а вещи вернутся в продажу" : "Если не оплатить, заказ отменится, а вещи вернутся в продажу")
                     .font(Theme.font(12.5)).foregroundStyle(hot ? tone : Theme.muted).fixedSize(horizontal: false, vertical: true)
-                PrimaryButton(title: "Оплатить · \(Fmt.rub(order.total))", action: onPay)
+                if left > 0 { PrimaryButton(title: "Оплатить · \(Fmt.rub(order.total))", action: onPay) }
             }
             .padding(18)
             .background(RoundedRectangle(cornerRadius: 20).fill(hot ? Color(hex: "#fdf3f2") : .white))
             .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(hot ? PayClock.red.opacity(0.22) : Theme.ink.opacity(0.08), lineWidth: 1))
             .animation(.easeInOut(duration: 0.4), value: hot)
-            .onChange(of: left <= -20) { gone in if gone && !fired { fired = true; onExpire() } }   // сервер уже отменил — обновим заказ
+            .onChange(of: left <= -75) { gone in if gone && !fired { fired = true; onExpire() } }   // сервер ждёт ЮKassa минуту и отменяет — обновим заказ
         }
     }
 }

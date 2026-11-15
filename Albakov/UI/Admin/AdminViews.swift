@@ -187,9 +187,19 @@ struct AdminOrderView: View {
     @State private var note = ""
     @State private var busy = false
     @State private var error: String?
+    @State private var deleting: JSON?
+    @EnvironmentObject private var router: Router
     private var order: Order? { admin.orders.first { $0.id == id } }
 
     var body: some View {
+        Group { content }
+            // окно удаления держим снаружи списка и ветки «заказ загружен» — обновление данных его не закроет (1.0.3)
+            .sheet(item: Binding(get: { deleting.map { IdentJSON(j: $0) } }, set: { deleting = $0?.j })) { w in
+                OrderDeleteSheet(o: w.j) { router.pop(on: .account) }
+                    .presentationDetents([.height(w.j["payment"]["status"].str == "paid" ? 560 : 500)])
+            }
+    }
+    @ViewBuilder private var content: some View {
         if let o = order {
             List {
                 Section {
@@ -228,10 +238,10 @@ struct AdminOrderView: View {
                 Section("Товары") {
                     ForEach(Array(o.items.enumerated()), id: \.offset) { _, it in
                         HStack(spacing: 12) {
-                            RemoteImage(path: it.image).frame(width: 48, height: 62).clipShape(RoundedRectangle(cornerRadius: 8))
+                            ProductImage(path: it.image, kind: it.artKind, tone: it.artTone).frame(width: 48, height: 62).background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 8))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(it.name).font(Theme.font(14))
-                                Text([it.color, it.size, "\(it.qty) шт."].filter { !$0.isEmpty }.joined(separator: " · ")).font(Theme.font(12.5)).foregroundStyle(Theme.muted)
+                                Text(it.meta).font(Theme.font(12.5)).foregroundStyle(Theme.muted)
                             }
                             Spacer(); Text(Fmt.rub(it.price * it.qty)).font(Theme.font(14))
                         }
@@ -251,7 +261,7 @@ struct AdminOrderView: View {
                         }
                     }
                 }
-                OrderDeleteSection(o: o.raw)
+                OrderDeleteSection { deleting = o.raw }
                 if let error { Text(error).font(Theme.font(13)).foregroundStyle(Theme.danger) }
             }
             .navigationTitle("Заказ № \(o.number)").navigationBarTitleDisplayMode(.inline)
