@@ -47,7 +47,11 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         Task { @MainActor in
             let apns: [String: Any] = ["token": token, "env": PushManager.environment]
             _ = try? await API.shared.raw("POST", "push/subscribe", body: ["apns": apns, "scope": "customer"])
+            // Уведомления панели (новые заказы, оплаты, вопросы) — только пока на этом iPhone вошли под аккаунтом сотрудника.
+            // Вышли или вошёл покупатель — устройство перестаёт получать уведомления панели (1.0.2)
+            guard Shop.shared.loaded else { return }   // кто вошёл, станет известно после загрузки — тогда resend вызовется снова
             if Shop.shared.isStaff { _ = try? await API.shared.raw("POST", "push/subscribe", body: ["apns": apns, "scope": "staff"]) }
+            else { _ = try? await API.shared.raw("POST", "push/unsubscribe", body: ["endpoint": "apns:" + token, "scope": "staff"]) }
         }
     }
 

@@ -292,18 +292,80 @@ struct OrderDeleteSection: View {
     @EnvironmentObject private var router: Router
     @State private var confirm = false
     var body: some View {
-        Section("Удаление") {
-            Text("Для тестовых и ошибочных заказов. Товар вернётся на склад, промокод и бонусы — как при отмене. Удаление не отменить.").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
-            Button("Удалить заказ", role: .destructive) { confirm = true }
+        Section {
+            Button { Haptic.tap(); confirm = true } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "trash").font(.system(size: 15, weight: .medium)).foregroundStyle(Theme.danger)
+                        .frame(width: 38, height: 38).background(Circle().fill(Theme.danger.opacity(0.1)))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Удалить заказ").font(Theme.font(15.5, .medium)).foregroundStyle(Theme.danger)
+                        Text("Для тестовых и ошибочных заказов").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.dim)
+                }.padding(.vertical, 4).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+        } header: { Text("Удаление") }
+        .sheet(isPresented: $confirm) {
+            OrderDeleteSheet(o: o) { router.pop(on: .account) }
+                .presentationDetents([.height(o["payment"]["status"].str == "paid" ? 560 : 500)])
         }
-        .confirmationDialog("Удалить заказ № \(o["number"].str)?", isPresented: $confirm, titleVisibility: .visible) {
-            Button("Удалить", role: .destructive) {
-                Task {
-                    do { _ = try await API.shared.raw("DELETE", "admin/orders/\(o["id"].str)"); await Admin.shared.load(); router.pop(on: .account); Toast.shared.show("Заказ № \(o["number"].str) удалён") }
-                    catch { Toast.shared.show(error.localizedDescription) }
+    }
+}
+
+/// Окно «Удалить заказ?» (1.0.2): что именно произойдёт, крупная красная кнопка и «Отмена»
+struct OrderDeleteSheet: View {
+    let o: JSON
+    let done: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var busy = false
+    @State private var error: String?
+    var body: some View {
+        let paid = o["payment"]["status"].str == "paid"
+        let c = o["customer"], items = o["items"].array
+        let qty = items.reduce(0) { $0 + ($1["qty"].int ?? 1) }
+        VStack(alignment: .leading, spacing: 18) {
+            Capsule().fill(Theme.line).frame(width: 36, height: 5).frame(maxWidth: .infinity).padding(.top, 2)
+            HStack(spacing: 14) {
+                Image(systemName: "trash").font(.system(size: 20, weight: .medium)).foregroundStyle(Theme.danger)
+                    .frame(width: 52, height: 52).background(Circle().fill(Theme.danger.opacity(0.1)))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Удалить заказ № \(o["number"].str)?").font(Theme.font(22, .light))
+                    Text([[c["firstName"].str, c["lastName"].str].filter { !$0.isEmpty }.joined(separator: " "), Fmt.rub(o["total"].int ?? 0), "\(qty) \(Fmt.plural(qty, "вещь", "вещи", "вещей"))"].filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(Theme.font(13.5)).foregroundStyle(Theme.muted)
                 }
             }
+            VStack(alignment: .leading, spacing: 12) {
+                row("shippingbox", "Товар вернётся на склад")
+                row("ticket", "Промокод, сертификат и бонусы — как при отмене")
+                row("exclamationmark.circle", "Заказ исчезнет из панели и кабинета покупателя. Удаление не отменить", strong: true)
+                if paid { row("creditcard", "Заказ оплачен — деньги сами не вернутся. Сначала оформите возврат оплаты", strong: true) }
+            }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(RoundedRectangle(cornerRadius: 20).fill(Theme.surface))
+            ErrorText(text: error)
+            Spacer(minLength: 0)
+            Button { Task { await delete() } } label: {
+                HStack(spacing: 8) {
+                    if busy { ProgressView().tint(.white) } else { Image(systemName: "trash").font(.system(size: 14, weight: .medium)); Text("Удалить навсегда").font(Theme.font(15, .medium)).kerning(0.6) }
+                }.foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 54).background(Capsule().fill(Theme.danger))
+            }.buttonStyle(.plain).disabled(busy)
+            GhostButton(title: "Отмена") { dismiss() }
         }
+        .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 16)
+        .interactiveDismissDisabled(busy)
+    }
+    private func row(_ icon: String, _ text: String, strong: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon).font(.system(size: 14)).foregroundStyle(strong ? Theme.danger : Theme.muted).frame(width: 18).padding(.top, 1)
+            Text(text).font(Theme.font(14)).foregroundStyle(strong ? Theme.text : Theme.muted).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    private func delete() async {
+        busy = true; error = nil
+        do {
+            _ = try await API.shared.raw("DELETE", "admin/orders/\(o["id"].str)")
+            await Admin.shared.load(); Haptic.success(); dismiss(); done()
+            Toast.shared.show("Заказ № \(o["number"].str) удалён")
+        } catch { self.error = error.localizedDescription; busy = false; Haptic.error() }
     }
 }
 

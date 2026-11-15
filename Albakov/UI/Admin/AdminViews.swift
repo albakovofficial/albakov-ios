@@ -322,7 +322,11 @@ struct BonusGrantSheet: View {
 
 // MARK: - Push: свои уведомления и рассылка акций
 struct AdminPushView: View {
+    @ObservedObject private var push = PushManager.shared
+    @Environment(\.openURL) private var openURL
     @State private var r = JSON(nil)
+    @State private var testing = false
+    @State private var testMsg: String?
     @State private var prefs: [String: Bool] = [:]
     @State private var title = ""
     @State private var text = ""
@@ -335,6 +339,24 @@ struct AdminPushView: View {
         "stock": ("Заканчивается размер", "2 штуки или меньше"), "digest": ("Итоги дня", "В 21:00 по Москве"), "security": ("Вход в панель", "С нового устройства")]
     var body: some View {
         Form {
+            // Это устройство (1.0.2): получает ли оно уведомления панели — новые заказы, оплаты, вопросы
+            Section {
+                HStack(spacing: 12) {
+                    Image(systemName: deviceOk ? "bell.badge.fill" : "bell.slash").font(.system(size: 20)).foregroundStyle(deviceOk ? Theme.ok : Theme.warn).frame(width: 28)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(deviceOk ? "Уведомления панели приходят сюда" : deviceTitle).font(Theme.font(15, .medium))
+                        Text(deviceOk ? "Новые заказы, оплаты и вопросы — по вашей роли, даже когда приложение закрыто" : deviceHint).font(Theme.font(12.5)).foregroundStyle(Theme.muted)
+                    }
+                }.padding(.vertical, 4)
+                if push.status == .notDetermined { Button("Разрешить уведомления") { Task { await push.request(); await load() } }.font(Theme.font(15, .medium)) }
+                else if push.status == .denied { Button("Открыть настройки iPhone") { if let u = URL(string: UIApplication.openSettingsURLString) { openURL(u) } }.font(Theme.font(15, .medium)) }
+                if push.status == .authorized || push.status == .provisional {
+                    Button(testing ? "Отправляем…" : "Прислать проверочное") { Task { await test() } }.font(Theme.font(15)).disabled(testing || push.endpoint == nil)
+                    if let testMsg { Text(testMsg).font(Theme.font(12.5)).foregroundStyle(Theme.muted) }
+                }
+            } header: { Text("Это устройство") } footer: {
+                if r.exists && !r["apnsReady"].bool { Text("Ключ Apple для уведомлений ещё не добавлен — пока его нет, уведомления в приложение не приходят. Владелец добавляет его на сайте: Панель → Push-уведомления → «Приложение iPhone».").font(Theme.font(12)).foregroundStyle(Theme.danger) }
+            }
             Section("Что присылать мне") {
                 ForEach(prefs.keys.sorted { (names[$0]?.0 ?? $0) < (names[$1]?.0 ?? $1) }, id: \.self) { k in
                     Toggle(isOn: Binding(get: { prefs[k] ?? false }, set: { prefs[k] = $0; Task { _ = try? await API.shared.raw("PUT", "admin/push", body: ["prefs": prefs]) } })) {
@@ -359,7 +381,31 @@ struct AdminPushView: View {
         .navigationTitle("Push-уведомления").navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }
-    private func load() async { if let j = try? await API.shared.json("GET", "admin/push") { r = j; prefs = j["prefs"].dict.mapValues(\.bool) } }
+    private func load() async {
+        push.refreshStatus(); push.resend()
+        if let j = try? await API.shared.json("GET", "admin/push") { r = j; prefs = j["prefs"].dict.mapValues(\.bool) }
+    }
+    private var deviceOk: Bool { (push.status == .authorized || push.status == .provisional) && push.endpoint != nil && r["apnsReady"].bool }
+    private var deviceTitle: String {
+        switch push.status {
+        case .denied: return "Уведомления запрещены"
+        case .notDetermined: return "Уведомления ещё не разрешены"
+        default: return r.exists && !r["apnsReady"].bool ? "Уведомления пока не приходят" : "Подключаем устройство…"
+        }
+    }
+    private var deviceHint: String {
+        switch push.status {
+        case .denied: return "Разрешите уведомления для ALBAKOV в настройках iPhone — иначе о новых заказах не узнать сразу"
+        case .notDetermined: return "Разрешите — и новые заказы будут приходить сразу"
+        default: return r.exists && !r["apnsReady"].bool ? "Нужен ключ Apple — см. ниже" : "Через пару секунд обновите экран"
+        }
+    }
+    private func test() async {
+        guard let e = push.endpoint else { return }
+        testing = true; testMsg = nil; defer { testing = false }
+        do { _ = try await API.shared.raw("POST", "push/test", body: ["endpoint": e, "scope": "staff"]); testMsg = "Отправили — уведомление появится через пару секунд"; Haptic.success() }
+        catch { testMsg = error.localizedDescription; Haptic.error() }
+    }
     private func broadcast(test: Bool) async {
         busy = true; error = nil; defer { busy = false; armed = false }
         do {

@@ -227,10 +227,25 @@ struct CheckoutView: View {
         }
     }
     private func deliveryPrice(_ m: DeliveryMethod) -> String? {
-        if m.id == deliveryId, let d = quote["delivery"]["price"].int { return d == 0 ? "Бесплатно" : Fmt.rub(d) }
+        // Как на сайте (1.0.2): «Бесплатно» — только если доставка правда бесплатная (порог или промокод);
+        // цена по тарифу СДЭК, пока город или пункт не выбраны, — «по тарифу», а не «Бесплатно»
+        if m.id == deliveryId, quote["delivery"].exists {
+            let d = quote["delivery"]
+            if d["free"].bool { return "Бесплатно" }
+            if d["pending"].bool { return "по тарифу СДЭК" }
+            if let p = d["price"].int { return p == 0 ? "Бесплатно" : Fmt.rub(p) }
+        }
         if m.priceAuto { return "по тарифу" }
         let sub = quote["subtotal"].int ?? 0
         return m.price == 0 || (m.freeFrom > 0 && sub >= m.freeFrom) ? "Бесплатно" : Fmt.rub(m.price)
+    }
+    private var deliveryLine: String {
+        let d = quote["delivery"]
+        guard d.exists else { return "—" }
+        if d["free"].bool { return "Бесплатно" }
+        if d["pending"].bool { return "после выбора пункта" }
+        let p = quote["deliveryPrice"].int ?? 0
+        return p == 0 ? "Бесплатно" : Fmt.rub(p)
     }
     private var summary: some View {
         VStack(spacing: 12) {
@@ -239,9 +254,10 @@ struct CheckoutView: View {
             if let v = quote["promoDiscount"].int, v > 0 { row("Промокод", "−" + Fmt.rub(v), Theme.sale) }
             if let v = quote["bonusUsed"].int, v > 0 { row("Бонусы", "−" + Fmt.rub(v), Theme.sale) }
             if let v = quote["giftUsed"].int, v > 0 { row("Подарочный сертификат", "−" + Fmt.rub(v), Theme.sale) }
-            row("Доставка", quote["delivery"].exists ? ((quote["deliveryPrice"].int ?? 0) == 0 ? "Бесплатно" : Fmt.rub(quote["deliveryPrice"].int ?? 0)) : "—")
+            row("Доставка", deliveryLine)
             Divider1()
             HStack(alignment: .firstTextBaseline) { Text("К оплате").font(Theme.font(19)); Spacer(); Text(Fmt.rub(quote["total"].int ?? 0)).font(Theme.font(23, .light)) }
+            if quote["delivery"]["pending"].bool { Text("Без доставки — её цену СДЭК посчитает после выбора города и пункта").font(Theme.font(12.5)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .leading) }
             if paidInFull { Text("Заказ полностью оплачен \(giftUsed > 0 && (quote["bonusUsed"].int ?? 0) > 0 ? "сертификатом и бонусами" : giftUsed > 0 ? "подарочным сертификатом" : "бонусами") — платить ничего не нужно.").font(Theme.font(13)).foregroundStyle(Theme.ok).frame(maxWidth: .infinity, alignment: .leading) }
             if let b = earn, b > 0 {
                 HStack(spacing: 8) {
