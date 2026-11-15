@@ -35,13 +35,17 @@ struct PayTimerCard: View {
                     PayRing(left: left, hot: hot, tone: tone)
                 }
                 PayCheckList(order: order)
-                Text(left <= 0 ? "Время вышло — проверяем, не прошла ли оплата…" : hot ? "Меньше 5 минут — потом заказ отменится, а вещи вернутся в корзину" : "Не успеете — заказ отменится, а вещи вернутся в вашу корзину")
-                    .font(Theme.font(12.5)).foregroundStyle(hot ? tone : Theme.muted).fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: hot ? "exclamationmark.circle" : "arrow.uturn.backward.circle").font(.system(size: 13, weight: .regular)).padding(.top, 1)
+                    Text(left <= 0 ? "Время вышло — проверяем, не прошла ли оплата…" : hot ? "Меньше 5 минут — потом заказ отменится, а вещи вернутся в корзину" : "Не успеете — заказ отменится, а вещи вернутся в вашу корзину")
+                        .font(Theme.font(12.5)).fixedSize(horizontal: false, vertical: true)
+                }.foregroundStyle(hot ? tone : Theme.muted)
                 if left > 0 { PrimaryButton(title: "Оплатить · \(Fmt.rub(order.total))", action: onPay) }
             }
-            .padding(18)
-            .background(RoundedRectangle(cornerRadius: 20).fill(hot ? Color(hex: "#fdf3f2") : .white))
-            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(hot ? PayClock.red.opacity(0.22) : Theme.ink.opacity(0.08), lineWidth: 1))
+            .padding(20)
+            // фон всегда белый — краснеют только кольцо, тонкая рамка и подсказка
+            .background(RoundedRectangle(cornerRadius: 22).fill(.white).shadow(color: Theme.ink.opacity(0.06), radius: 18, y: 8))
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(hot ? PayClock.red.opacity(0.35) : Theme.ink.opacity(0.07), lineWidth: hot ? 1.2 : 1))
             .animation(.easeInOut(duration: 0.4), value: hot)
             .onChange(of: left <= -75) { gone in if gone && !fired { fired = true; onExpire() } }   // сервер ждёт ЮKassa минуту и отменяет — обновим заказ
         }
@@ -72,7 +76,7 @@ struct PayRing: View {
     }
 }
 
-/// «Проверьте перед оплатой»: что в заказе, куда везём и кто получает — чтобы не платить за ошибку
+/// «Проверьте перед оплатой»: что в заказе, куда везём и кто получает — список с тонкими линиями, без серой подложки
 struct PayCheckList: View {
     let order: Order
     var body: some View {
@@ -80,24 +84,27 @@ struct PayCheckList: View {
         let where_ = [order.city, order.address].filter { !$0.isEmpty }.joined(separator: ", ")
         let names = order.items.reduce(into: [String]()) { if !$0.contains($1.name) { $0.append($1.name) } }
         let grouped = names.map { n in n + " · " + order.items.filter { $0.name == n }.map(\.size).joined(separator: ", ") }.joined(separator: "; ")
-        VStack(alignment: .leading, spacing: 10) {
-            Text("ПРОВЕРЬТЕ ПЕРЕД ОПЛАТОЙ").font(Theme.font(10.5, .medium)).kerning(1.1).foregroundStyle(Theme.muted)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("ПРОВЕРЬТЕ ПЕРЕД ОПЛАТОЙ").font(Theme.font(10.5, .medium)).kerning(1.1).foregroundStyle(Theme.dim).padding(.bottom, 4)
             row("bag", "\(n) \(Fmt.plural(n, "вещь", "вещи", "вещей")) · \(Fmt.rub(order.total))", grouped)
+            Divider().padding(.leading, 46)
             row("shippingbox", order.deliveryName.isEmpty ? "Доставка" : order.deliveryName, where_)
+            Divider().padding(.leading, 46)
             row("person", order.customerName, Fmt.phone(order.phone))
         }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+        .padding(.top, 14)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.ink.opacity(0.07)).frame(height: 1) }
     }
     private func row(_ icon: String, _ title: String, _ sub: String) -> some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: icon).font(.system(size: 13.5, weight: .regular)).foregroundStyle(Theme.text).frame(width: 30, height: 30).background(Circle().fill(.white))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(Theme.font(14, .medium)).lineLimit(1)
-                if !sub.isEmpty { Text(sub).font(Theme.font(12.5)).foregroundStyle(Theme.muted).lineLimit(2) }
-            }
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon).font(.system(size: 14, weight: .light)).foregroundStyle(Theme.text)
+                .frame(width: 34, height: 34).background(Circle().fill(Theme.surface))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Theme.font(14.5, .medium)).lineLimit(1)
+                if !sub.isEmpty { Text(sub).font(Theme.font(12.5)).foregroundStyle(Theme.muted).lineLimit(2).fixedSize(horizontal: false, vertical: true) }
+            }.padding(.top, 1)
             Spacer(minLength: 0)
-        }
+        }.padding(.vertical, 10)
     }
 }
 
