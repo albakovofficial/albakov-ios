@@ -169,6 +169,52 @@ struct PayExpiredCard: View {
     }
 }
 
+/// Оплата пришла после отмены по времени, а вещи уже купили — деньги вернёт магазин (кнопкой в панели)
+struct PaidLateCard: View {
+    let order: Order
+    @EnvironmentObject private var router: Router
+    var body: some View {
+        let refunded = order.payStatus == "refunded"
+        let gone = order.items.filter { it in order.resumeMissing.contains([it.name, it.color, it.size].filter { !$0.isEmpty }.joined(separator: " · ")) }
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "creditcard").font(.system(size: 18, weight: .light)).foregroundStyle(Theme.muted)
+                    .frame(width: 44, height: 44).background(Circle().fill(Theme.surface))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(refunded ? "Деньги вернули" : "Оплата пришла после отмены").font(Theme.font(17, .medium))
+                    Text("Заказ № \(order.number) отменён").font(Theme.font(13)).foregroundStyle(Theme.muted)
+                }
+            }
+            if !gone.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("УЖЕ КУПИЛИ").font(Theme.font(10.5, .medium)).kerning(1.1).foregroundStyle(Theme.dim)
+                    ForEach(Array(gone.enumerated()), id: \.offset) { _, it in
+                        HStack(spacing: 12) {
+                            ProductImage(path: it.image, kind: it.artKind, tone: it.artTone)
+                                .frame(width: 44, height: 58).background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 10))
+                                .saturation(0).opacity(0.5)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(it.name).font(Theme.font(14.5)).foregroundStyle(Theme.muted).lineLimit(1)
+                                Text(it.meta).font(Theme.font(12)).foregroundStyle(Theme.muted).lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+                .padding(.top, 14)
+                .overlay(alignment: .top) { Rectangle().fill(Theme.ink.opacity(0.07)).frame(height: 1) }
+            }
+            Text(refunded ? "Деньги ушли на карту, с которой вы платили. Банк зачисляет их от нескольких минут до нескольких дней."
+                          : "Пока шла оплата, эти вещи успели купить. Мы вернём \(Fmt.rub(order.total)) на карту, с которой вы платили, — напишем, когда деньги уйдут.")
+                .font(Theme.font(13)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true)
+            GhostButton(title: "Написать в поддержку") { router.push(.support, on: .account) }
+        }
+        .padding(20)
+        .background(RoundedRectangle(cornerRadius: 22).fill(.white).shadow(color: Theme.ink.opacity(0.06), radius: 18, y: 8))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.ink.opacity(0.07), lineWidth: 1))
+    }
+}
+
 /// Фото вещей стопкой; без фото — рисунок вещи
 struct OrderThumbs: View {
     let items: [OrderItem]

@@ -149,11 +149,21 @@ final class Shop: ObservableObject {
     }
     /// Сами возвращаем в корзину один раз на заказ — если покупатель потом уберёт вещи, снова не подкладываем
     func returnExpired(_ o: Order) {
-        guard o.payExpired else { return }
-        var done = Set(UserDefaults.standard.stringArray(forKey: "expiredBack2") ?? [])
-        guard !done.contains(o.id) else { return }
+        let d = UserDefaults.standard
+        var done = Set(d.stringArray(forKey: "expiredBack2") ?? []), undone = Set(d.stringArray(forKey: "expiredUndo") ?? [])
+        // Оплата пришла чуть позже срока и заказ возобновился — убираем из корзины то, что туда вернули, чтобы не купить второй раз
+        if !o.payExpired && o.status != "canceled" && done.contains(o.id) && !undone.contains(o.id) {
+            for it in o.items {
+                if let i = cart.firstIndex(where: { $0.productId == it.productId && $0.colorId == it.colorId && $0.size == it.size }) {
+                    let q = cart[i].qty - it.qty
+                    if q > 0 { cart[i].qty = q } else { cart.remove(at: i) }
+                }
+            }
+            undone.insert(o.id); d.set(Array(undone.suffix(200)), forKey: "expiredUndo"); return
+        }
+        guard o.payExpired, !o.paidLate, !done.contains(o.id) else { return }
         ensureInCart(o)
-        done.insert(o.id); UserDefaults.standard.set(Array(done.suffix(200)), forKey: "expiredBack2")
+        done.insert(o.id); d.set(Array(done.suffix(200)), forKey: "expiredBack2")
     }
 
     private func saveCart() {

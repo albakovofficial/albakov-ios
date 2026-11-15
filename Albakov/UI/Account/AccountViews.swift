@@ -395,7 +395,8 @@ struct OrderView: View {
                     }
                     // Оплата онлайн не прошла (окно закрыли, связь пропала) — оплатить можно отсюда, как на сайте (1.0.2)
                     // 1.0.3: 15 минут на оплату с обратным отсчётом; вышло — «Оформить заново»
-                    if o.payExpired { PayExpiredCard(order: o) }
+                    if o.paidLate { PaidLateCard(order: o) }
+                    else if o.payExpired { PayExpiredCard(order: o) }
                     else if o.awaitingPay, let u = URL(string: o.payUrl) {
                         if o.payBy != nil { PayTimerCard(order: o, onPay: { payURL = u }, onExpire: { Task { await load() } }) }
                         else {
@@ -461,7 +462,7 @@ struct OrderView: View {
         }
     }
     private func load() async {
-        do { order = Order(try await API.shared.json("GET", "orders/\(id)", query: OrderTokens.all[id].map { ["t": $0] } ?? [:])["order"]); error = nil }
+        do { order = Order(try await API.shared.json("GET", "orders/\(id)", query: OrderTokens.all[id].map { ["t": $0] } ?? [:])["order"]); error = nil; if let o = order { shop.returnExpired(o) } }
         catch { self.error = error.userMessage }
     }
     private func info(_ t: String, _ v: String) -> some View {

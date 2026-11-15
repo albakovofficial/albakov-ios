@@ -263,6 +263,8 @@ struct Order: Identifiable, Hashable {
     let payMethod: String, payStatus: String, payUrl: String
     /// Срок оплаты (1.0.3): 15 минут с оформления; вышел — заказ отменён, вещи вернулись в продажу
     let payBy: Date?, payExpired: Bool
+    /// Оплата пришла после отмены по времени, а вещи уже купили — деньги вернёт магазин; resumeMissing — что именно купили
+    let paidAfterCancel: Bool, resumeMissing: [String]
     let customerName: String, phone: String, email: String, comment: String
     let trackNumber: String, trackURL: String, cdekStatus: String
     let requestOk: Bool, requestWhy: String
@@ -280,6 +282,7 @@ struct Order: Identifiable, Hashable {
         deliveryName = d["name"].str; deliveryPrice = d["price"].int ?? 0; city = d["city"].str; address = d["address"].str
         payMethod = j["payment"]["method"].str; payStatus = j["payment"]["status"].str; payUrl = j["payUrl"].str
         payBy = ISO.date(j["payBy"].str); payExpired = j["payExpired"].bool
+        paidAfterCancel = j["paidAfterCancel"].bool; resumeMissing = j["resumeMissing"].array.map { $0.str }
         let c = j["customer"]
         customerName = [c["firstName"].str, c["lastName"].str].filter { !$0.isEmpty }.joined(separator: " ")
         phone = c["phone"].str; email = c["email"].str; comment = j["comment"].str
@@ -311,6 +314,8 @@ struct Order: Identifiable, Hashable {
     }
     var paid: Bool { payStatus == "paid" }
     /// Онлайн-оплата ещё не прошла и её можно продолжить (1.0.2): ссылка ЮKassa сохранена в заказе
+    /// Время вышло, но деньги пришли — в корзину не возвращаем, показываем «Оплата пришла после отмены»
+    var paidLate: Bool { payExpired && (paidAfterCancel || payStatus == "paid" || payStatus == "refunded") }
     var awaitingPay: Bool { payMethod == "online" && payStatus == "pending" && status != "canceled" && !payUrl.isEmpty }
     /// Секунд до конца срока оплаты по часам сервера (skew = серверное время − время телефона)
     func payLeft(at now: Date, skew: TimeInterval) -> TimeInterval { guard let payBy else { return .infinity }; return payBy.timeIntervalSince(now.addingTimeInterval(skew)) }
