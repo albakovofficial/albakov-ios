@@ -319,9 +319,12 @@ struct Order: Identifiable, Hashable {
 struct OrderItem: Hashable {
     let productId: String, slug: String, name: String, colorId: String, color: String, size: String, qty: Int, price: Int, image: String
     let sku: String, artKind: String, artTone: String
+    /// Время на оплату вышло: сколько этой вещи в наличии прямо сейчас (с сервера; nil — сервер не прислал)
+    let stockNow: Int?
     init(_ j: JSON) {
         productId = j["productId"].str; slug = j["slug"].str; name = j["name"].str; colorId = j["colorId"].str; color = j["color"].str
         size = j["size"].str; qty = j["qty"].int ?? 1; price = j["price"].int ?? 0; image = j["image"].str
+        stockNow = j["stockNow"].int
         sku = j["sku"].str; artKind = j["art"]["kind"].string ?? "tee"; artTone = j["art"]["tone"].string ?? "#3a3632"
     }
     /// «Молочный · XS · 1 шт. · арт. ALB-0010»

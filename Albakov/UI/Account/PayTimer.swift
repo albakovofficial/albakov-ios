@@ -108,31 +108,64 @@ struct PayCheckList: View {
     }
 }
 
-/// Время вышло: заказ отменён, вещи сами возвращаются в корзину (один раз, без задвоения) — остаётся оформить заново
+/// Время вышло: заказ отменён, вещи в наличии уже в корзине — «Перейти в корзину»; если всё разобрали — «В каталог»
 struct PayExpiredCard: View {
     let order: Order
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
     var body: some View {
-        let back = order.items.filter { it in shop.cart.contains { $0.productId == it.productId && $0.colorId == it.colorId && $0.size == it.size } }.count
-        VStack(alignment: .leading, spacing: 12) {
+        let back = order.items.filter { shop.expiredAvailable($0) > 0 }
+        let gone = order.items.filter { shop.expiredAvailable($0) <= 0 }
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
-                Image(systemName: "clock.badge.xmark").font(.system(size: 20, weight: .light)).foregroundStyle(Theme.muted)
-                    .frame(width: 42, height: 42).background(Circle().fill(Theme.surface))
+                Image(systemName: "clock").font(.system(size: 18, weight: .light)).foregroundStyle(Theme.muted)
+                    .frame(width: 44, height: 44).background(Circle().fill(Theme.surface))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Время на оплату вышло").font(Theme.font(17, .medium))
                     Text("Заказ № \(order.number) отменён").font(Theme.font(13)).foregroundStyle(Theme.muted)
                 }
             }
-            Text(back == 0 ? "Эти вещи уже разобрали — загляните в каталог, там много нового." :
-                 back < order.items.count ? "Вещи, которые ещё в наличии, вернулись в вашу корзину. Остальные уже разобрали." :
-                 "Вещи вернулись в вашу корзину — оформите заказ заново, пока они в наличии.")
-                .font(Theme.font(13.5)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true)
-            if back > 0 { PrimaryButton(title: "Перейти в корзину") { router.reset(.cart) } }
-            else { GhostButton(title: "В каталог") { router.reset(.catalog) } }
+            VStack(alignment: .leading, spacing: 12) {
+                if !back.isEmpty {
+                    group(back, cap: "СНОВА В ВАШЕЙ КОРЗИНЕ", badge: "checkmark", tone: Theme.ok, dim: false)
+                }
+                if !gone.isEmpty {
+                    if !back.isEmpty { Divider() }
+                    group(gone, cap: "УЖЕ РАЗОБРАЛИ", badge: "xmark", tone: Theme.dim, dim: true)
+                }
+            }
+            .padding(.top, 14)
+            .overlay(alignment: .top) { Rectangle().fill(Theme.ink.opacity(0.07)).frame(height: 1) }
+            Text(back.isEmpty ? "Загляните в каталог — там много нового, а этих размеров может появиться ещё." : "Успейте оформить заново, пока вещи в наличии.")
+                .font(Theme.font(13)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true)
+            if back.isEmpty { PrimaryButton(title: "В каталог") { router.reset(.catalog) } }
+            else { PrimaryButton(title: "Перейти в корзину") { shop.ensureInCart(order); router.reset(.cart) } }
         }
-        .padding(18).softCard(20)
+        .padding(20)
+        .background(RoundedRectangle(cornerRadius: 22).fill(.white).shadow(color: Theme.ink.opacity(0.06), radius: 18, y: 8))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.ink.opacity(0.07), lineWidth: 1))
         .onAppear { shop.returnExpired(order) }
+    }
+    private func group(_ items: [OrderItem], cap: String, badge: String, tone: Color, dim: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(cap).font(Theme.font(10.5, .medium)).kerning(1.1).foregroundStyle(Theme.dim)
+            ForEach(Array(items.enumerated()), id: \.offset) { _, it in
+                HStack(spacing: 12) {
+                    ProductImage(path: it.image, kind: it.artKind, tone: it.artTone)
+                        .frame(width: 44, height: 58).background(Theme.photo).clipShape(RoundedRectangle(cornerRadius: 10))
+                        .saturation(dim ? 0 : 1).opacity(dim ? 0.5 : 1)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: badge).font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
+                                .frame(width: 18, height: 18).background(Circle().fill(tone)).overlay(Circle().strokeBorder(.white, lineWidth: 1.5)).offset(x: 5, y: 5)
+                        }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(it.name).font(Theme.font(14.5)).foregroundStyle(dim ? Theme.muted : Theme.text).lineLimit(1)
+                        Text(it.meta).font(Theme.font(12)).foregroundStyle(Theme.muted).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
     }
 }
 
