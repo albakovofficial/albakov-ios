@@ -257,6 +257,8 @@ struct CartLine: Codable, Hashable, Identifiable {
 // Заказ — как его видит покупатель (и, с заметками и историей, панель)
 struct Order: Identifiable, Hashable {
     let id: String, number: String, createdAt: Date?, status: String
+    /// "gift" — заказ подарочного сертификата
+    let kind: String
     let items: [OrderItem]
     let subtotal: Int, total: Int, saleDiscount: Int, promoDiscount: Int, promoCode: String, bonusUsed: Int, giftUsed: Int, bonusEarn: Int
     let deliveryName: String, deliveryPrice: Int, city: String, address: String
@@ -282,6 +284,7 @@ struct Order: Identifiable, Hashable {
         deliveryName = d["name"].str; deliveryPrice = d["price"].int ?? 0; city = d["city"].str; address = d["address"].str
         payMethod = j["payment"]["method"].str; payStatus = j["payment"]["status"].str; payUrl = j["payUrl"].str
         payBy = ISO.date(j["payBy"].str); payExpired = j["payExpired"].bool
+        kind = j["kind"].string ?? "order"
         paidAfterCancel = j["paidAfterCancel"].bool; resumeMissing = j["resumeMissing"].array.map { $0.str }
         let c = j["customer"]
         customerName = [c["firstName"].str, c["lastName"].str].filter { !$0.isEmpty }.joined(separator: " ")

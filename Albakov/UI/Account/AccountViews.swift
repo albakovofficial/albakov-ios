@@ -396,6 +396,7 @@ struct OrderView: View {
                     // Оплата онлайн не прошла (окно закрыли, связь пропала) — оплатить можно отсюда, как на сайте (1.0.2)
                     // 1.0.3: 15 минут на оплату с обратным отсчётом; вышло — «Оформить заново»
                     if o.paidLate { PaidLateCard(order: o) }
+                    else if o.payExpired && o.kind == "gift" { GiftExpiredCard(order: o) }
                     else if o.payExpired { PayExpiredCard(order: o) }
                     else if o.awaitingPay, let u = URL(string: o.payUrl) {
                         if o.payBy != nil { PayTimerCard(order: o, onPay: { payURL = u }, onExpire: { Task { await load() } }) }
@@ -450,7 +451,7 @@ struct OrderView: View {
                     }
                     if shop.user != nil { GhostButton(title: "Вопрос по заказу", icon: "bubble.left") { router.push(.support, on: .account) } }
                 }.padding(Theme.gutter)
-            } else if let error { EmptyState(icon: "exclamationmark.triangle", title: "Не удалось открыть заказ", text: error) }
+            } else if let error { EmptyState(icon: "exclamationmark.triangle", title: "Не удалось открыть заказ", text: error, button: "Повторить") { self.error = nil; Task { await load() } } }
             else { ProgressView().padding(.top, 80) }
         }
         .navigationTitle(order.map { "№ \($0.number)" } ?? "Заказ").navigationBarTitleDisplayMode(.inline)
@@ -463,7 +464,8 @@ struct OrderView: View {
     }
     private func load() async {
         do { order = Order(try await API.shared.json("GET", "orders/\(id)", query: OrderTokens.all[id].map { ["t": $0] } ?? [:])["order"]); error = nil; if let o = order { shop.returnExpired(o) } }
-        catch { self.error = error.userMessage }
+        // запрос прервали (свайп обновления, уход с экрана) — без заказа не крутим загрузку бесконечно, а предлагаем повторить
+        catch { self.error = error.userMessage ?? (order == nil ? "Проверьте интернет и попробуйте ещё раз" : nil) }
     }
     private func info(_ t: String, _ v: String) -> some View {
         VStack(alignment: .leading, spacing: 6) { Text(t).font(Theme.font(12.5)).foregroundStyle(Theme.muted); Text(v).font(Theme.font(14.5)) }.frame(maxWidth: .infinity, alignment: .leading)

@@ -169,6 +169,30 @@ struct PayExpiredCard: View {
     }
 }
 
+/// Сертификат не оплатили вовремя: деньги не списаны — оформить заново (аудит M-1)
+struct GiftExpiredCard: View {
+    let order: Order
+    @EnvironmentObject private var router: Router
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "gift").font(.system(size: 18, weight: .light)).foregroundStyle(Theme.muted)
+                    .frame(width: 44, height: 44).background(Circle().fill(Theme.surface))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Сертификат не оплачен").font(Theme.font(17, .medium))
+                    Text("Заказ № \(order.number) отменён").font(Theme.font(13)).foregroundStyle(Theme.muted)
+                }
+            }
+            Text("Время на оплату вышло, деньги не списаны. Оформите сертификат заново — это займёт минуту.")
+                .font(Theme.font(13)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true)
+            PrimaryButton(title: "Оформить заново") { router.push(.gift, on: .account) }
+        }
+        .padding(20)
+        .background(RoundedRectangle(cornerRadius: 22).fill(.white).shadow(color: Theme.ink.opacity(0.06), radius: 18, y: 8))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.ink.opacity(0.07), lineWidth: 1))
+    }
+}
+
 /// Оплата пришла после отмены по времени, а вещи уже купили — деньги вернёт магазин (кнопкой в панели)
 struct PaidLateCard: View {
     let order: Order

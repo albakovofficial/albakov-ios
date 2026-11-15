@@ -161,7 +161,7 @@ final class Shop: ObservableObject {
             }
             undone.insert(o.id); d.set(Array(undone.suffix(200)), forKey: "expiredUndo"); return
         }
-        guard o.payExpired, !o.paidLate, !done.contains(o.id) else { return }
+        guard o.payExpired, !o.paidLate, o.kind != "gift", !done.contains(o.id) else { return }
         ensureInCart(o)
         done.insert(o.id); d.set(Array(done.suffix(200)), forKey: "expiredBack2")
     }
