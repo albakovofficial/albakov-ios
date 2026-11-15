@@ -14,7 +14,7 @@ enum PayClock {
     static func open(_ o: Order, _ now: Date) -> Bool { o.awaitingPay && o.payBy != nil && left(o, now) > 0 }
 }
 
-/// Карточка на странице заказа: «Заказ ждёт оплаты» + 14:32 + полоса в цвете раздела
+/// Карточка на странице заказа: «Заказ ждёт оплаты» + 08:35 + полоса, «Проверьте заказ» и «Оплатить»
 struct PayTimerCard: View {
     let order: Order
     let onPay: () -> Void
@@ -43,7 +43,8 @@ struct PayTimerCard: View {
                         Capsule().fill(tone).frame(width: g.size.width * max(0, min(1, left / PayClock.window)))
                     }
                 }.frame(height: 5)
-                Text(left <= 0 ? "Время вышло — проверяем, не прошла ли оплата…" : hot ? "Меньше 5 минут — потом заказ отменится, а вещи вернутся в продажу" : "Если не оплатить, заказ отменится, а вещи вернутся в продажу")
+                PayCheckList(order: order)
+                Text(left <= 0 ? "Время вышло — проверяем, не прошла ли оплата…" : hot ? "Меньше 5 минут — потом заказ отменится, а вещи вернутся в корзину" : "Не успеете — заказ отменится, а вещи вернутся в вашу корзину")
                     .font(Theme.font(12.5)).foregroundStyle(hot ? tone : Theme.muted).fixedSize(horizontal: false, vertical: true)
                 if left > 0 { PrimaryButton(title: "Оплатить · \(Fmt.rub(order.total))", action: onPay) }
             }
@@ -56,34 +57,60 @@ struct PayTimerCard: View {
     }
 }
 
-/// Время вышло: заказ отменён, «Оформить заново» кладёт вещи обратно в корзину
+/// «Проверьте перед оплатой»: что в заказе, куда везём и кто получает — чтобы не платить за ошибку
+struct PayCheckList: View {
+    let order: Order
+    var body: some View {
+        let n = order.items.reduce(0) { $0 + $1.qty }
+        let where_ = [order.city, order.address].filter { !$0.isEmpty }.joined(separator: ", ")
+        let names = order.items.reduce(into: [String]()) { if !$0.contains($1.name) { $0.append($1.name) } }
+        let grouped = names.map { n in n + " · " + order.items.filter { $0.name == n }.map(\.size).joined(separator: ", ") }.joined(separator: "; ")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ПРОВЕРЬТЕ ПЕРЕД ОПЛАТОЙ").font(Theme.font(10.5, .medium)).kerning(1.1).foregroundStyle(Theme.muted)
+            row("bag", "\(n) \(Fmt.plural(n, "вещь", "вещи", "вещей")) · \(Fmt.rub(order.total))", grouped)
+            row("shippingbox", order.deliveryName.isEmpty ? "Доставка" : order.deliveryName, where_)
+            row("person", order.customerName, Fmt.phone(order.phone))
+        }
+        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+    }
+    private func row(_ icon: String, _ title: String, _ sub: String) -> some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: icon).font(.system(size: 13.5, weight: .regular)).foregroundStyle(Theme.text).frame(width: 30, height: 30).background(Circle().fill(.white))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(Theme.font(14, .medium)).lineLimit(1)
+                if !sub.isEmpty { Text(sub).font(Theme.font(12.5)).foregroundStyle(Theme.muted).lineLimit(2) }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// Время вышло: заказ отменён, вещи сами возвращаются в корзину (один раз, без задвоения) — остаётся оформить заново
 struct PayExpiredCard: View {
     let order: Order
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
     var body: some View {
+        let back = order.items.filter { it in shop.cart.contains { $0.productId == it.productId && $0.colorId == it.colorId && $0.size == it.size } }.count
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "clock.badge.xmark").font(.system(size: 20, weight: .light)).foregroundStyle(Theme.muted)
                     .frame(width: 42, height: 42).background(Circle().fill(Theme.surface))
-                Text("Время на оплату вышло").font(Theme.font(17, .medium))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Время на оплату вышло").font(Theme.font(17, .medium))
+                    Text("Заказ № \(order.number) отменён").font(Theme.font(13)).foregroundStyle(Theme.muted)
+                }
             }
-            Text("Заказ отменён, вещи вернулись в продажу. Оформите заново — если они ещё в наличии, они сразу окажутся в корзине.")
+            Text(back == 0 ? "Эти вещи уже разобрали — загляните в каталог, там много нового." :
+                 back < order.items.count ? "Вещи, которые ещё в наличии, вернулись в вашу корзину. Остальные уже разобрали." :
+                 "Вещи вернулись в вашу корзину — оформите заказ заново, пока они в наличии.")
                 .font(Theme.font(13.5)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true)
-            PrimaryButton(title: "Оформить заново") { again() }
-        }.padding(18).softCard(20)
-    }
-    private func again() {
-        var n = 0
-        for it in order.items {
-            guard let p = shop.products.first(where: { $0.id == it.productId && $0.active }),
-                  let c = p.colors.first(where: { $0.id == it.colorId }),
-                  let z = c.sizes.first(where: { $0.size == it.size }), z.stock > 0 else { continue }
-            shop.add(p, color: c.id, size: it.size, qty: min(it.qty, z.stock)); n += 1
+            if back > 0 { PrimaryButton(title: "Перейти в корзину") { router.reset(.cart) } }
+            else { GhostButton(title: "В каталог") { router.reset(.catalog) } }
         }
-        if n == 0 { Toast.shared.show("Эти вещи уже закончились"); return }
-        Toast.shared.show(n < order.items.count ? "Часть вещей уже закончилась — остальные в корзине" : "Вещи снова в корзине")
-        router.reset(.cart)
+        .padding(18).softCard(20)
+        .onAppear { shop.returnExpired(order) }
     }
 }
 

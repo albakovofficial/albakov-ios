@@ -133,6 +133,21 @@ final class Shop: ObservableObject {
         if qty <= 0 { cart.remove(at: i) } else { cart[i].qty = min(qty, 20) }
     }
     func clearCart() { cart = [] }
+    /// Время на оплату вышло (1.0.3): вещи заказа, которые ещё в наличии, возвращаются в корзину.
+    /// Один раз на заказ и без задвоения — если такая строка уже есть, доводим количество, а не прибавляем.
+    func returnExpired(_ o: Order) {
+        guard o.payExpired else { return }
+        var done = Set(UserDefaults.standard.stringArray(forKey: "expiredReturned") ?? [])
+        guard !done.contains(o.id) else { return }
+        for it in o.items {
+            guard let p = product(it.productId), p.active, let c = p.colors.first(where: { $0.id == it.colorId }),
+                  let z = c.sizes.first(where: { $0.size == it.size }), z.stock > 0 else { continue }
+            let want = min(it.qty, z.stock)
+            if let i = cart.firstIndex(where: { $0.productId == p.id && $0.colorId == c.id && $0.size == it.size }) { cart[i].qty = max(cart[i].qty, want) }
+            else { cart.append(CartLine(productId: p.id, colorId: c.id, size: it.size, qty: want)) }
+        }
+        done.insert(o.id); UserDefaults.standard.set(Array(done.suffix(200)), forKey: "expiredReturned")
+    }
 
     private func saveCart() {
         if let d = try? JSONEncoder().encode(cart) { UserDefaults.standard.set(d, forKey: "cart") }

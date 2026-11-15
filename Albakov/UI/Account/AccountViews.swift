@@ -154,7 +154,7 @@ struct AccountView: View {
     }
     private func load() async {
         await shop.refreshUser()
-        if let r = try? await API.shared.json("GET", "orders") { orders = r["orders"].array.map(Order.init) }
+        if let r = try? await API.shared.json("GET", "orders") { orders = r["orders"].array.map(Order.init); orders.forEach { shop.returnExpired($0) } }
         if let r = try? await API.shared.json("GET", "me") { bonusLog = r["bonusLog"].array }
     }
 }
@@ -311,6 +311,7 @@ struct OrdersView: View {
                 for (id, t) in OrderTokens.all { if let j = try? await API.shared.json("GET", "orders/\(id)", query: ["t": t]) { list.append(Order(j["order"])) } }
                 orders = list.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
             }
+            orders.forEach { shop.returnExpired($0) }   // время на оплату вышло — вещи снова в корзине
             error = nil
         } catch { self.error = error.localizedDescription }
         loading = false

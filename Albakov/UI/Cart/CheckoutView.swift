@@ -41,6 +41,13 @@ struct CheckoutView: View {
     @AppStorage("checkoutNonce") private var nonce = UUID().uuidString
 
     private var method: DeliveryMethod? { shop.settings.delivery.first { $0.id == deliveryId } }
+    /// Доставка заполнена: для СДЭК — город и пункт (или адрес для курьера), для своей доставки — город и адрес
+    private var deliveryDone: Bool {
+        guard let m = method else { return false }
+        if (m.isPvz || m.isDoor) && shop.cdekReady { return city != nil && (m.isPvz ? point != nil : !address.trimmingCharacters(in: .whitespaces).isEmpty) }
+        if m.needsAddress { return !cityText.trimmingCharacters(in: .whitespaces).isEmpty && !address.trimmingCharacters(in: .whitespaces).isEmpty }
+        return true
+    }
     private var onlineOk: Bool { shop.settings.payOnline && shop.payReady }
 
     private var lines: [CartLine] { shop.buyNow ?? shop.cart }
@@ -64,7 +71,7 @@ struct CheckoutView: View {
                     Field(label: "Телефон", text: $phone, placeholder: "+7 (___) ___-__-__", keyboard: .phonePad, content: .telephoneNumber)
                     Field(label: "Электронная почта", text: $email, placeholder: "mail@example.ru", keyboard: .emailAddress, content: .emailAddress, capitalization: .never)
                 }
-                step(2, "Доставка", "Выберите способ и укажите, куда привезти", done: method != nil && (city != nil || !cityText.isEmpty || !(method?.needsAddress ?? true))) {
+                step(2, "Доставка", "Выберите способ и укажите, куда привезти", done: deliveryDone) {
                     ForEach(shop.settings.delivery) { m in
                         Option(selected: deliveryId == m.id, title: m.name, sub: m.desc, trailing: deliveryPrice(m), icon: m.isPvz || m.isDoor ? "delivery" : m.needsAddress ? "delivery" : "pin") { deliveryId = m.id; point = nil }
                     }
@@ -116,6 +123,7 @@ struct CheckoutView: View {
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
         .onAppear(perform: prefill)
+        .onChange(of: draftKey) { _ in saveDraft() }   // вышли с оформления случайно — всё заполненное на месте
         .onDisappear { if placed == nil && ![router.home, router.catalog, router.favorites, router.cart, router.account].contains(where: { $0.contains(.checkout) }) { shop.buyNow = nil } }
         .task(id: quoteKey) { await recalc() }
         .sheet(isPresented: $ageAsk) { AgeCheckSheet(step: $ageStep) { Task { await place() } } }
@@ -182,9 +190,9 @@ struct CheckoutView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
-                    if done && n == 3 { Circle().fill(Theme.ok); Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white) }
+                    if done { Circle().fill(Theme.ok); Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).transition(.scale.combined(with: .opacity)) }
                     else { Circle().strokeBorder(Theme.lineStrong); Text("\(n)").font(Theme.font(14)) }
-                }.frame(width: 34, height: 34).padding(.top, 4)
+                }.frame(width: 34, height: 34).padding(.top, 4).animation(.spring(response: 0.35, dampingFraction: 0.7), value: done)
                 VStack(alignment: .leading, spacing: 4) { Text(title).font(Theme.font(23, .light)); Text(hint).font(Theme.font(13.5)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true) }
             }
             c()
@@ -275,9 +283,34 @@ struct CheckoutView: View {
 
     // MARK: Логика
     private func prefill() {
+        restoreDraft()
         if let u = shop.user, firstName.isEmpty { firstName = u.firstName; lastName = u.lastName; phone = Fmt.phone(u.phone); email = u.email }
         if deliveryId.isEmpty { deliveryId = shop.settings.delivery.first?.id ?? "" }
         if !onlineOk { payment = "cod" }
+    }
+    // MARK: Черновик оформления (1.0.3): покупатель, доставка, город, пункт, адрес и комментарий
+    private static let draftStore = "checkoutDraft"
+    private var draftKey: String { [firstName, lastName, phone, email, deliveryId, String(city?.code ?? 0), point?.code ?? "", cityText, address, comment, payment].joined(separator: "\u{1}") }
+    private func saveDraft() {
+        var d: [String: Any] = ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email, "deliveryId": deliveryId,
+                                "cityText": cityText, "address": address, "comment": comment, "payment": payment]
+        if let c = city { d["city"] = ["code": c.code, "city": c.city, "region": c.region] }
+        if let p = point { d["point"] = ["code": p.code, "type": p.type, "address": p.address, "hours": p.hours, "metro": p.metro, "cod": p.cod] }
+        UserDefaults.standard.set(d, forKey: Self.draftStore)
+    }
+    private func restoreDraft() {
+        guard let d = UserDefaults.standard.dictionary(forKey: Self.draftStore) else { return }
+        func str(_ k: String) -> String { d[k] as? String ?? "" }
+        if firstName.isEmpty && lastName.isEmpty && phone.isEmpty && email.isEmpty { firstName = str("firstName"); lastName = str("lastName"); phone = str("phone"); email = str("email") }
+        if deliveryId.isEmpty, shop.settings.delivery.contains(where: { $0.id == str("deliveryId") }) { deliveryId = str("deliveryId") }
+        if city == nil, let c = d["city"] as? [String: Any], let code = c["code"] as? Int { city = CdekCity(code: code, city: c["city"] as? String ?? "", region: c["region"] as? String ?? "") }
+        if point == nil, let p = d["point"] as? [String: Any], let code = p["code"] as? String {
+            point = CdekPoint(code: code, type: p["type"] as? String ?? "", address: p["address"] as? String ?? "", hours: p["hours"] as? String ?? "", metro: p["metro"] as? String ?? "", cod: p["cod"] as? Bool ?? false)
+        }
+        if cityText.isEmpty { cityText = str("cityText") }
+        if address.isEmpty { address = str("address") }
+        if comment.isEmpty { comment = str("comment") }
+        if ["online", "cod"].contains(str("payment")) { payment = str("payment") }
     }
     private var quoteKey: String { [deliveryId, appliedCode, appliedGift, String(useBonus), payment, String(city?.code ?? 0), point?.type ?? "", String(lines.count), String(lines.reduce(0) { $0 + $1.qty })].joined(separator: "|") }
     private var body0: [String: Any] {
@@ -312,6 +345,7 @@ struct CheckoutView: View {
         do {
             let r = try await API.shared.json("POST", "orders", body: b)
             nonce = UUID().uuidString   // заказ оформлен: следующий будет новым
+            comment = ""; saveDraft()     // доставку и контакты помним для следующего заказа, комментарий — нет
             let id = r["order"]["id"].str, token = r["token"].str
             OrderTokens.save(id, token)
             placed = (id, token)
