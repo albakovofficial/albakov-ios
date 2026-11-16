@@ -157,11 +157,12 @@ final class AuditUITests: XCTestCase {
             let login = app.textFields.firstMatch
             login.tap(); login.typeText("owner-audit@example.com")
             pw.tap(); pw.typeText("ownerpass1")
-            app.navigationBars.firstMatch.tap()
-            tap("Войти"); sleep(5)
+            tap("Войти"); sleep(5)   // у экрана входа нет панели навигации — клавиатуру не прячем, «Войти» ищем прокруткой
         }
         shot("вход владельца")
     }
+    /// Спрятать клавиатуру: тап по заголовку экрана, если он есть
+    func hideKeyboard() { let nb = app.navigationBars.firstMatch; if nb.exists && nb.isHittable { nb.tap() } }
     /// Последняя кнопка из подходящих по подписи (нижняя строка списка)
     func lastButton(_ labels: [String]) -> XCUIElement {
         let q = app.buttons.matching(NSPredicate(format: "label IN %@", labels))
@@ -432,7 +433,7 @@ final class AuditUITests: XCTestCase {
             // правка соседней (теперь последней) строки
             let n = app.textFields
             let g = n.element(boundBy: n.count - 1); scrollTo(g)
-            if g.exists { g.tap(); g.typeText("!"); app.navigationBars.firstMatch.tap() }
+            if g.exists { g.tap(); g.typeText("!"); hideKeyboard() }
             sleep(1)
             shot("11.\(round) после удаления и правки соседней строки")
             XCTAssertEqual(app.state, .runningForeground, "Панель закрылась при правке соседней строки (круг \(round))")
@@ -468,7 +469,7 @@ final class AuditUITests: XCTestCase {
             let ws = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "0"))
             let w = ws.element(boundBy: ws.count - 1)
             if w.exists { scrollTo(w); w.tap(); w.typeText("5") }
-            app.navigationBars.firstMatch.tap(); sleep(1)
+            hideKeyboard(); sleep(1)
             shot("12.\(round) после удаления и правки соседней упаковки")
             XCTAssertEqual(app.state, .runningForeground, "Панель закрылась при правке соседней упаковки (круг \(round))")
         }
