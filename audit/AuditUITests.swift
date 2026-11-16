@@ -489,6 +489,8 @@ final class AuditUITests: XCTestCase {
         shot("13 окно выбора фото")
         // системное окно выбора: последние 5 снимков — те, что audit.yml добавил в «Фото» симулятора
         let cells = app.images.matching(NSPredicate(format: "label CONTAINS[c] 'фото' OR label CONTAINS[c] 'photo' OR label CONTAINS[c] 'изображ'"))
+        var w = 0
+        while cells.count < 5 && w < 20 { sleep(1); w += 1 }   // окно выбора подгружает снимки не сразу
         note("Снимков в окне выбора: \(cells.count)")
         guard cells.count >= 5 else { XCTFail("Не удалось выбрать фото в системном окне (видно снимков: \(cells.count))"); return }
         for i in (cells.count - 5)..<cells.count { cells.element(boundBy: i).tap(); usleep(400_000) }
