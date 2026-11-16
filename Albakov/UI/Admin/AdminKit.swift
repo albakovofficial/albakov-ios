@@ -452,31 +452,86 @@ enum ImageKit {
     }
 }
 
+// MARK: - Стабильные ключи строк списка в панели (аудит IOS-04, IOS-05)
+
+/// Раньше строки списка узнавались по номеру. После удаления поле ввода удалённой строки, теряя фокус,
+/// ещё раз отдавало своё значение по старому номеру — и панель падала с «Index out of range».
+/// Теперь у каждой строки свой ключ: SwiftUI узнаёт строку по нему, а чтение и запись идут по её текущему месту.
+/// Если строки с этим ключом уже нет, запись не выполняется: удалённую строку изменять незачем.
+/// Ключи живут только в приложении и на сервер не уходят — данные списка не меняются.
+struct RowKeys: Equatable {
+    private(set) var ids: [UUID]
+    init(count: Int = 0) { ids = (0..<count).map { _ in UUID() } }
+
+    /// Ключи для показа. Пока ключи не подстроены под новый список (первый показ, загрузка) — временные
+    func ids(for count: Int) -> [UUID] { ids.count == count ? ids : RowKeys(count: count).ids }
+    /// Список заменили целиком (загрузка, сохранение) — ключи под новое число строк
+    mutating func sync(_ count: Int) { if ids.count != count { self = RowKeys(count: count) } }
+    /// Текущее место строки с этим ключом
+    func index(_ id: UUID) -> Int? { ids.firstIndex(of: id) }
+
+    /// Строка с этим ключом или nil, если её уже нет
+    func value<T>(_ rows: [T], _ id: UUID) -> T? {
+        guard let i = index(id), rows.indices.contains(i) else { return nil }
+        return rows[i]
+    }
+    /// Изменить строку с этим ключом. false — строки уже нет, ничего не изменено
+    @discardableResult func update<T>(_ rows: inout [T], _ id: UUID, _ f: (inout T) -> Void) -> Bool {
+        guard let i = index(id), rows.indices.contains(i) else { return false }
+        f(&rows[i]); return true
+    }
+    mutating func append<T>(_ rows: inout [T], _ v: T) {
+        sync(rows.count)
+        rows.append(v); ids.append(UUID())
+    }
+    mutating func remove<T>(_ rows: inout [T], _ id: UUID) {
+        guard let i = index(id), rows.indices.contains(i) else { return }
+        rows.remove(at: i); ids.remove(at: i)
+    }
+    mutating func move<T>(_ rows: inout [T], _ id: UUID, by d: Int) {
+        guard let i = index(id), rows.indices.contains(i), rows.indices.contains(i + d) else { return }
+        rows.swapAt(i, i + d); ids.swapAt(i, i + d)
+    }
+}
+
 /// Строки (меню, соцсети, преимущества, способы доставки…): карточка на строку, ↑ ↓ ✕ и «Добавить»
 struct RowsEditor: View {
     let label: String
     let cols: [FDef]
     @Binding var rows: [[String: Any]]
+    /// Стабильные ключи строк (аудит IOS-04): номер строки меняется при удалении и перестановке
+    @State private var keys = RowKeys()
     var body: some View {
+        let ids = keys.ids(for: rows.count)
         VStack(alignment: .leading, spacing: 10) {
             Text(label).font(Theme.font(16, .medium))
-            ForEach(Array(rows.indices), id: \.self) { i in
+            ForEach(Array(ids.enumerated()), id: \.element) { i, id in
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("\(i + 1)").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
                         Spacer()
-                        if i > 0 { tool("arrow.up") { rows.swapAt(i, i - 1) } }
-                        if i < rows.count - 1 { tool("arrow.down") { rows.swapAt(i, i + 1) } }
-                        tool("xmark") { rows.remove(at: i) }
+                        if i > 0 { tool("arrow.up") { edit { $0.move(&$1, id, by: -1) } } }
+                        if i < ids.count - 1 { tool("arrow.down") { edit { $0.move(&$1, id, by: 1) } } }
+                        tool("xmark") { edit { $0.remove(&$1, id) } }
                     }
                     let doc = Doc(rows[i])
-                    RowFields(cols: cols, doc: doc) { rows[i] = $0 }
+                    // запись — в строку с этим ключом на её текущем месте; строку уже удалили — записывать некуда
+                    RowFields(cols: cols, doc: doc) { v in var r = rows; if keys.update(&r, id, { $0 = v }) { rows = r } }
                 }.padding(12).background(RoundedRectangle(cornerRadius: 16).fill(.white)).hairline(RoundedRectangle(cornerRadius: 16), 0.09)
             }
-            Button { var r: [String: Any] = ["id": uid("r")]; for c in cols { if case .bool = c.kind { r[c.k] = false } else { r[c.k] = "" } }; rows.append(r) } label: {
+            Button { var r: [String: Any] = ["id": uid("r")]; for c in cols { if case .bool = c.kind { r[c.k] = false } else { r[c.k] = "" } }; edit { $0.append(&$1, r) } } label: {
                 Label("Добавить", systemImage: "plus").font(Theme.font(14, .medium)).foregroundStyle(Theme.text).padding(.horizontal, 16).frame(height: 40).background(Capsule().fill(Theme.surface))
             }
         }
+        .onAppear { keys.sync(rows.count) }
+        .onChange(of: rows.count) { keys.sync($0) }   // список заменили целиком (загрузка, сохранение)
+    }
+    /// Ключи и строки меняются вместе, одним изменением
+    private func edit(_ f: (inout RowKeys, inout [[String: Any]]) -> Void) {
+        var k = keys, r = rows
+        k.sync(r.count)
+        f(&k, &r)
+        keys = k; rows = r
     }
     private func tool(_ i: String, _ a: @escaping () -> Void) -> some View {
         Button { withAnimation { a() } } label: { Image(systemName: i).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.text).frame(width: 30, height: 30).background(Circle().fill(Theme.surface)) }.buttonStyle(.plain)

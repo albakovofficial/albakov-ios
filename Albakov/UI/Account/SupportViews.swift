@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import ImageIO
 
 // Поддержка (1.0.1, вариант B — как на сайте 13.64.3): у обращения свой номер, тема, заказ и статус.
 // Покупатель: список обращений, переписка с фото и отметкой «прочитано», новое обращение — тема плиткой, заказ карточкой.
@@ -40,6 +41,28 @@ enum Support {
         let img = UIGraphicsImageRenderer(size: size, format: fmt).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
         return img.jpegData(compressionQuality: 0.85)
     }
+    /// Фото к сообщению прямо из данных файла (аудит IOS-03): тот же размер — до 1600 px по длинной стороне —
+    /// и то же качество JPEG 0,85, но снимок раскодируется сразу в нужном размере, а не целиком (48 Мп ≈ 190 МБ)
+    static func jpeg(data: Data) -> Data? {
+        downsample(data, maxPixel: 1600)?.jpegData(compressionQuality: 0.85)
+    }
+    /// Миниатюра для полоски выбранных фото: 64 pt на экране 3x — хватает 300 px по длинной стороне
+    static let thumbPixels: CGFloat = 300
+    /// Уменьшенная копия снимка (ImageIO): с учётом поворота из EXIF, не крупнее исходника.
+    /// Полноразмерная картинка в памяти не создаётся
+    static func downsample(_ data: Data, maxPixel: CGFloat) -> UIImage? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+        let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+        let w = (props?[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue ?? 0
+        let h = (props?[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue ?? 0
+        let side = max(w, h) > 0 ? min(maxPixel, CGFloat(max(w, h))) : maxPixel   // не увеличиваем, как и раньше
+        let opts: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                     kCGImageSourceCreateThumbnailWithTransform: true,
+                                     kCGImageSourceShouldCacheImmediately: true,
+                                     kCGImageSourceThumbnailMaxPixelSize: side]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg)
+    }
 }
 
 /// «№ 1043» — номер обращения; в работе — цветом раздела
@@ -71,13 +94,23 @@ struct SupStatus: View {
 
 // MARK: - Фото к сообщению
 
-/// Выбранные фото: загружаются сразу, в сообщение уходят их имена (до 5)
+/// Выбранные фото: загружаются сразу, в сообщение уходят их имена (до 5).
+/// В памяти держим только миниатюры (аудит IOS-03): исходный снимок нужен лишь на время уменьшения
 @MainActor
 final class SupportAttachments: ObservableObject {
+    /// image — миниатюра для полоски (до 300 px), не исходный снимок
     struct Item: Identifiable { let id = UUID(); let image: UIImage; var name: String? }
     @Published var items: [Item] = []
     let uploadPath: String
-    init(uploadPath: String) { self.uploadPath = uploadPath }
+    /// Отправка JPEG на сервер → имя файла. По умолчанию — запрос магазина; в тестах подменяется
+    typealias Upload = (Data) async throws -> String
+    private let upload: Upload
+    init(uploadPath: String, upload: Upload? = nil) {
+        self.uploadPath = uploadPath
+        self.upload = upload ?? { jpg in
+            try await API.shared.json("POST", uploadPath, body: ["dataUrl": "data:image/jpeg;base64," + jpg.base64EncodedString()])["file"].str
+        }
+    }
 
     var busy: Bool { items.contains { $0.name == nil } }
     var names: [String] { items.compactMap(\.name) }
@@ -85,18 +118,26 @@ final class SupportAttachments: ObservableObject {
 
     func add(_ picks: [PhotosPickerItem]) async {
         for p in picks.prefix(left) {
-            guard let data = try? await p.loadTransferable(type: Data.self), let img = UIImage(data: data), let jpg = Support.jpeg(img) else {
-                Toast.shared.show("Не получилось открыть фото"); continue
-            }
-            let item = Item(image: img, name: nil)
-            items.append(item)
-            do {
-                let r = try await API.shared.json("POST", uploadPath, body: ["dataUrl": "data:image/jpeg;base64," + jpg.base64EncodedString()])
-                if let i = items.firstIndex(where: { $0.id == item.id }) { items[i].name = r["file"].str }
-            } catch {
-                items.removeAll { $0.id == item.id }
-                Toast.shared.show(error.userMessage)
-            }
+            let data: Data?
+            do { data = try await p.loadTransferable(type: Data.self) } catch { data = nil }
+            guard let data else { Toast.shared.show("Не получилось открыть фото"); continue }
+            await add(data)
+        }
+    }
+    /// Одно фото из данных файла: JPEG для отправки и миниатюра готовятся вне главного потока, исходные данные дальше не хранятся
+    func add(_ data: Data) async {
+        let (jpg, thumb) = await Task.detached(priority: .userInitiated) {
+            (Support.jpeg(data: data), Support.downsample(data, maxPixel: Support.thumbPixels))
+        }.value
+        guard let jpg, let thumb else { Toast.shared.show("Не получилось открыть фото"); return }
+        let item = Item(image: thumb, name: nil)
+        items.append(item)
+        do {
+            let name = try await upload(jpg)
+            if let i = items.firstIndex(where: { $0.id == item.id }) { items[i].name = name }
+        } catch {
+            items.removeAll { $0.id == item.id }
+            Toast.shared.show(error.userMessage)
         }
     }
     func remove(_ id: UUID) { items.removeAll { $0.id == id } }

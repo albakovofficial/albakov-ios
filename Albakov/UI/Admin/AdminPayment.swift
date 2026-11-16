@@ -242,6 +242,8 @@ private struct CdekShipCard: View {
     @State private var tariff = 136
     @State private var tariffDoor = 137
     @State private var packs: [[String: Any]] = []
+    /// Стабильные ключи упаковок (аудит IOS-05): номер упаковки меняется при удалении
+    @State private var packKeys = RowKeys()
     @State private var defPack = ""
     @State private var weight = "1000"
     @State private var retName = ""
@@ -276,14 +278,15 @@ private struct CdekShipCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Упаковки").font(Theme.font(14)).foregroundStyle(Theme.muted)
                 Text("Размер и вес самой упаковки. В карточке товара выбираете, в какую упаковку он кладётся; посылка берётся по самой крупной вещи, а от 3 вещей — на размер больше").font(Theme.font(12)).foregroundStyle(Theme.dim)
-                ForEach(packs.indices, id: \.self) { i in
+                ForEach(packKeys.ids(for: packs.count), id: \.self) { id in
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack { TextField("Название", text: pstr(i, "name")).font(Theme.font(14.5, .medium)); Button { packs.remove(at: i) } label: { Image(systemName: "xmark").font(.system(size: 11)) }.foregroundStyle(Theme.muted) }
-                        HStack(spacing: 6) { pnum(i, "length", "см"); Text("×"); pnum(i, "width", "см"); Text("×"); pnum(i, "height", "см"); pnum(i, "weight", "г") }.font(Theme.font(13))
+                        HStack { TextField("Название", text: pstr(id, "name")).font(Theme.font(14.5, .medium)); Button { editPacks { $0.remove(&$1, id) } } label: { Image(systemName: "xmark").font(.system(size: 11)) }.foregroundStyle(Theme.muted) }
+                        HStack(spacing: 6) { pnum(id, "length", "см"); Text("×"); pnum(id, "width", "см"); Text("×"); pnum(id, "height", "см"); pnum(id, "weight", "г") }.font(Theme.font(13))
                     }.padding(10).background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface))
                 }
-                Button("+ Добавить упаковку") { packs.append(["id": "pk" + String(Int(Date().timeIntervalSince1970 * 1000), radix: 36), "name": "", "length": 30, "width": 20, "height": 10, "weight": 50]) }.font(Theme.font(13))
+                Button("+ Добавить упаковку") { editPacks { $0.append(&$1, ["id": "pk" + String(Int(Date().timeIntervalSince1970 * 1000), radix: 36), "name": "", "length": 30, "width": 20, "height": 10, "weight": 50]) } }.font(Theme.font(13))
             }
+            .onChange(of: packs.count) { packKeys.sync($0) }
             Field(label: "Вес вещи, если в карточке не указан, г", text: $weight, keyboard: .numberPad)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Упаковка, если в карточке не выбрана").font(Theme.font(14)).foregroundStyle(Theme.muted)
@@ -305,6 +308,7 @@ private struct CdekShipCard: View {
             tariff = c["tariff"].int ?? 136; tariffDoor = c["tariffDoor"].int ?? 137
             let list = c["packs"].array.map(\.dictAny)
             packs = (list.isEmpty ? CdekShipCard.defPacks : list).sorted { vol($0) < vol($1) }
+            packKeys = RowKeys(count: packs.count)
             defPack = c["defaultPack"].string ?? (packs.first?["id"] as? String ?? "")
             weight = String(c["pkg"]["weight"].int ?? 1000)
             retName = c["returnTo"]["name"].str; retPhone = c["returnTo"]["phone"].str.isEmpty ? "" : Fmt.phone(c["returnTo"]["phone"].str)
@@ -320,10 +324,21 @@ private struct CdekShipCard: View {
         }
     }
     private func vol(_ x: [String: Any]) -> Int { let j = JSON(x); return (j["length"].int ?? 0) * (j["width"].int ?? 0) * (j["height"].int ?? 0) }
-    private func pstr(_ i: Int, _ k: String) -> Binding<String> { Binding(get: { packs[i][k] as? String ?? "" }, set: { packs[i][k] = $0 }) }
-    private func pnum(_ i: Int, _ k: String, _ unit: String) -> some View {
+    /// Поле упаковки: читается и пишется по ключу упаковки. Упаковку уже удалили — поле пустое, запись не выполняется
+    private func pstr(_ id: UUID, _ k: String) -> Binding<String> {
+        Binding(get: { packKeys.value(packs, id)?[k] as? String ?? "" }, set: { v in setPack(id, k, v) })
+    }
+    private func setPack(_ id: UUID, _ k: String, _ v: Any) { var p = packs; if packKeys.update(&p, id, { $0[k] = v }) { packs = p } }
+    /// Ключи и упаковки меняются вместе, одним изменением
+    private func editPacks(_ f: (inout RowKeys, inout [[String: Any]]) -> Void) {
+        var k = packKeys, p = packs
+        k.sync(p.count)
+        f(&k, &p)
+        packKeys = k; packs = p
+    }
+    private func pnum(_ id: UUID, _ k: String, _ unit: String) -> some View {
         HStack(spacing: 2) {
-            TextField("0", text: Binding(get: { JSON(packs[i][k]).int.map(String.init) ?? "" }, set: { packs[i][k] = Int($0.filter(\.isNumber)) ?? 0 })).keyboardType(.numberPad).frame(width: 40)
+            TextField("0", text: Binding(get: { JSON(packKeys.value(packs, id)?[k]).int.map(String.init) ?? "" }, set: { setPack(id, k, Int($0.filter(\.isNumber)) ?? 0) })).keyboardType(.numberPad).frame(width: 40)
             Text(unit).foregroundStyle(Theme.dim)
         }
     }

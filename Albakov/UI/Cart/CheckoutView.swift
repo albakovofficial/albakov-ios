@@ -36,9 +36,6 @@ struct CheckoutView: View {
     @State private var pickPoint = false
     @State private var payURL: URL?
     @State private var placed: (id: String, token: String)?
-    /// Ключ повтора заказа (1.0.2): одинаков для одной и той же корзины и данных, пока заказ не оформлен —
-    /// повторное нажатие или повтор после обрыва связи, даже с нового экрана оформления, не создадут второй заказ
-    @AppStorage("checkoutNonce") private var nonce = UUID().uuidString
 
     private var method: DeliveryMethod? { shop.settings.delivery.first { $0.id == deliveryId } }
     /// Доставка заполнена: для СДЭК — город и пункт (или адрес для курьера), для своей доставки — город и адрес
@@ -283,6 +280,7 @@ struct CheckoutView: View {
 
     // MARK: Логика
     private func prefill() {
+        CheckoutNonce.prepare()   // ключ повтора заказа сохранён до первой отправки (аудит IOS-01)
         restoreDraft()
         if let u = shop.user, firstName.isEmpty { firstName = u.firstName; lastName = u.lastName; phone = Fmt.phone(u.phone); email = u.email }
         if deliveryId.isEmpty { deliveryId = shop.settings.delivery.first?.id ?? "" }
@@ -341,10 +339,10 @@ struct CheckoutView: View {
         b["comment"] = comment
         if let p = point { b["pvz"] = p.code }
         if m.isDoor || !(shop.cdekReady && m.isPvz) { b["address"] = address; b["city"] = city?.city ?? cityText }
-        b["idem"] = Self.idem(nonce, b)
+        b["idem"] = Self.idem(CheckoutNonce.current(), b)
         do {
             let r = try await API.shared.json("POST", "orders", body: b)
-            nonce = UUID().uuidString   // заказ оформлен: следующий будет новым
+            CheckoutNonce.rotate()   // заказ оформлен: следующий будет новым
             comment = ""; saveDraft()     // доставку и контакты помним для следующего заказа, комментарий — нет
             let id = r["order"]["id"].str, token = r["token"].str
             OrderTokens.save(id, token)
@@ -372,6 +370,31 @@ struct CheckoutView: View {
 }
 
 extension URL: Identifiable { public var id: String { absoluteString } }
+
+/// Ключ повтора заказа (1.0.2, аудит IOS-01): одинаков для одной и той же корзины и данных, пока заказ не оформлен —
+/// повторное нажатие или повтор после обрыва связи, даже с нового экрана оформления или после перезапуска,
+/// не создадут второй заказ. Раньше ключ был значением по умолчанию у @AppStorage и до первого заказа на телефоне
+/// не сохранялся: каждый новый экран оформления получал новый ключ, и повтор мог создать второй заказ.
+/// Теперь ключ сохраняется при первом открытии оформления — до первой отправки — и меняется только после
+/// оформленного заказа. Имя ключа в памяти телефона прежнее («checkoutNonce»): у кого он уже есть, он сохраняется.
+enum CheckoutNonce {
+    static let key = "checkoutNonce"
+    /// Текущий ключ; если его ещё нет — создаётся и сразу сохраняется
+    static func current(_ d: UserDefaults = .standard) -> String {
+        if let s = d.string(forKey: key), !s.isEmpty { return s }
+        let s = UUID().uuidString
+        d.set(s, forKey: key)
+        return s
+    }
+    /// Открыли оформление: закрепить ключ, если его ещё нет
+    static func prepare(_ d: UserDefaults = .standard) { _ = current(d) }
+    /// Заказ оформлен: следующий заказ получит новый ключ
+    @discardableResult static func rotate(_ d: UserDefaults = .standard) -> String {
+        let s = UUID().uuidString
+        d.set(s, forKey: key)
+        return s
+    }
+}
 
 /// Токены заказов без кабинета: по ним покупатель видит свой заказ на этом телефоне
 enum OrderTokens {

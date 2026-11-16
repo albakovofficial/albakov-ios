@@ -68,8 +68,16 @@ jobs:
               "dependencies" => [{ "target" => "Albakov" }],
               "settings" => { "base" => { "PRODUCT_BUNDLE_IDENTIFIER" => "ru.albakovofficial.audit", "GENERATE_INFOPLIST_FILE" => "YES",
                                           "TEST_TARGET_NAME" => "Albakov", "SWIFT_VERSION" => "5.0" } } }
-            s["schemes"] = { "AlbakovAudit" => { "build" => { "targets" => { "Albakov" => "all", "AlbakovAudit" => ["test"] } },
-                                                  "test" => { "config" => "Debug", "targets" => ["AlbakovAudit"] } } }
+            # юнит-тесты этапа A (audit-unit/): ключ повтора заказа, ключи строк панели, фото поддержки
+            s["targets"]["AlbakovUnit"] = {
+              "type" => "bundle.unit-test", "platform" => "iOS",
+              "sources" => [{ "path" => "audit-unit" }],
+              "dependencies" => [{ "target" => "Albakov" }],
+              "settings" => { "base" => { "PRODUCT_BUNDLE_IDENTIFIER" => "ru.albakovofficial.unit", "GENERATE_INFOPLIST_FILE" => "YES",
+                                          "TEST_HOST" => "$(BUILT_PRODUCTS_DIR)/Albakov.app/Albakov", "BUNDLE_LOADER" => "$(TEST_HOST)",
+                                          "SWIFT_VERSION" => "5.0" } } }
+            s["schemes"] = { "AlbakovAudit" => { "build" => { "targets" => { "Albakov" => "all", "AlbakovAudit" => ["test"], "AlbakovUnit" => ["test"] } },
+                                                  "test" => { "config" => "Debug", "targets" => ["AlbakovUnit", "AlbakovAudit"] } } }
             File.write("audit-project.yml", s.to_yaml)'
           xcodegen generate --spec audit-project.yml
 
@@ -149,7 +157,8 @@ jobs:
           RUN=$(ls build/Build/Products/*.xctestrun | head -1)
           # память приложения (RSS, КБ) раз в полсекунды — пик между отметками MEMMARK из тестов (этап A, IOS-03)
           ( while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
-          SEL=""; for t in $ONLY; do SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; done
+          # «unit» — все юнит-тесты; иначе имя UI-теста
+          SEL=""; for t in $ONLY; do if [ "$t" = unit ]; then SEL="$SEL -only-testing:AlbakovUnit"; else SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; fi; done
           xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed" || true
 
       - name: Итоги тестов и снимки из них
