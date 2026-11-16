@@ -381,6 +381,7 @@ struct OrderView: View {
     @EnvironmentObject private var router: Router
     @State private var order: Order?
     @State private var error: String?
+    @State private var notFound = false
     @State private var request = false
     @State private var payURL: URL?
     var body: some View {
@@ -451,6 +452,12 @@ struct OrderView: View {
                     }
                     if shop.user != nil { GhostButton(title: "Вопрос по заказу", icon: "bubble.left") { router.push(.support, on: .account) } }
                 }.padding(Theme.gutter)
+            } else if notFound {
+                // Заказ оформлен на другом устройстве или без входа: подсказываем, как его найти (аудит T-3, 16.11)
+                VStack(spacing: 12) {
+                    EmptyState(icon: "shippingbox", title: "Заказ не найден", text: "Возможно, он оформлен на другом устройстве. Найдите его по номеру заказа и телефону" + (shop.user == nil ? " или войдите в личный кабинет." : "."), button: "Найти по номеру и телефону") { router.push(.track, on: .account) }
+                    if shop.user == nil { GhostButton(title: "Войти", icon: "person") { router.reset(.account) }.padding(.horizontal, Theme.gutter) }
+                }
             } else if let error { EmptyState(icon: "exclamationmark.triangle", title: "Не удалось открыть заказ", text: error, button: "Повторить") { self.error = nil; Task { await load() } } }
             else { ProgressView().padding(.top, 80) }
         }
@@ -463,7 +470,8 @@ struct OrderView: View {
         }
     }
     private func load() async {
-        do { order = Order(try await API.shared.json("GET", "orders/\(id)", query: OrderTokens.all[id].map { ["t": $0] } ?? [:])["order"]); error = nil; if let o = order { shop.returnExpired(o) } }
+        do { order = Order(try await API.shared.json("GET", "orders/\(id)", query: OrderTokens.all[id].map { ["t": $0] } ?? [:])["order"]); error = nil; notFound = false; if let o = order { shop.returnExpired(o) } }
+        catch let e as APIError where e.status == 404 && order == nil { notFound = true; error = nil }
         // запрос прервали (свайп обновления, уход с экрана) — без заказа не крутим загрузку бесконечно, а предлагаем повторить
         catch { self.error = error.userMessage ?? (order == nil ? "Проверьте интернет и попробуйте ещё раз" : nil) }
     }

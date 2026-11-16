@@ -112,7 +112,7 @@ final class Router: ObservableObject {
     func open(_ url: URL) {
         if url.scheme == "albakov" {
             open(path: "/" + [url.host, url.path].compactMap { $0 }.joined() + (url.query.map { "?" + $0 } ?? ""))
-        } else if let h = url.host?.lowercased(), h.hasSuffix("albakovofficial.ru") {
+        } else if let h = url.host?.lowercased(), h == "albakovofficial.ru" || h.hasSuffix(".albakovofficial.ru") {   // только наш домен, не «…albakovofficial.ru» (аудит T-2)
             open(path: url.path + (url.query.map { "?" + $0 } ?? ""))
         } else {
             UIApplication.shared.open(url)
@@ -136,7 +136,10 @@ final class Router: ObservableObject {
         case "menu": menuOpen = true
         case "cart": reset(.cart)
         case "checkout": reset(.cart, to: [.checkout])
-        case "order" where parts.count > 1: reset(.account, to: [.orders, .order(parts[1])])
+        case "order" where parts.count > 1:
+            // ссылка из письма или push несёт секретный ключ заказа: запоминаем — заказ откроется и без входа (аудит T-1, 16.11)
+            if let t = q["t"], t.count >= 16, t.count <= 64, t.allSatisfy(\.isHexDigit) { OrderTokens.save(parts[1], t) }
+            reset(.account, to: [.orders, .order(parts[1])])
         case "page" where parts.count > 1: push(.page(parts[1]))
         case "sizes": reset(.catalog)   // общей таблицы размеров нет — у каждого товара своя
         case "gift": push(.gift, on: tab == .account ? .account : .home)

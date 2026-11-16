@@ -525,7 +525,7 @@ struct PayWeb: UIViewRepresentable {
             guard let u = a.request.url else { return decisionHandler(.cancel) }
             let scheme = u.scheme?.lowercased() ?? ""
             if !["http", "https", "about", "blob", "data"].contains(scheme) { UIApplication.shared.open(u); return decisionHandler(.cancel) }   // приложения банков, СБП
-            if let h = u.host?.lowercased(), h.hasSuffix("albakovofficial.ru"), a.targetFrame?.isMainFrame ?? true {
+            if let h = u.host?.lowercased(), h == "albakovofficial.ru" || h.hasSuffix(".albakovofficial.ru"), a.targetFrame?.isMainFrame ?? true {
                 if !finished { finished = true; DispatchQueue.main.async { self.done(true) } }
                 return decisionHandler(.cancel)
             }
