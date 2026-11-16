@@ -93,6 +93,11 @@ final class AuditUITests: XCTestCase {
     func scrollTo(_ e: XCUIElement, max: Int = 14) {
         var n = 0
         while (!e.exists || !e.isHittable) && n < max { app.swipeUp(velocity: .slow); n += 1 }
+        // Нажатие идёт в центр элемента: если центр под плавающей нижней панелью вкладок, палец попадёт во вкладку
+        // («Корзина»), а не в элемент — поднимаем элемент выше панели (16.11, третий аудит)
+        let bottom = app.windows.firstMatch.frame.maxY - 130
+        var k = 0
+        while e.exists && e.frame.midY > bottom && k < 4 { nudge(); k += 1 }
     }
     @discardableResult
     func tap(_ label: String, timeout: TimeInterval = 12) -> Bool {
@@ -110,9 +115,11 @@ final class AuditUITests: XCTestCase {
         let f = field(placeholder)
         if !f.waitForExistence(timeout: 8) { scrollTo(f) }
         guard f.exists else { XCTFail("Нет поля «\(placeholder)»"); return }
-        scrollTo(f); f.tap()
+        scrollTo(f)
+        // курсор — в конец поля, иначе стирание уберёт только часть старого текста
+        f.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
         if let v = f.value as? String, !v.isEmpty, v != placeholder {
-            f.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: v.count))
+            f.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: v.count + 2))
         }
         f.typeText(value)
         app.navigationBars.firstMatch.tap()   // убрать клавиатуру
