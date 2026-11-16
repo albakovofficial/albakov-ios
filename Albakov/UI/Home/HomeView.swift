@@ -177,7 +177,7 @@ struct HeroSlider: View {
                     if !s.btn1.0.isEmpty {
                         Button { router.open(path: s.btn1.1) } label: {
                             HStack(spacing: 10) {
-                                Text(s.btn1.0).font(Theme.font(13, .medium)).kerning(0.3).lineLimit(1)
+                                Text(s.btn1.0).font(Theme.font(13, .medium)).kerning(0.3).lineLimit(1).minimumScaleFactor(0.7)
                                 Spacer(minLength: 0)
                                 Image(systemName: "arrow.right").font(.system(size: 11, weight: .medium))
                                     .frame(width: 30, height: 30).background(Circle().fill(.white.opacity(0.18)))

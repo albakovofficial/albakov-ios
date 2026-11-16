@@ -15,7 +15,7 @@ struct RootView: View {
     var body: some View {
         ZStack {
             Color.white.ignoresSafeArea()
-            if !splashDone { SplashView() }
+            if !splashDone { SplashView(slow: !shop.loaded && shop.loadError == nil) }
             if shop.loaded {
                 // Цвет раздела меняется вместе с разделом — экраны перерисовываются (переходы во вкладках хранит Router)
                 MainTabs().id(shop.gender ?? "all").mask(CircleReveal(progress: reveal))
@@ -197,6 +197,8 @@ struct AppTabBar: View {
                 .buttonStyle(.plain)
                 .layoutPriority(on ? 1 : 0)
                 .accessibilityLabel(it.1)
+                // панель вкладок не растёт с крупным системным шрифтом — иначе не помещается на узком экране (аудит 16.11, M-7)
+                .dynamicTypeSize(...DynamicTypeSize.xLarge)
             }
         }
         .padding(6)
@@ -256,6 +258,9 @@ struct BrandBackground: View {
 
 /// Заставка при входе (вариант B, 14.11): знак проступает из размытия и вспыхивает, надпись ALBAKOV выезжает слева
 struct SplashView: View {
+    /// Каталог ещё грузится — через 4 секунды показываем «Загружаем каталог…», чтобы не было ощущения зависания (аудит 16.11, L-14)
+    var slow = false
+    @State private var long = false
     @State private var mark = false
     @State private var word = false
     @State private var glow = false
@@ -271,7 +276,16 @@ struct SplashView: View {
                     .opacity(word ? 1 : 0)
             }
             .offset(y: -20)
+            if slow && long {
+                VStack(spacing: 10) {
+                    ProgressView().tint(.white)
+                    Text("Загружаем каталог…").font(Theme.font(13)).foregroundStyle(.white.opacity(0.8))
+                }
+                .frame(maxHeight: .infinity, alignment: .bottom).padding(.bottom, 70)
+                .transition(.opacity)
+            }
         }
+        .task { try? await Task.sleep(nanoseconds: 4_000_000_000); withAnimation(.easeOut(duration: 0.4)) { long = true } }
         .onAppear {
             withAnimation(.timingCurve(0.2, 0.7, 0.2, 1, duration: 0.9)) { mark = true }
             withAnimation(.timingCurve(0.3, 0.7, 0.2, 1, duration: 0.7).delay(0.35)) { word = true }

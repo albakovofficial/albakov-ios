@@ -254,9 +254,9 @@ struct ProductView: View {
                 PrimaryButton(title: "Уже в корзине · перейти") { router.reset(.cart) }
             } else if !wait {
                 HStack(spacing: 0) {
-                    Button { qty = max(1, qty - 1) } label: { Image(systemName: "minus").frame(width: 40, height: 50) }
+                    Button { qty = max(1, qty - 1) } label: { Image(systemName: "minus").frame(width: 40, height: 50) }.accessibilityLabel("Уменьшить количество")
                     Text("\(qty)").font(Theme.font(16)).frame(minWidth: 24)
-                    Button { qty = min(maxQ, qty + 1) } label: { Image(systemName: "plus").frame(width: 40, height: 50) }
+                    Button { qty = min(maxQ, qty + 1) } label: { Image(systemName: "plus").frame(width: 40, height: 50) }.accessibilityLabel("Увеличить количество")
                 }
                 .font(.system(size: 12, weight: .light)).foregroundStyle(Theme.text)
                 .background(Capsule().fill(Theme.surface)).hairline(Capsule())

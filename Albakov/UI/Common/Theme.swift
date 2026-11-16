@@ -256,6 +256,8 @@ struct DotTitle: View {
         // без точки в конце заголовка — везде (владелец 15.11); параметр dot оставлен, чтобы не трогать вызовы
         Text(text).foregroundColor(Theme.text)
             .font(Theme.font(size, .light)).kerning(-size * 0.035).lineSpacing(-2)
+            // крупный системный шрифт: заголовок не растёт бесконечно и уменьшается, а не рвёт слово посередине (аудит 16.11, M-7)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge).lineLimit(3).minimumScaleFactor(0.6)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

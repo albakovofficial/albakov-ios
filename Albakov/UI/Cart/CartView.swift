@@ -127,9 +127,9 @@ struct CartRow: View {
     }
     private var stepper: some View {
         HStack(spacing: 0) {
-            Button { Haptic.tap(); withAnimation { shop.setQty(line, line.qty - 1) } } label: { Image(systemName: "minus").frame(width: 30, height: 32) }
+            Button { Haptic.tap(); withAnimation { shop.setQty(line, line.qty - 1) } } label: { Image(systemName: "minus").frame(width: 30, height: 32) }.accessibilityLabel(line.qty > 1 ? "Уменьшить количество" : "Убрать из корзины")
             Text("\(line.qty)").font(Theme.font(15)).frame(minWidth: 20)
-            Button { Haptic.tap(); withAnimation { shop.setQty(line, line.qty + 1) } } label: { Image(systemName: "plus").frame(width: 30, height: 32) }
+            Button { Haptic.tap(); withAnimation { shop.setQty(line, line.qty + 1) } } label: { Image(systemName: "plus").frame(width: 30, height: 32) }.accessibilityLabel("Увеличить количество")
         }
         .font(.system(size: 10, weight: .light)).foregroundStyle(Theme.text)
         .background(Capsule().fill(.white)).overlay(Capsule().strokeBorder(Theme.lineStrong))

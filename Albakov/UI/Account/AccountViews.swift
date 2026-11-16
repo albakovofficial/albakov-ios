@@ -484,6 +484,7 @@ struct OrderSteps: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Capsule().fill(i <= idx ? Theme.accent : Theme.line).frame(height: 3)
                         Text(steps[i]).font(Theme.font(11, i == idx ? .medium : .regular)).foregroundStyle(i <= idx ? Theme.text : Theme.dim)
+                            .lineLimit(1).minimumScaleFactor(0.6)   // «Собирается» не рвётся посередине (аудит 16.11)
                     }
                 }
             }

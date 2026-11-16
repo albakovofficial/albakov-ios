@@ -13,6 +13,8 @@ struct AlbakovApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // выше первой ступени «увеличенного размера» вёрстка на iPhone SE рвала слова (аудит 16.11, M-7)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 .environmentObject(router)
                 .environmentObject(shop)
                 .onOpenURL { router.open($0) }
