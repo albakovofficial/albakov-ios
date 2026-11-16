@@ -112,17 +112,33 @@ final class AuditUITests: XCTestCase {
         return t.exists ? t : app.textFields.matching(NSPredicate(format: "placeholderValue CONTAINS %@", placeholder)).firstMatch
     }
     func type(_ placeholder: String, _ value: String) {
+        guard let f = erase(placeholder) else { return }
+        f.typeText(value)
+        app.navigationBars.firstMatch.tap()   // убрать клавиатуру
+    }
+    /// Стереть поле целиком; клавиатура остаётся открытой. nil — поля нет
+    @discardableResult func erase(_ placeholder: String) -> XCUIElement? {
         let f = field(placeholder)
         if !f.waitForExistence(timeout: 8) { scrollTo(f) }
-        guard f.exists else { XCTFail("Нет поля «\(placeholder)»"); return }
+        guard f.exists else { XCTFail("Нет поля «\(placeholder)»"); return nil }
         scrollTo(f)
         // курсор — в конец поля, иначе стирание уберёт только часть старого текста
         f.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
         if let v = f.value as? String, !v.isEmpty, v != placeholder {
             f.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: v.count + 2))
         }
-        f.typeText(value)
+        return f
+    }
+    /// Поля покупателя на оформлении. Черновик оформления хранится между запусками (так задумано в 1.0.3),
+    /// поэтому тест, которому нужна пустая форма, сам её очищает и не зависит от предыдущих тестов
+    static let customerFields = ["Иван", "Иванов", "+7 (___) ___-__-__", "mail@example.ru"]
+    func clearCustomer() {
+        for p in Self.customerFields { erase(p) }
         app.navigationBars.firstMatch.tap()   // убрать клавиатуру
+        for p in Self.customerFields {
+            let v = field(p).value as? String ?? ""
+            XCTAssertTrue(v.isEmpty || v == p || v.filter(\.isNumber).count <= 1, "Поле «\(p)» не очистилось: \(v)")
+        }
     }
     func addToCart(product: String, size: String) {
         launch("/product/\(product)")
@@ -260,7 +276,9 @@ final class AuditUITests: XCTestCase {
         startClean()
         addToCart(product: "p5", size: "M")
         launch("/checkout")
-        shot("03 оформление")
+        _ = text("Оформление").waitForExistence(timeout: 15)
+        clearCustomer()   // форма пустая, даже если раньше оформляли заказ (черновик)
+        shot("03 оформление — пустая форма")
         let offer = button("публичной оферты"); scrollTo(offer); offer.tap()
         let consent = button("согласие на обработку"); scrollTo(consent); consent.tap()
         let confirm = button("Подтвердить заказ"); scrollTo(confirm); confirm.tap(); sleep(2)

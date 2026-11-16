@@ -280,7 +280,7 @@ struct CheckoutView: View {
 
     // MARK: Логика
     private func prefill() {
-        CheckoutNonce.prepare()   // ключ повтора заказа сохранён до первой отправки (аудит IOS-01)
+        CheckoutNonce.loadOrCreate()   // ключ повтора заказа сохранён до первой отправки (аудит IOS-01)
         restoreDraft()
         if let u = shop.user, firstName.isEmpty { firstName = u.firstName; lastName = u.lastName; phone = Fmt.phone(u.phone); email = u.email }
         if deliveryId.isEmpty { deliveryId = shop.settings.delivery.first?.id ?? "" }
@@ -339,10 +339,10 @@ struct CheckoutView: View {
         b["comment"] = comment
         if let p = point { b["pvz"] = p.code }
         if m.isDoor || !(shop.cdekReady && m.isPvz) { b["address"] = address; b["city"] = city?.city ?? cityText }
-        b["idem"] = Self.idem(CheckoutNonce.current(), b)
+        b["idem"] = Self.idem(CheckoutNonce.loadOrCreate(), b)
         do {
             let r = try await API.shared.json("POST", "orders", body: b)
-            CheckoutNonce.rotate()   // заказ оформлен: следующий будет новым
+            CheckoutNonce.renew()   // заказ оформлен: следующий будет новым
             comment = ""; saveDraft()     // доставку и контакты помним для следующего заказа, комментарий — нет
             let id = r["order"]["id"].str, token = r["token"].str
             OrderTokens.save(id, token)
@@ -379,17 +379,13 @@ extension URL: Identifiable { public var id: String { absoluteString } }
 /// оформленного заказа. Имя ключа в памяти телефона прежнее («checkoutNonce»): у кого он уже есть, он сохраняется.
 enum CheckoutNonce {
     static let key = "checkoutNonce"
-    /// Текущий ключ; если его ещё нет — создаётся и сразу сохраняется
-    static func current(_ d: UserDefaults = .standard) -> String {
+    /// Сохранённый ключ; если его ещё нет — создаёт новый и сразу сохраняет (запись — только в этом случае)
+    @discardableResult static func loadOrCreate(_ d: UserDefaults = .standard) -> String {
         if let s = d.string(forKey: key), !s.isEmpty { return s }
-        let s = UUID().uuidString
-        d.set(s, forKey: key)
-        return s
+        return renew(d)
     }
-    /// Открыли оформление: закрепить ключ, если его ещё нет
-    static func prepare(_ d: UserDefaults = .standard) { _ = current(d) }
-    /// Заказ оформлен: следующий заказ получит новый ключ
-    @discardableResult static func rotate(_ d: UserDefaults = .standard) -> String {
+    /// Создаёт и сохраняет новый ключ: заказ оформлен — следующий будет новым
+    @discardableResult static func renew(_ d: UserDefaults = .standard) -> String {
         let s = UUID().uuidString
         d.set(s, forKey: key)
         return s

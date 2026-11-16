@@ -5,11 +5,15 @@
      on — обычная связь; off — обрыв соединения; slow — задержка ms;
      drop-after — запрос доходит до магазина, а ответ теряется (один раз);
      502 — ответ «502 Bad Gateway» как от nginx, когда магазин недоступен (один раз).
-   GET /__ctl/stats?phone=7… — сколько заказов магазин реально создал (по ответам на POST /api/orders). */
+   GET /__ctl/stats?phone=7… — сколько заказов магазин реально создал (по ответам на POST /api/orders).
+   Запросы поддержки (/api/…support…) пишутся в журнал для диагностики фото (этап A.1): номер запроса посредника,
+   метод, путь без параметров, размер тела, код ответа, время и текст ошибки магазина. Куки, токены, тело запроса
+   (фото), имена файлов и личные данные не записываются. */
 const http = require('http');
 const [P, T] = process.argv.slice(2).map(Number);
 let mode = 'on', scope = 'all', ms = 0;
 const created = new Map();   // id заказа → телефон
+let seq = 0;                 // номер запроса посредника — технический идентификатор в журнале
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   if (u.pathname.startsWith('/__ctl/')) {
@@ -25,12 +29,17 @@ http.createServer((req, res) => {
     return res.end('{"ok":true}');
   }
   const isOrder = req.method === 'POST' && u.pathname === '/api/orders';
+  const isSupport = u.pathname.startsWith('/api/') && u.pathname.includes('support');
+  const rid = ++seq, t0 = Date.now();
   const hit = scope === 'all' || isOrder;
   const chunks = [];
   req.on('data', (c) => chunks.push(c));
   req.on('end', () => {
     const body = Buffer.concat(chunks);
-    if (hit && mode === 'off') { req.socket.destroy(); return; }
+    const logSupport = (status, note) => {
+      if (isSupport) console.log(new Date().toISOString(), 'support #' + rid, req.method, u.pathname, 'тело', body.length, 'Б →', status, (Date.now() - t0) + ' мс', note || '');
+    };
+    if (hit && mode === 'off') { logSupport('обрыв (режим off)'); req.socket.destroy(); return; }
     if (hit && mode === '502') { mode = 'on'; res.writeHead(502, { 'Content-Type': 'text/html' }); res.end('<html><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>'); return; }
     const go = () => {
       const r2 = http.request({ host: '127.0.0.1', port: T, method: req.method, path: req.url, headers: Object.assign({}, req.headers, { host: '127.0.0.1:' + T }) }, (pr) => {
@@ -42,11 +51,16 @@ http.createServer((req, res) => {
             try { const j = JSON.parse(buf); if (j.ok && j.order) created.set(j.order.id, String((j.order.customer || {}).phone || '')); } catch (e) { /* не JSON */ }
             console.log(new Date().toISOString(), 'POST /api/orders →', pr.statusCode, buf.toString().slice(0, 160));
           }
+          if (isSupport) {
+            let note = 'ok';
+            try { const j = JSON.parse(buf); if (j.ok === false || pr.statusCode >= 400) note = 'ошибка: ' + String(j.error || '').slice(0, 120); } catch (e) { note = 'ответ не JSON, ' + buf.length + ' Б'; }
+            logSupport(pr.statusCode, note);
+          }
           if (hit && mode === 'drop-after') { mode = 'on'; req.socket.destroy(); return; }
           res.writeHead(pr.statusCode, pr.headers); res.end(buf);
         });
       });
-      r2.on('error', () => { res.writeHead(502); res.end(); });
+      r2.on('error', (e) => { logSupport(502, 'магазин недоступен: ' + e.code); res.writeHead(502); res.end(); });
       r2.end(body);
     };
     if (hit && mode === 'slow') setTimeout(go, ms); else go();

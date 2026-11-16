@@ -33,24 +33,26 @@ enum Support {
         let text = last["text"].str.isEmpty ? (last["files"].array.isEmpty ? "" : "Фото") : last["text"].str
         return (last["from"].str == "shop", text)
     }
-    /// Фото уменьшаем до 1600 px по длинной стороне и сохраняем в JPEG — быстро уходит и с мобильного интернета
-    static func jpeg(_ image: UIImage) -> Data? {
-        let k = min(1, 1600 / max(image.size.width, image.size.height))
-        let size = CGSize(width: (image.size.width * k).rounded(), height: (image.size.height * k).rounded())
-        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
-        let img = UIGraphicsImageRenderer(size: size, format: fmt).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
-        return img.jpegData(compressionQuality: 0.85)
-    }
-    /// Фото к сообщению прямо из данных файла (аудит IOS-03): тот же размер — до 1600 px по длинной стороне —
-    /// и то же качество JPEG 0,85, но снимок раскодируется сразу в нужном размере, а не целиком (48 Мп ≈ 190 МБ)
-    static func jpeg(data: Data) -> Data? {
-        downsample(data, maxPixel: 1600)?.jpegData(compressionQuality: 0.85)
+    /// Фото к сообщению из данных файла (аудит IOS-03): JPEG для отправки — до 1600 px по длинной стороне, качество 0,85
+    /// (быстро уходит и с мобильного интернета) — и миниатюра для полоски выбранных фото.
+    /// Снимок раскодируется один раз и сразу в размере 1600 px (48 Мп целиком — это ≈190 МБ);
+    /// миниатюра уменьшается уже из этой картинки
+    static func photo(_ data: Data) -> (jpeg: Data, thumbnail: UIImage)? {
+        guard let image = downsample(data, maxPixel: 1600), let jpeg = image.jpegData(compressionQuality: 0.85) else { return nil }
+        return (jpeg, resized(image, maxPixel: thumbPixels))
     }
     /// Миниатюра для полоски выбранных фото: 64 pt на экране 3x — хватает 300 px по длинной стороне
     static let thumbPixels: CGFloat = 300
+    /// Уменьшенная копия уже раскодированной картинки, не крупнее исходной
+    private static func resized(_ image: UIImage, maxPixel: CGFloat) -> UIImage {
+        let k = min(1, maxPixel / max(image.size.width, image.size.height))
+        let size = CGSize(width: (image.size.width * k).rounded(), height: (image.size.height * k).rounded())
+        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: fmt).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+    }
     /// Уменьшенная копия снимка (ImageIO): с учётом поворота из EXIF, не крупнее исходника.
     /// Полноразмерная картинка в памяти не создаётся
-    static func downsample(_ data: Data, maxPixel: CGFloat) -> UIImage? {
+    private static func downsample(_ data: Data, maxPixel: CGFloat) -> UIImage? {
         guard let src = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
         let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
         let w = (props?[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue ?? 0
@@ -101,12 +103,10 @@ final class SupportAttachments: ObservableObject {
     /// image — миниатюра для полоски (до 300 px), не исходный снимок
     struct Item: Identifiable { let id = UUID(); let image: UIImage; var name: String? }
     @Published var items: [Item] = []
-    let uploadPath: String
-    /// Отправка JPEG на сервер → имя файла. По умолчанию — запрос магазина; в тестах подменяется
+    /// Отправка JPEG на сервер → имя файла. По умолчанию — запрос магазина по адресу uploadPath; в тестах подменяется
     typealias Upload = (Data) async throws -> String
     private let upload: Upload
     init(uploadPath: String, upload: Upload? = nil) {
-        self.uploadPath = uploadPath
         self.upload = upload ?? { jpg in
             try await API.shared.json("POST", uploadPath, body: ["dataUrl": "data:image/jpeg;base64," + jpg.base64EncodedString()])["file"].str
         }
@@ -116,24 +116,27 @@ final class SupportAttachments: ObservableObject {
     var names: [String] { items.compactMap(\.name) }
     var left: Int { max(0, 5 - items.count) }
 
+    /// Выбранные фото по одному. Вызывается из .task(id:) экрана: закрыли экран — задача отменена,
+    /// следующие фото не обрабатываются и не отправляются
     func add(_ picks: [PhotosPickerItem]) async {
         for p in picks.prefix(left) {
+            if Task.isCancelled { return }
             let data: Data?
             do { data = try await p.loadTransferable(type: Data.self) } catch { data = nil }
-            guard let data else { Toast.shared.show("Не получилось открыть фото"); continue }
+            guard let data else { if !Task.isCancelled { Toast.shared.show("Не получилось открыть фото") }; continue }
             await add(data)
         }
     }
-    /// Одно фото из данных файла: JPEG для отправки и миниатюра готовятся вне главного потока, исходные данные дальше не хранятся
+    /// Одно фото из данных файла: JPEG для отправки и миниатюра готовятся вне главного потока
+    /// (Task.detached: раскодирование тяжёлое), исходные данные дальше не хранятся
     func add(_ data: Data) async {
-        let (jpg, thumb) = await Task.detached(priority: .userInitiated) {
-            (Support.jpeg(data: data), Support.downsample(data, maxPixel: Support.thumbPixels))
-        }.value
-        guard let jpg, let thumb else { Toast.shared.show("Не получилось открыть фото"); return }
-        let item = Item(image: thumb, name: nil)
+        let photo = await Task.detached(priority: .userInitiated) { Support.photo(data) }.value
+        if Task.isCancelled { return }   // экран закрыли, пока фото готовилось, — не показываем и не отправляем
+        guard let photo else { Toast.shared.show("Не получилось открыть фото"); return }
+        let item = Item(image: photo.thumbnail, name: nil)
         items.append(item)
         do {
-            let name = try await upload(jpg)
+            let name = try await upload(photo.jpeg)
             if let i = items.firstIndex(where: { $0.id == item.id }) { items[i].name = name }
         } catch {
             items.removeAll { $0.id == item.id }
@@ -327,7 +330,7 @@ struct SupportComposer: View {
                         .frame(width: 44, height: 44).overlay(Circle().strokeBorder(Theme.line))
                 }
                 .disabled(att.left == 0).accessibilityLabel("Прикрепить фото")
-                .onChange(of: picks) { p in guard !p.isEmpty else { return }; Task { await att.add(p); picks = [] } }
+                .task(id: picks) { guard !picks.isEmpty else { return }; await att.add(picks); picks = [] }   // экран закрыли — обработка фото отменяется
                 TextField(placeholder, text: $draft, axis: .vertical).font(Theme.font(15)).lineLimit(1...5)
                     .padding(.horizontal, 16).padding(.vertical, 11).frame(minHeight: 44)
                     .background(RoundedRectangle(cornerRadius: 22).fill(Theme.surface))
@@ -489,7 +492,7 @@ struct NewTicketSheet: View {
                                 .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                         }
                         .disabled(att.left == 0).accessibilityLabel("Добавить фото")
-                        .onChange(of: picks) { p in guard !p.isEmpty else { return }; Task { await att.add(p); picks = [] } }
+                        .task(id: picks) { guard !picks.isEmpty else { return }; await att.add(picks); picks = [] }   // экран закрыли — обработка фото отменяется
                         if att.items.isEmpty { Text("Фото вещи или бирки — до 5 штук. Так ответим быстрее").font(Theme.font(13)).foregroundStyle(Theme.dim) }
                         else { AttachmentStrip(att: att) }
                     }

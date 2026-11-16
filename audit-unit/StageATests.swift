@@ -24,56 +24,47 @@ final class CheckoutNonceTests: XCTestCase {
     /// Первый запуск оформления: ключа ещё нет — он создаётся и сохраняется сразу, до отправки заказа
     func test01_FirstCheckoutSavesKeyBeforeSending() {
         XCTAssertNil(d.string(forKey: CheckoutNonce.key))
-        CheckoutNonce.prepare(d)
-        let saved = d.string(forKey: CheckoutNonce.key)
-        XCTAssertNotNil(saved, "Ключ не сохранён при открытии оформления")
-        XCTAssertEqual(CheckoutNonce.current(d), saved)
+        let created = CheckoutNonce.loadOrCreate(d)
+        XCTAssertEqual(d.string(forKey: CheckoutNonce.key), created, "Ключ не сохранён при открытии оформления")
     }
 
     /// Повторное открытие экрана (и перезапуск приложения — новое чтение той же памяти) — ключ тот же
     func test02_ReopenKeepsSameKey() {
-        CheckoutNonce.prepare(d)
-        let first = CheckoutNonce.current(d)
-        CheckoutNonce.prepare(d)                       // экран оформления открыли снова
-        XCTAssertEqual(CheckoutNonce.current(d), first)
-        let again = UserDefaults(suiteName: suite)!     // «перезапуск»: память читается заново
-        XCTAssertEqual(CheckoutNonce.current(again), first)
+        let first = CheckoutNonce.loadOrCreate(d)
+        XCTAssertEqual(CheckoutNonce.loadOrCreate(d), first)          // экран оформления открыли снова
+        let again = UserDefaults(suiteName: suite)!                     // «перезапуск»: память читается заново
+        XCTAssertEqual(CheckoutNonce.loadOrCreate(again), first)
     }
 
     /// Обрыв связи: заказ не подтверждён — ключ не меняется, повторная отправка того же заказа даёт тот же idem
     func test03_ConnectionDropRetrySameIdem() {
-        CheckoutNonce.prepare(d)
-        let sent = CheckoutView.idem(CheckoutNonce.current(d), body)
-        // ответ не пришёл — rotate() не вызывается
-        CheckoutNonce.prepare(d)
-        let retry = CheckoutView.idem(CheckoutNonce.current(d), body)
+        let sent = CheckoutView.idem(CheckoutNonce.loadOrCreate(d), body)
+        // ответ не пришёл — renew() не вызывается
+        let retry = CheckoutView.idem(CheckoutNonce.loadOrCreate(d), body)
         XCTAssertEqual(sent, retry, "Повтор после обрыва ушёл с другим ключом — сервер создаст второй заказ")
         XCTAssertEqual(sent.count, 40)
     }
 
     /// Повторная отправка с другими данными — это уже другой заказ: другой idem
     func test04_ResendWithChangedOrderGetsOtherIdem() {
-        CheckoutNonce.prepare(d)
         var other = body; other["deliveryId"] = "door"
-        XCTAssertNotEqual(CheckoutView.idem(CheckoutNonce.current(d), body), CheckoutView.idem(CheckoutNonce.current(d), other))
+        let key = CheckoutNonce.loadOrCreate(d)
+        XCTAssertNotEqual(CheckoutView.idem(key, body), CheckoutView.idem(key, other))
     }
 
     /// Успешное создание заказа: ключ меняется, следующий заказ с теми же данными — новый
-    func test05_SuccessRotatesKey() {
-        CheckoutNonce.prepare(d)
-        let before = CheckoutNonce.current(d)
-        let idemBefore = CheckoutView.idem(before, body)
-        let after = CheckoutNonce.rotate(d)
+    func test05_SuccessRenewsKey() {
+        let before = CheckoutNonce.loadOrCreate(d)
+        let after = CheckoutNonce.renew(d)
         XCTAssertNotEqual(before, after)
-        XCTAssertEqual(CheckoutNonce.current(d), after, "Новый ключ не сохранён")
-        XCTAssertNotEqual(CheckoutView.idem(CheckoutNonce.current(d), body), idemBefore)
+        XCTAssertEqual(CheckoutNonce.loadOrCreate(d), after, "Новый ключ не сохранён")
+        XCTAssertNotEqual(CheckoutView.idem(after, body), CheckoutView.idem(before, body))
     }
 
     /// Обновление с прошлой версии: ключ, уже сохранённый у покупателя, не теряется
     func test06_ExistingKeyFromPreviousVersionKept() {
         d.set("ключ-из-1.0.3", forKey: "checkoutNonce")
-        CheckoutNonce.prepare(d)
-        XCTAssertEqual(CheckoutNonce.current(d), "ключ-из-1.0.3")
+        XCTAssertEqual(CheckoutNonce.loadOrCreate(d), "ключ-из-1.0.3")
     }
 }
 
@@ -82,69 +73,67 @@ final class CheckoutNonceTests: XCTestCase {
 final class RowKeysTests: XCTestCase {
     private func rows(_ n: Int) -> [[String: Any]] { (0..<n).map { ["id": "r\($0)", "name": "строка \($0)"] } }
     private func names(_ r: [[String: Any]]) -> [String] { r.map { $0["name"] as? String ?? "" } }
+    /// Ключи, подстроенные под список из n строк, — как после первого показа экрана
+    private func matched(_ n: Int) -> RowKeys { var k = RowKeys(); k.match(count: n); return k }
 
     /// Удаление последней строки, пока её поле в фокусе: поле при потере фокуса пишет ещё раз — запись не выполняется, падения нет
     func test01_DeleteLastWhileEditingDropsLateWrite() {
-        var r = rows(3); var k = RowKeys(count: 3)
-        let last = k.ids[2]
-        k.remove(&r, last)
-        XCTAssertEqual(r.count, 2); XCTAssertEqual(k.ids.count, 2)
-        XCTAssertFalse(k.update(&r, last, { $0["name"] = "поздняя запись" }), "Запись в удалённую строку")
-        XCTAssertNil(k.value(r, last))
+        var r = rows(3); var k = matched(3); let ids = k.displayKeys(count: 3)
+        k.remove(ids[2], from: &r)
+        XCTAssertEqual(r.count, 2); XCTAssertEqual(k.displayKeys(count: 2), Array(ids.prefix(2)))
+        XCTAssertFalse(k.update(ids[2], in: &r, { $0["name"] = "поздняя запись" }), "Запись в удалённую строку")
+        XCTAssertNil(k.row(ids[2], in: r))
         XCTAssertEqual(names(r), ["строка 0", "строка 1"])
     }
 
     /// После удаления правка соседней строки попадает именно в неё
     func test02_EditNeighbourAfterDelete() {
-        var r = rows(4); var k = RowKeys(count: 4)
-        let second = k.ids[1], third = k.ids[2]
-        k.remove(&r, second)
-        XCTAssertTrue(k.update(&r, third, { $0["name"] = "правка" }))
+        var r = rows(4); var k = matched(4); let ids = k.displayKeys(count: 4)
+        k.remove(ids[1], from: &r)
+        XCTAssertTrue(k.update(ids[2], in: &r, { $0["name"] = "правка" }))
         XCTAssertEqual(names(r), ["строка 0", "правка", "строка 3"])
         XCTAssertEqual(r[1]["id"] as? String, "r2")
     }
 
-    /// Перестановка ↑ ↓: ключ едет вместе со строкой
+    /// Перестановка ↑ ↓: ключ едет вместе со строкой; за границу — ничего не меняется
     func test03_MoveKeepsKeyWithRow() {
-        var r = rows(3); var k = RowKeys(count: 3)
-        let first = k.ids[0]
-        k.move(&r, first, by: 1)
+        var r = rows(3); var k = matched(3); let ids = k.displayKeys(count: 3)
+        k.move(ids[0], by: 1, in: &r)
         XCTAssertEqual(r[1]["id"] as? String, "r0")
-        k.update(&r, first, { $0["name"] = "после перестановки" })
+        k.update(ids[0], in: &r, { $0["name"] = "после перестановки" })
         XCTAssertEqual(names(r), ["строка 1", "после перестановки", "строка 2"])
-        k.move(&r, first, by: 5)   // за границу — ничего не меняется
+        k.move(ids[0], by: 5, in: &r)
         XCTAssertEqual(r[1]["id"] as? String, "r0")
     }
 
     /// «Добавить» и сразу удалить; повторное удаление того же ключа — без изменений
     func test04_AppendThenDeleteTwice() {
-        var r = rows(2); var k = RowKeys(count: 2)
-        k.append(&r, ["id": "new", "name": ""])
-        let added = k.ids.last!
+        var r = rows(2); var k = matched(2)
+        k.append(["id": "new", "name": ""], to: &r)
+        let added = k.displayKeys(count: 3)[2]
         XCTAssertEqual(r.count, 3)
-        k.remove(&r, added); k.remove(&r, added)
-        XCTAssertEqual(r.count, 2); XCTAssertEqual(k.ids.count, 2)
+        k.remove(added, from: &r); k.remove(added, from: &r)
+        XCTAssertEqual(r.count, 2); XCTAssertEqual(k.displayKeys(count: 2).count, 2)
     }
 
-    /// Список заменили целиком (загрузка с сервера): ключи подстраиваются под новое число строк
-    func test05_SyncAfterExternalReplace() {
-        var k = RowKeys(count: 2)
-        let old = k.ids
-        k.sync(2); XCTAssertEqual(k.ids, old, "При том же числе строк ключи не должны меняться")
-        k.sync(5); XCTAssertEqual(k.ids.count, 5)
-        XCTAssertEqual(k.ids(for: 5), k.ids)
-        XCTAssertEqual(k.ids(for: 3).count, 3)   // временные ключи до подстройки
+    /// Список заменили целиком (загрузка с сервера): ключи подстраиваются под новое число строк, при том же — не меняются
+    func test05_MatchAfterExternalReplace() {
+        var k = matched(2); let old = k.displayKeys(count: 2)
+        k.match(count: 2); XCTAssertEqual(k.displayKeys(count: 2), old, "При том же числе строк ключи не должны меняться")
+        XCTAssertNotEqual(k.displayKeys(count: 3), k.displayKeys(count: 3), "До подстройки ключи временные")
+        k.match(count: 5)
+        let five = k.displayKeys(count: 5)
+        XCTAssertEqual(five.count, 5); XCTAssertEqual(k.displayKeys(count: 5), five)
     }
 
     /// Упаковки СДЭК (IOS-05): удалить последнюю, пока её поле веса в фокусе; правка соседней — по ключу
     func test06_PacksDeleteLastWhileEditingWeight() {
         var packs: [[String: Any]] = [["id": "bag", "name": "Пакет", "weight": 20], ["id": "m", "name": "Коробка M", "weight": 150], ["id": "pk1", "name": "", "weight": 50]]
-        var k = RowKeys(count: packs.count)
-        let last = k.ids[2], neighbour = k.ids[1]
-        k.update(&packs, last, { $0["weight"] = 777 })
-        k.remove(&packs, last)
-        XCTAssertFalse(k.update(&packs, last, { $0["weight"] = 7777 }))
-        XCTAssertTrue(k.update(&packs, neighbour, { $0["weight"] = 155; $0["name"] = "Коробка M 2" }))
+        var k = matched(packs.count); let ids = k.displayKeys(count: packs.count)
+        k.update(ids[2], in: &packs, { $0["weight"] = 777 })
+        k.remove(ids[2], from: &packs)
+        XCTAssertFalse(k.update(ids[2], in: &packs, { $0["weight"] = 7777 }))
+        XCTAssertTrue(k.update(ids[1], in: &packs, { $0["weight"] = 155; $0["name"] = "Коробка M 2" }))
         XCTAssertEqual(packs.count, 2)
         XCTAssertEqual(packs[1]["weight"] as? Int, 155)
         XCTAssertEqual(packs[1]["name"] as? String, "Коробка M 2")
@@ -180,30 +169,40 @@ final class SupportPhotosTests: XCTestCase {
         return kr == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
     }
 
-    /// Отправка — прежние размер и качество: до 1600 px по длинной стороне, JPEG
-    func test01_UploadKeepsSizeAndQuality() {
-        let jpg = Support.jpeg(data: Self.big[0])!
-        XCTAssertEqual(max(pixels(jpg).width, pixels(jpg).height), 1600)
-        XCTAssertEqual(pixels(jpg).width / pixels(jpg).height, 8056.0 / 6040.0, accuracy: 0.01)
-        // тот же результат, что у прежнего способа (UIImage → рисование 1600 px → JPEG 0,85)
-        let old = Support.jpeg(UIImage(data: Self.makeJPEG(width: 4000, height: 3000))!)!
-        let new = Support.jpeg(data: Self.makeJPEG(width: 4000, height: 3000))!
-        XCTAssertEqual(pixels(old), pixels(new))
+    /// Прежний способ (до этапа A, 1.0.3): UIImage целиком → рисование 1600 px → JPEG 0,85. Только для сравнения
+    private func referenceJPEG(_ data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let k = min(1, 1600 / max(image.size.width, image.size.height))
+        let size = CGSize(width: (image.size.width * k).rounded(), height: (image.size.height * k).rounded())
+        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: fmt).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }.jpegData(compressionQuality: 0.85)
     }
 
-    /// Поворот из EXIF учитывается, как раньше; маленькое фото не увеличивается
+    /// Отправка — прежние размер и качество: до 1600 px по длинной стороне, JPEG; миниатюра — до 300 px
+    func test01_UploadKeepsSizeAndQuality() {
+        let p = Support.photo(Self.big[0])!
+        XCTAssertEqual(max(pixels(p.jpeg).width, pixels(p.jpeg).height), 1600)
+        XCTAssertEqual(pixels(p.jpeg).width / pixels(p.jpeg).height, 8056.0 / 6040.0, accuracy: 0.01)
+        XCTAssertEqual(max(pixels(p.thumbnail).width, pixels(p.thumbnail).height), Support.thumbPixels)
+        // тот же размер, что у прежнего способа
+        let data = Self.makeJPEG(width: 4000, height: 3000)
+        XCTAssertEqual(pixels(referenceJPEG(data)!), pixels(Support.photo(data)!.jpeg))
+    }
+
+    /// Поворот из EXIF учитывается, как раньше; маленькое фото не увеличивается; не фото — nil
     func test02_OrientationAndNoUpscale() {
-        let portrait = Support.jpeg(data: Self.makeJPEG(width: 4000, height: 3000, orientation: 6))!
-        XCTAssertEqual(pixels(portrait), CGSize(width: 1200, height: 1600))
-        let old = Support.jpeg(UIImage(data: Self.makeJPEG(width: 4000, height: 3000, orientation: 6))!)!
-        XCTAssertEqual(pixels(old), pixels(portrait), "Поворот не совпадает с прежним способом")
-        let small = Support.jpeg(data: Self.makeJPEG(width: 800, height: 600))!
-        XCTAssertEqual(pixels(small), CGSize(width: 800, height: 600))
-        XCTAssertNil(Support.jpeg(data: Data("не фото".utf8)))
+        let rotated = Self.makeJPEG(width: 4000, height: 3000, orientation: 6)
+        let portrait = Support.photo(rotated)!
+        XCTAssertEqual(pixels(portrait.jpeg), CGSize(width: 1200, height: 1600))
+        XCTAssertEqual(pixels(portrait.thumbnail), CGSize(width: 225, height: 300))
+        XCTAssertEqual(pixels(referenceJPEG(rotated)!), pixels(portrait.jpeg), "Поворот не совпадает с прежним способом")
+        let small = Support.photo(Self.makeJPEG(width: 800, height: 600))!
+        XCTAssertEqual(pixels(small.jpeg), CGSize(width: 800, height: 600))
+        XCTAssertNil(Support.photo(Data("не фото".utf8)))
     }
 
     /// Пять больших фото: в памяти только миниатюры, на сервер уходит JPEG 1600 px; после «Убрать» и закрытия — память освобождена
-    func test03_FiveLargePhotosKeepOnlyThumbnails() async {
+    func test03_FiveLargePhotosKeepOnlyThumbnails() async throws {
         var uploaded: [CGSize] = []
         _ = Self.big.count            // тестовые фото создаются заранее — их создание не входит в замер
         let start = footprintMB()
@@ -231,7 +230,7 @@ final class SupportPhotosTests: XCTestCase {
         let ids = att!.items.map(\.id)
         for id in ids { att!.remove(id) }
         XCTAssertTrue(att!.items.isEmpty)
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        try await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertNil(firstThumb, "Миниатюра осталась в памяти после «Убрать фото»")
 
         await att!.add(Self.big[1])
@@ -239,7 +238,7 @@ final class SupportPhotosTests: XCTestCase {
         weak var closedThumb: UIImage?
         autoreleasepool { closed = att; closedThumb = att!.items.first?.image }
         att = nil                                     // окно обращения закрыли
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        try await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertNil(closed, "Фото обращения остались в памяти после закрытия окна")
         XCTAssertNil(closedThumb)
     }
