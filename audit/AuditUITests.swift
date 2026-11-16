@@ -175,14 +175,15 @@ final class AuditUITests: XCTestCase {
             let login = app.textFields.firstMatch
             login.tap(); login.typeText("owner-audit@example.com")
             // Пароль: поле должно получить фокус, и в нём должно оказаться 10 знаков (секретное поле показывает точки).
-            // Раньше ввод в секретное поле молча не доходил — вход не удавался, а тесты панели шли без входа (этап A.1)
+            // Пароль из цифр: в секретном поле открывается русская раскладка, латинские буквы XCUITest не набирает —
+            // раньше вход молча не удавался, и тесты панели шли без входа (этап A.1, видео теста 11)
             var typed = false
             for _ in 1...3 where !typed {
                 pw.tap()
                 guard app.keyboards.firstMatch.waitForExistence(timeout: 5) else { continue }
                 let had = (pw.value as? String)?.count ?? 0
                 if had > 0 && had != 10 { pw.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: had + 2)) }
-                if had != 10 { pw.typeText("ownerpass1") }
+                if had != 10 { pw.typeText("5739146280") }
                 typed = (pw.value as? String)?.count == 10
             }
             note("Пароль введён: \(typed)")

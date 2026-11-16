@@ -126,9 +126,10 @@ jobs:
           start() { (cd shop && PORT=3999 PUBLIC_URL=http://127.0.0.1:3998 OWNER_PHONE=79070009999 nohup node server.js >> ../server.log 2>&1 &); sleep 4; }
           start
           # владелец панели для проверок этапа A (почта в копии не настроена — регистрация и вход без кода);
+          # пароль из цифр: язык симулятора русский, и в секретном поле латинские буквы не набираются (этап A.1)
           # владелец назначается при запуске магазина, поэтому после регистрации магазин перезапускается
           curl -s -X POST http://127.0.0.1:3999/api/auth/register -H 'Content-Type: application/json' \
-            -d '{"firstName":"Аудит","lastName":"Владелец","phone":"79070009999","email":"owner-audit@example.com","password":"ownerpass1","consent":true}' | head -c 120; echo
+            -d '{"firstName":"Аудит","lastName":"Владелец","phone":"79070009999","email":"owner-audit@example.com","password":"5739146280","consent":true}' | head -c 120; echo
           sleep 2; pkill -f "node server.js" || true; sleep 2
           start
           grep -E "Владелец панели" server.log || true
