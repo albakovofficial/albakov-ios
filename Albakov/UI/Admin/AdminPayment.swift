@@ -280,13 +280,12 @@ private struct CdekShipCard: View {
                 Text("Размер и вес самой упаковки. В карточке товара выбираете, в какую упаковку он кладётся; посылка берётся по самой крупной вещи, а от 3 вещей — на размер больше").font(Theme.font(12)).foregroundStyle(Theme.dim)
                 ForEach(packKeys.displayKeys(count: packs.count), id: \.self) { id in
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack { TextField("Название", text: pstr(id, "name")).font(Theme.font(14.5, .medium)); Button { RowKeys.edit($packKeys, $packs) { $0.remove(id, from: &$1) } } label: { Image(systemName: "xmark").font(.system(size: 11)) }.foregroundStyle(Theme.muted) }
+                        HStack { TextField("Название", text: pstr(id, "name")).font(Theme.font(14.5, .medium)); Button { packKeys.remove(id, from: &packs) } label: { Image(systemName: "xmark").font(.system(size: 11)) }.foregroundStyle(Theme.muted) }
                         HStack(spacing: 6) { pnum(id, "length", "см"); Text("×"); pnum(id, "width", "см"); Text("×"); pnum(id, "height", "см"); pnum(id, "weight", "г") }.font(Theme.font(13))
                     }.padding(10).background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface))
                 }
-                Button("+ Добавить упаковку") { RowKeys.edit($packKeys, $packs) { $0.append(["id": "pk" + String(Int(Date().timeIntervalSince1970 * 1000), radix: 36), "name": "", "length": 30, "width": 20, "height": 10, "weight": 50], to: &$1) } }.font(Theme.font(13))
+                Button("+ Добавить упаковку") { packKeys.append(Self.newPack(), to: &packs) }.font(Theme.font(13))
             }
-            .task(id: packs.count) { packKeys.match(count: packs.count) }   // загрузка настроек и замена списка целиком
             Field(label: "Вес вещи, если в карточке не указан, г", text: $weight, keyboard: .numberPad)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Упаковка, если в карточке не выбрана").font(Theme.font(14)).foregroundStyle(Theme.muted)
@@ -308,6 +307,7 @@ private struct CdekShipCard: View {
             tariff = c["tariff"].int ?? 136; tariffDoor = c["tariffDoor"].int ?? 137
             let list = c["packs"].array.map(\.dictAny)
             packs = (list.isEmpty ? CdekShipCard.defPacks : list).sorted { vol($0) < vol($1) }
+            packKeys.match(count: packs.count)   // список упаковок задаётся только здесь — ключи сразу под него
             defPack = c["defaultPack"].string ?? (packs.first?["id"] as? String ?? "")
             weight = String(c["pkg"]["weight"].int ?? 1000)
             retName = c["returnTo"]["name"].str; retPhone = c["returnTo"]["phone"].str.isEmpty ? "" : Fmt.phone(c["returnTo"]["phone"].str)
@@ -321,6 +321,9 @@ private struct CdekShipCard: View {
                 point = ["code": pt.code, "address": pt.address, "city": c.title, "cityCode": c.code]; city = nil
             }
         }
+    }
+    private static func newPack() -> [String: Any] {
+        ["id": "pk" + String(Int(Date().timeIntervalSince1970 * 1000), radix: 36), "name": "", "length": 30, "width": 20, "height": 10, "weight": 50]
     }
     private func vol(_ x: [String: Any]) -> Int { let j = JSON(x); return (j["length"].int ?? 0) * (j["width"].int ?? 0) * (j["height"].int ?? 0) }
     /// Поле упаковки: читается и пишется по ключу упаковки. Упаковку уже удалили — поле пустое, запись не выполняется

@@ -133,8 +133,10 @@ final class AuditUITests: XCTestCase {
     /// поэтому тест, которому нужна пустая форма, сам её очищает и не зависит от предыдущих тестов
     static let customerFields = ["Иван", "Иванов", "+7 (___) ___-__-__", "mail@example.ru"]
     func clearCustomer() {
-        for p in Self.customerFields { erase(p) }
-        app.navigationBars.firstMatch.tap()   // убрать клавиатуру
+        for p in Self.customerFields {
+            erase(p)
+            app.navigationBars.firstMatch.tap()   // убрать клавиатуру: иначе следующее поле может оказаться под ней
+        }
         for p in Self.customerFields {
             let v = field(p).value as? String ?? ""
             XCTAssertTrue(v.isEmpty || v == p || v.filter(\.isNumber).count <= 1, "Поле «\(p)» не очистилось: \(v)")
@@ -172,10 +174,22 @@ final class AuditUITests: XCTestCase {
         if pw.waitForExistence(timeout: 8) {
             let login = app.textFields.firstMatch
             login.tap(); login.typeText("owner-audit@example.com")
-            pw.tap(); pw.typeText("ownerpass1")
+            // Пароль: поле должно получить фокус, и в нём должно оказаться 10 знаков (секретное поле показывает точки).
+            // Раньше ввод в секретное поле молча не доходил — вход не удавался, а тесты панели шли без входа (этап A.1)
+            var typed = false
+            for _ in 1...3 where !typed {
+                pw.tap()
+                guard app.keyboards.firstMatch.waitForExistence(timeout: 5) else { continue }
+                let had = (pw.value as? String)?.count ?? 0
+                if had > 0 && had != 10 { pw.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: had + 2)) }
+                if had != 10 { pw.typeText("ownerpass1") }
+                typed = (pw.value as? String)?.count == 10
+            }
+            note("Пароль введён: \(typed)")
             tap("Войти"); sleep(5)   // у экрана входа нет панели навигации — клавиатуру не прячем, «Войти» ищем прокруткой
         }
         shot("вход владельца")
+        XCTAssertFalse(app.secureTextFields.firstMatch.exists, "Вход владельцем не удался — проверка панели без входа недостоверна")
     }
     /// Спрятать клавиатуру: тап по заголовку экрана, если он есть
     func hideKeyboard() { let nb = app.navigationBars.firstMatch; if nb.exists && nb.isHittable { nb.tap() } }

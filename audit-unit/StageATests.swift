@@ -243,6 +243,17 @@ final class SupportPhotosTests: XCTestCase {
         XCTAssertNil(closedThumb)
     }
 
+    /// Экран ушёл, пока фото готовилось (задача отменена): фото не показывается и не отправляется
+    func test05_CancelledWhileProcessingAddsNothing() async {
+        var uploads = 0
+        let att = SupportAttachments(uploadPath: "support/upload") { _ in uploads += 1; return "f.jpg" }
+        let task = Task { await att.add(Self.big[0]) }
+        task.cancel()          // задача ещё не началась: главный поток занят тестом
+        await task.value
+        XCTAssertTrue(att.items.isEmpty, "Фото добавлено после отмены")
+        XCTAssertEqual(uploads, 0, "Фото отправлено после отмены")
+    }
+
     /// Ошибка отправки — фото убирается из полоски, как и раньше
     func test04_UploadErrorRemovesPhoto() async {
         struct Fail: Error {}

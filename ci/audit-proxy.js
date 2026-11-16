@@ -37,10 +37,10 @@ http.createServer((req, res) => {
   req.on('end', () => {
     const body = Buffer.concat(chunks);
     const logSupport = (status, note) => {
-      if (isSupport) console.log(new Date().toISOString(), 'support #' + rid, req.method, u.pathname, 'тело', body.length, 'Б →', status, (Date.now() - t0) + ' мс', note || '');
+      if (isSupport) console.log(new Date().toISOString(), 'support #' + rid, req.method, u.pathname.replace(/\/file\/[^/]+$/, '/file/…'), 'тело', body.length, 'Б →', status, (Date.now() - t0) + ' мс', note || '');
     };
     if (hit && mode === 'off') { logSupport('обрыв (режим off)'); req.socket.destroy(); return; }
-    if (hit && mode === '502') { mode = 'on'; res.writeHead(502, { 'Content-Type': 'text/html' }); res.end('<html><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>'); return; }
+    if (hit && mode === '502') { logSupport(502, 'ответ 502 (режим 502)'); mode = 'on'; res.writeHead(502, { 'Content-Type': 'text/html' }); res.end('<html><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>'); return; }
     const go = () => {
       const r2 = http.request({ host: '127.0.0.1', port: T, method: req.method, path: req.url, headers: Object.assign({}, req.headers, { host: '127.0.0.1:' + T }) }, (pr) => {
         const out = [];
@@ -54,7 +54,7 @@ http.createServer((req, res) => {
           if (isSupport) {
             let note = 'ok';
             try { const j = JSON.parse(buf); if (j.ok === false || pr.statusCode >= 400) note = 'ошибка: ' + String(j.error || '').slice(0, 120); } catch (e) { note = 'ответ не JSON, ' + buf.length + ' Б'; }
-            logSupport(pr.statusCode, note);
+            logSupport(pr.statusCode, note + (hit && mode === 'drop-after' ? ' — ответ потерян (режим drop-after)' : ''));
           }
           if (hit && mode === 'drop-after') { mode = 'on'; req.socket.destroy(); return; }
           res.writeHead(pr.statusCode, pr.headers); res.end(buf);

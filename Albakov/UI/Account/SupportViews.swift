@@ -112,23 +112,30 @@ final class SupportAttachments: ObservableObject {
         }
     }
 
-    var busy: Bool { items.contains { $0.name == nil } }
+    /// Идёт обработка выбранных фото (чтение и уменьшение). Пока она идёт, новый выбор фото и отправка недоступны:
+    /// иначе смена выбора отменила бы обработку, а сообщение ушло бы без части фото (ревью этапа A.1)
+    @Published private(set) var loading = false
+    var busy: Bool { loading || items.contains { $0.name == nil } }
     var names: [String] { items.compactMap(\.name) }
     var left: Int { max(0, 5 - items.count) }
 
-    /// Выбранные фото по одному. Вызывается из .task(id:) экрана: закрыли экран — задача отменена,
-    /// следующие фото не обрабатываются и не отправляются
+    /// Выбранные фото по одному. Вызывается из .task(id:) экрана. Если экран ушёл (его закрыли или открыли поверх другой),
+    /// задача отменяется: оставшиеся фото не обрабатываются и не отправляются, выбор сбрасывается — фото выбирают заново.
+    /// Так задумано: обработка занимает около секунды на фото, держать её после ухода с экрана незачем
     func add(_ picks: [PhotosPickerItem]) async {
+        loading = true; defer { loading = false }
         for p in picks.prefix(left) {
             if Task.isCancelled { return }
             let data: Data?
-            do { data = try await p.loadTransferable(type: Data.self) } catch { data = nil }
-            guard let data else { if !Task.isCancelled { Toast.shared.show("Не получилось открыть фото") }; continue }
+            do { data = try await p.loadTransferable(type: Data.self) }
+            catch { if !error.isCancel { Toast.shared.show("Не получилось открыть фото") }; continue }
+            guard let data else { Toast.shared.show("Не получилось открыть фото"); continue }
             await add(data)
         }
     }
     /// Одно фото из данных файла: JPEG для отправки и миниатюра готовятся вне главного потока
-    /// (Task.detached: раскодирование тяжёлое), исходные данные дальше не хранятся
+    /// (Task.detached: раскодирование тяжёлое). Дальше держим только миниатюру и JPEG 1600 px;
+    /// исходные данные живут до конца этого вызова, то есть и во время отправки, — по одному снимку за раз
     func add(_ data: Data) async {
         let photo = await Task.detached(priority: .userInitiated) { Support.photo(data) }.value
         if Task.isCancelled { return }   // экран закрыли, пока фото готовилось, — не показываем и не отправляем
@@ -329,8 +336,8 @@ struct SupportComposer: View {
                     Image(systemName: "paperclip").font(.system(size: 18, weight: .regular)).foregroundStyle(Theme.text)
                         .frame(width: 44, height: 44).overlay(Circle().strokeBorder(Theme.line))
                 }
-                .disabled(att.left == 0).accessibilityLabel("Прикрепить фото")
-                .task(id: picks) { guard !picks.isEmpty else { return }; await att.add(picks); picks = [] }   // экран закрыли — обработка фото отменяется
+                .disabled(att.left == 0 || att.busy).accessibilityLabel("Прикрепить фото")
+                .task(id: picks) { guard !picks.isEmpty else { return }; await att.add(picks); picks = [] }   // экран ушёл — обработка фото отменяется
                 TextField(placeholder, text: $draft, axis: .vertical).font(Theme.font(15)).lineLimit(1...5)
                     .padding(.horizontal, 16).padding(.vertical, 11).frame(minHeight: 44)
                     .background(RoundedRectangle(cornerRadius: 22).fill(Theme.surface))
@@ -491,8 +498,8 @@ struct NewTicketSheet: View {
                             Image(systemName: "photo").font(.system(size: 20, weight: .light)).foregroundStyle(Theme.muted).frame(width: 64, height: 64)
                                 .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                         }
-                        .disabled(att.left == 0).accessibilityLabel("Добавить фото")
-                        .task(id: picks) { guard !picks.isEmpty else { return }; await att.add(picks); picks = [] }   // экран закрыли — обработка фото отменяется
+                        .disabled(att.left == 0 || att.busy).accessibilityLabel("Добавить фото")
+                        .task(id: picks) { guard !picks.isEmpty else { return }; await att.add(picks); picks = [] }   // экран ушёл — обработка фото отменяется
                         if att.items.isEmpty { Text("Фото вещи или бирки — до 5 штук. Так ответим быстрее").font(Theme.font(13)).foregroundStyle(Theme.dim) }
                         else { AttachmentStrip(att: att) }
                     }

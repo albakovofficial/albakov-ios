@@ -484,12 +484,6 @@ struct RowKeys {
         guard let i = position(key, in: rows), rows.indices.contains(i + offset) else { return }
         rows.swapAt(i, i + offset); keys.swapAt(i, i + offset)
     }
-    /// Изменить ключи и строки вместе, одним действием (для @State/@Binding экрана)
-    static func edit<T>(_ keys: Binding<RowKeys>, _ rows: Binding<[T]>, _ change: (inout RowKeys, inout [T]) -> Void) {
-        var k = keys.wrappedValue, r = rows.wrappedValue
-        change(&k, &r)
-        keys.wrappedValue = k; rows.wrappedValue = r
-    }
     /// Текущее место строки с этим ключом; nil — строки нет
     private func position<T>(_ key: UUID, in rows: [T]) -> Int? {
         guard let i = keys.firstIndex(of: key), rows.indices.contains(i) else { return nil }
@@ -513,16 +507,16 @@ struct RowsEditor: View {
                     HStack {
                         Text("\(i + 1)").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
                         Spacer()
-                        if i > 0 { tool("arrow.up") { RowKeys.edit($keys, $rows) { $0.move(id, by: -1, in: &$1) } } }
-                        if i < ids.count - 1 { tool("arrow.down") { RowKeys.edit($keys, $rows) { $0.move(id, by: 1, in: &$1) } } }
-                        tool("xmark") { RowKeys.edit($keys, $rows) { $0.remove(id, from: &$1) } }
+                        if i > 0 { tool("arrow.up") { keys.move(id, by: -1, in: &rows) } }
+                        if i < ids.count - 1 { tool("arrow.down") { keys.move(id, by: 1, in: &rows) } }
+                        tool("xmark") { keys.remove(id, from: &rows) }
                     }
                     let doc = Doc(rows[i])
                     // запись — в строку с этим ключом на её текущем месте; строку уже удалили — записывать некуда
                     RowFields(cols: cols, doc: doc) { v in var r = rows; if keys.update(id, in: &r, { $0 = v }) { rows = r } }
                 }.padding(12).background(RoundedRectangle(cornerRadius: 16).fill(.white)).hairline(RoundedRectangle(cornerRadius: 16), 0.09)
             }
-            Button { var r: [String: Any] = ["id": uid("r")]; for c in cols { if case .bool = c.kind { r[c.k] = false } else { r[c.k] = "" } }; RowKeys.edit($keys, $rows) { $0.append(r, to: &$1) } } label: {
+            Button { var r: [String: Any] = ["id": uid("r")]; for c in cols { if case .bool = c.kind { r[c.k] = false } else { r[c.k] = "" } }; keys.append(r, to: &rows) } label: {
                 Label("Добавить", systemImage: "plus").font(Theme.font(14, .medium)).foregroundStyle(Theme.text).padding(.horizontal, 16).frame(height: 40).background(Capsule().fill(Theme.surface))
             }
         }
