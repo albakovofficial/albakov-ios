@@ -115,7 +115,7 @@ struct CartRow: View {
                         if let o = q["oldPrice"].int, o > 0 { Text(Fmt.rub(o * line.qty)).font(Theme.font(13)).strikethrough().foregroundStyle(Theme.dim) }
                     } else if let p { PriceView(price: shop.price(p)) }
                     Spacer()
-                    if !compact { Button { withAnimation { shop.setQty(line, 0) } } label: { Text("Удалить").font(Theme.font(13.5)).foregroundStyle(Theme.muted) } }
+                    if !compact { Button { withAnimation { shop.setQty(line, 0) } } label: { Text("Удалить").font(Theme.font(13.5)).foregroundStyle(Theme.muted).lineLimit(1).fixedSize() } }
                 }
                 if compact {
                     HStack(spacing: 14) { stepper; Button { withAnimation { shop.setQty(line, 0) } } label: { Text("Убрать").font(Theme.font(13)).foregroundStyle(Theme.muted).underline() } }
