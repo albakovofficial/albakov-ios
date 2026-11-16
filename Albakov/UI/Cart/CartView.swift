@@ -111,8 +111,9 @@ struct CartRow: View {
                 Text(compact ? [c?.name, line.size].compactMap { $0 }.joined(separator: " · ") : "Цвет: \(c?.name ?? "") · Размер: \(line.size)").font(Theme.font(13)).foregroundStyle(Theme.muted)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if let pr = q["price"].int {
-                        Text(Fmt.rub(pr * line.qty)).font(Theme.font(15)).foregroundStyle((q["oldPrice"].int ?? 0) > 0 ? Theme.sale : Theme.text)
-                        if let o = q["oldPrice"].int, o > 0 { Text(Fmt.rub(o * line.qty)).font(Theme.font(13)).strikethrough().foregroundStyle(Theme.dim) }
+                        // цена — одной строкой: при крупном шрифте «₽» не уходит вниз, текст чуть сжимается (аудит N-6)
+                        Text(Fmt.rub(pr * line.qty)).font(Theme.font(15)).foregroundStyle((q["oldPrice"].int ?? 0) > 0 ? Theme.sale : Theme.text).lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
+                        if let o = q["oldPrice"].int, o > 0 { Text(Fmt.rub(o * line.qty)).font(Theme.font(13)).strikethrough().foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.6) }
                     } else if let p { PriceView(price: shop.price(p)) }
                     Spacer()
                     if !compact { Button { withAnimation { shop.setQty(line, 0) } } label: { Text("Удалить").font(Theme.font(13.5)).foregroundStyle(Theme.muted).lineLimit(1).fixedSize() } }

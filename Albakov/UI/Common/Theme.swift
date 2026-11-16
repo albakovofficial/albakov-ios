@@ -312,8 +312,8 @@ struct PriceView: View {
     var size: CGFloat = 15
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(Fmt.rub(price.price)).font(Theme.font(size, .medium)).kerning(0.3).foregroundStyle(price.oldPrice > 0 ? Theme.sale : Theme.text)
-            if price.oldPrice > 0 { Text(Fmt.rub(price.oldPrice)).font(Theme.font(size - 2)).strikethrough().foregroundStyle(Theme.dim) }
+            Text(Fmt.rub(price.price)).font(Theme.font(size, .medium)).kerning(0.3).foregroundStyle(price.oldPrice > 0 ? Theme.sale : Theme.text).lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
+            if price.oldPrice > 0 { Text(Fmt.rub(price.oldPrice)).font(Theme.font(size - 2)).strikethrough().foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.6) }
         }
     }
 }
