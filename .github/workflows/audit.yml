@@ -115,10 +115,29 @@ jobs:
       - name: Копия магазина и посредник
         if: inputs.tests
         run: |
-          cd shop && (PORT=3999 PUBLIC_URL=http://127.0.0.1:3998 nohup node server.js > ../server.log 2>&1 &) && cd ..
+          start() { (cd shop && PORT=3999 PUBLIC_URL=http://127.0.0.1:3998 OWNER_PHONE=79070009999 nohup node server.js >> ../server.log 2>&1 &); sleep 4; }
+          start
+          # владелец панели для проверок этапа A (почта в копии не настроена — регистрация и вход без кода);
+          # владелец назначается при запуске магазина, поэтому после регистрации магазин перезапускается
+          curl -s -X POST http://127.0.0.1:3999/api/auth/register -H 'Content-Type: application/json' \
+            -d '{"firstName":"Аудит","lastName":"Владелец","phone":"79070009999","email":"owner-audit@example.com","password":"ownerpass1","consent":true}' | head -c 120; echo
+          sleep 2; pkill -f "node server.js" || true; sleep 2
+          start
+          grep -E "Владелец панели" server.log || true
           (nohup node ci/audit-proxy.js 3998 3999 > proxy.log 2>&1 &)
-          sleep 4
+          sleep 2
           curl -s http://127.0.0.1:3998/api/state | head -c 160; echo
+
+      - name: Пять больших фото (≈48 Мп) в «Фото» симулятора — для проверки памяти (этап A, IOS-03)
+        if: inputs.tests
+        run: |
+          xcrun simctl boot "$SMALL" 2>/dev/null || true; xcrun simctl bootstatus "$SMALL" -b >/dev/null || true
+          mkdir -p "$RUNNER_TEMP/big"
+          for i in 1 2 3 4 5; do
+            sips -s format jpeg -s formatOptions 90 -z $((6048 - i * 8)) $((8064 - i * 8)) Albakov/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png --out "$RUNNER_TEMP/big/big$i.jpg" >/dev/null
+          done
+          sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP"/big/*.jpg | grep -E "pixel" | head -4
+          xcrun simctl addmedia "$SMALL" "$RUNNER_TEMP"/big/*.jpg
 
       - name: UI-тесты покупки
         if: inputs.tests
@@ -128,6 +147,8 @@ jobs:
           ONLY: ${{ inputs.only }}
         run: |
           RUN=$(ls build/Build/Products/*.xctestrun | head -1)
+          # память приложения (RSS, КБ) раз в полсекунды — пик между отметками MEMMARK из тестов (этап A, IOS-03)
+          ( while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
           SEL=""; for t in $ONLY; do SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; done
           xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed" || true
 
@@ -150,7 +171,28 @@ jobs:
                       name = re.sub(r'[/\\:]+', '-', a.get('suggestedHumanReadableName', a['exportedFileName']))
                       if os.path.exists(src): os.rename(src, os.path.join('out/tests', test + '__' + name))
           PY
-          cp test.log server.log proxy.log out/ 2>/dev/null || true
+          cp test.log server.log proxy.log mem.log out/ 2>/dev/null || true
+          python3 - <<'PY' > out/mem-summary.txt || true
+          import re
+          marks = [(m.group(1), int(m.group(2))) for m in re.finditer(r"MEMMARK (\S+) (\d+)", open('test.log', errors='ignore').read())]
+          seen = {}
+          for k, t in marks: seen.setdefault(k, t)
+          mem = [tuple(map(int, l.split())) for l in open('mem.log') if len(l.split()) == 2]
+          def at(t): return next((kb for ts, kb in reversed(mem) if ts <= t), 0) / 1024
+          def peak(a, b): return max([kb for ts, kb in mem if a <= ts <= b] or [0]) / 1024
+          print('Память приложения (RSS, МБ) в тесте 13 — пять фото ~48 Мп')
+          if all(k in seen for k in ('photos-start', 'photos-loaded', 'photos-removed', 'sheet-closed')):
+              s, l, r, c = (seen[k] for k in ('photos-start', 'photos-loaded', 'photos-removed', 'sheet-closed'))
+              print('до выбора фото:        %.0f' % at(s))
+              print('пик при загрузке 5 фото: %.0f' % peak(s, l))
+              print('5 фото в обращении:     %.0f' % at(l))
+              print('после «Убрать фото»:    %.0f' % at(r))
+              print('после закрытия окна:    %.0f' % at(c + 3))
+          else:
+              print('отметки не найдены:', seen)
+          print('максимум за все тесты:  %.0f' % (max([kb for _, kb in mem] or [0]) / 1024))
+          PY
+          cat out/mem-summary.txt
           ls out/tests | head -80
 
       - name: Снимки экранов (боевые товары, только чтение)

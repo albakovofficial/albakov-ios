@@ -143,6 +143,78 @@ final class AuditUITests: XCTestCase {
         let p = NSPredicate(format: "label CONTAINS[c] 'Заказ №' OR label CONTAINS[c] 'Спасибо' OR label CONTAINS[c] 'оформлен'")
         return app.staticTexts.matching(p).firstMatch.waitForExistence(timeout: timeout)
     }
+    /// Галочки оферты и согласия (они не сохраняются в черновике — их ставят заново на каждом экране оформления)
+    func tickAgreements() {
+        let offer = button("публичной оферты"); scrollTo(offer); if offer.exists { offer.tap() }
+        let consent = button("согласие на обработку"); scrollTo(consent); if consent.exists { consent.tap() }
+    }
+    /// Вход владельцем копии магазина (аккаунт создаёт audit.yml; почта в копии не настроена — вход без кода).
+    /// Сеанс хранится между запусками: если уже вошли, формы входа нет.
+    func signInOwner() {
+        launch("/account")
+        let pw = app.secureTextFields.firstMatch
+        if pw.waitForExistence(timeout: 8) {
+            let login = app.textFields.firstMatch
+            login.tap(); login.typeText("owner-audit@example.com")
+            pw.tap(); pw.typeText("ownerpass1")
+            app.navigationBars.firstMatch.tap()
+            tap("Войти"); sleep(5)
+        }
+        shot("вход владельца")
+    }
+    /// Последняя кнопка из подходящих по подписи (нижняя строка списка)
+    func lastButton(_ labels: [String]) -> XCUIElement {
+        let q = app.buttons.matching(NSPredicate(format: "label IN %@", labels))
+        return q.element(boundBy: max(0, q.count - 1))
+    }
+    /// Отметка времени для замера памяти: audit.yml пишет память приложения раз в полсекунды и считает пик между отметками
+    func mark(_ label: String) {
+        let s = "MEMMARK \(label) \(Int(Date().timeIntervalSince1970))"
+        print(s); note(s)
+    }
+
+    // MARK: - 0. IOS-01: первый заказ на телефоне — обрыв, повторное открытие оформления, повтор — без второго заказа
+    // Идёт первым (имена тестов — по алфавиту): в свежем симуляторе ещё не было ни одного заказа,
+    // поэтому ключ повтора заказа ещё не сохранён — ровно случай из аудита.
+
+    func test00_FirstOrderReopenRetryNoDuplicate() {
+        let phone = "79070000001"
+        startClean()
+        addToCart(product: "p5", size: "L")
+        launch("/checkout")
+        fillCheckout(phone: phone)
+        let c = button("Подтвердить заказ"); scrollTo(c)
+        // а) первый запуск оформления, обрыв связи — заказ не дошёл
+        ctl("off?scope=orders"); c.tap(); sleep(4)
+        shot("00а первое оформление — обрыв связи")
+        XCTAssertEqual(ordersFor(phone), 0)
+        ctl("on?scope=all")
+        // б) повторное открытие экрана в том же запуске: назад в корзину и снова «Оформить заказ»
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.exists { back.tap(); sleep(2) }
+        tap("Оформить заказ"); sleep(3)
+        shot("00б оформление открыто заново")
+        XCTAssertEqual(field("Иван").value as? String, "Пётр", "Черновик не восстановился — данные заказа будут другими")
+        tickAgreements()
+        // в) заказ создан, а ответ потерян
+        let c2 = button("Подтвердить заказ"); scrollTo(c2)
+        ctl("drop-after?scope=orders"); c2.tap(); sleep(5)
+        shot("00в ответ потерян")
+        XCTAssertEqual(ordersFor(phone), 1, "Заказ должен был создаться на сервере")
+        ctl("on?scope=all")
+        // г) приложение закрыли и открыли оформление снова — повторная отправка
+        app.terminate()
+        launch("/checkout")
+        tickAgreements()
+        let c3 = button("Подтвердить заказ"); scrollTo(c3)
+        shot("00г после перезапуска — перед повтором")
+        c3.tap()
+        // д) успешный ответ: открылся тот же заказ, второго нет
+        XCTAssertTrue(waitOrderOpened(), "После повтора заказ не открылся")
+        shot("00д заказ открыт")
+        sleep(2)
+        XCTAssertEqual(ordersFor(phone), 1, "Повтор после обрыва и повторного открытия создал второй заказ")
+    }
 
     // MARK: - 1. Карточка товара: без размера, нет в наличии, последняя штука
 
@@ -334,6 +406,112 @@ final class AuditUITests: XCTestCase {
         let back = app.navigationBars.buttons.element(boundBy: 0)
         if back.exists { back.tap(); sleep(2) }
         shot("09 назад с карточки товара")
+        XCTAssertEqual(app.state, .runningForeground, "Приложение закрылось")
+    }
+
+    // MARK: - 11. IOS-04: панель — удаление строки списка, пока поле этой строки в фокусе (ничего не сохраняем)
+
+    func test11_AdminRowsDeleteWhileEditing() {
+        signInOwner()
+        launch("/admin?s=menu")
+        XCTAssertTrue(text("Социальные сети").waitForExistence(timeout: 25), "Раздел «Меню, контакты, соцсети» не открылся")
+        let del = ["Удалить строку", "Закрыть", "Close", "xmark"]
+        for round in 1...3 {
+            // новая строка в последнем списке (соцсети), курсор — в её последнем поле, клавиатура открыта
+            let add = lastButton(["Добавить"]); scrollTo(add)
+            guard add.exists else { XCTFail("Нет кнопки «Добавить»"); return }
+            add.tap(); sleep(1)
+            let fields = app.textFields
+            let f = fields.element(boundBy: fields.count - 1); scrollTo(f)
+            f.tap(); f.typeText("Проверка \(round)")
+            shot("11.\(round) поле новой строки в фокусе")
+            let x = lastButton(del)
+            if x.isHittable { x.tap() } else { x.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+            sleep(1)
+            XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления строки (круг \(round))")
+            // правка соседней (теперь последней) строки
+            let n = app.textFields
+            let g = n.element(boundBy: n.count - 1); scrollTo(g)
+            if g.exists { g.tap(); g.typeText("!"); app.navigationBars.firstMatch.tap() }
+            sleep(1)
+            shot("11.\(round) после удаления и правки соседней строки")
+            XCTAssertEqual(app.state, .runningForeground, "Панель закрылась при правке соседней строки (круг \(round))")
+            XCTAssertFalse(app.textFields.matching(NSPredicate(format: "value == %@", "Проверка \(round)")).firstMatch.exists, "Удалённая строка осталась на экране")
+        }
+        app.terminate()   // выходим без сохранения
+    }
+
+    // MARK: - 12. IOS-05: панель — удаление упаковки СДЭК, пока её поле в фокусе (ничего не сохраняем)
+
+    func test12_AdminPacksDeleteWhileEditing() {
+        signInOwner()
+        launch("/admin?s=payment")
+        let add = button("Добавить упаковку")
+        scrollTo(add, max: 30)
+        guard add.waitForExistence(timeout: 20) else { XCTFail("Нет кнопки «+ Добавить упаковку»"); shot("12 нет упаковок"); return }
+        let del = ["Удалить упаковку", "Закрыть", "Close", "xmark"]
+        for (round, placeholder) in [(1, "Название"), (2, "0")] {
+            scrollTo(add); add.tap(); sleep(1)
+            // поле новой (последней) упаковки: название или вес
+            let fs = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", placeholder))
+            let f = fs.element(boundBy: fs.count - 1); scrollTo(f)
+            f.tap(); f.typeText(placeholder == "0" ? "777" : "Проверка")
+            shot("12.\(round) поле новой упаковки в фокусе")
+            let x = lastButton(del)
+            if x.isHittable { x.tap() } else { x.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+            sleep(1)
+            XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления упаковки (круг \(round))")
+            // правка соседней упаковки: название и вес
+            let names = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Название"))
+            let n = names.element(boundBy: names.count - 1)
+            if n.exists { scrollTo(n); n.tap(); n.typeText(" 2") }
+            let ws = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "0"))
+            let w = ws.element(boundBy: ws.count - 1)
+            if w.exists { scrollTo(w); w.tap(); w.typeText("5") }
+            app.navigationBars.firstMatch.tap(); sleep(1)
+            shot("12.\(round) после удаления и правки соседней упаковки")
+            XCTAssertEqual(app.state, .runningForeground, "Панель закрылась при правке соседней упаковки (круг \(round))")
+        }
+        app.terminate()   // выходим без сохранения
+    }
+
+    // MARK: - 13. IOS-03: пять больших фото (≈48 Мп) в обращение в поддержку; память — в mem-summary.txt
+
+    func test13_FiveLargePhotosInSupport() {
+        signInOwner()
+        launch("/account?tab=support")
+        XCTAssertTrue(tap("Написать в поддержку"))
+        let addPhoto = button("Добавить фото")
+        guard addPhoto.waitForExistence(timeout: 12) else { XCTFail("Нет кнопки «Добавить фото»"); shot("13 нет кнопки фото"); return }
+        mark("photos-start")
+        addPhoto.tap(); sleep(5)
+        shot("13 окно выбора фото")
+        // системное окно выбора: последние 5 снимков — те, что audit.yml добавил в «Фото» симулятора
+        let cells = app.images.matching(NSPredicate(format: "label CONTAINS[c] 'фото' OR label CONTAINS[c] 'photo' OR label CONTAINS[c] 'изображ'"))
+        note("Снимков в окне выбора: \(cells.count)")
+        guard cells.count >= 5 else { XCTFail("Не удалось выбрать фото в системном окне (видно снимков: \(cells.count))"); return }
+        for i in (cells.count - 5)..<cells.count { cells.element(boundBy: i).tap(); usleep(400_000) }
+        shot("13 выбрано 5 фото")
+        let done = app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора")
+        done.tap()
+        let removes = app.buttons.matching(NSPredicate(format: "label == 'Убрать фото'"))
+        var t = 0
+        while removes.count < 5 && t < 60 { sleep(1); t += 1 }
+        sleep(10)   // загрузка на сервер
+        mark("photos-loaded")
+        shot("13 пять фото в обращении")
+        XCTAssertEqual(removes.count, 5, "В обращении не 5 фото")
+        XCTAssertEqual(app.state, .runningForeground, "Приложение закрылось при добавлении 5 больших фото")
+        // убрать все фото, затем закрыть окно — память должна вернуться
+        var k = 0
+        while removes.count > 0 && k < 8 { removes.firstMatch.tap(); usleep(500_000); k += 1 }
+        sleep(4)
+        mark("photos-removed")
+        shot("13 фото убраны")
+        XCTAssertEqual(removes.count, 0)
+        tap("Закрыть"); sleep(5)
+        mark("sheet-closed")
         XCTAssertEqual(app.state, .runningForeground, "Приложение закрылось")
     }
 }
