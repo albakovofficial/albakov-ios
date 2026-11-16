@@ -96,7 +96,8 @@ struct Promotion {
     }
     func inWindow(_ now: Date) -> Bool {
         guard active else { return false }
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = .current
+        // даты акций — по Москве, как на сервере и сайте: цена на карточке совпадает с ценой в корзине в любом поясе (аудит V-3, 16.11)
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "Europe/Moscow") ?? .current
         if !startsAt.isEmpty, let d = f.date(from: startsAt + " 00:00:00"), now < d { return false }
         if !endsAt.isEmpty, let d = f.date(from: endsAt + " 23:59:59"), now > d { return false }
         return true
