@@ -179,21 +179,22 @@ jobs:
           KEY=(/ /product/FIRST "/cart?demo=1" "/checkout?demo=1" "/order/d1?demo=buyer" "/account?demo=buyer" /gift)
           if [ "$FULL" = "true" ]; then shoot 1-small "$SMALL" "${BUYER[@]}"; shoot 2-standard "$STD" "${BUYER[@]}"; fi
           to 120 xcrun simctl shutdown "$SMALL" || true
-          shoot 3-promax "$MAX" "${KEY[@]}"
-          to 120 xcrun simctl shutdown "$MAX" || true
-          xcrun simctl ui "$SMALL" content_size accessibility-extra-extra-extra-large
+          if [ "$FULL" = "true" ]; then shoot 3-promax "$MAX" "${KEY[@]}"; to 120 xcrun simctl shutdown "$MAX" || true; fi
+          to 120 xcrun simctl boot "$SMALL" || true; to 240 xcrun simctl bootstatus "$SMALL" -b >/dev/null || true
+          xcrun simctl ui "$SMALL" content_size accessibility-extra-extra-extra-large || true
           shoot 4-small-huge-text "$SMALL" "${KEY[@]}"
-          xcrun simctl ui "$SMALL" content_size large
-          xcrun simctl ui "$STD" content_size extra-extra-extra-large
+          xcrun simctl ui "$SMALL" content_size large || true; to 120 xcrun simctl shutdown "$SMALL" || true
+          to 120 xcrun simctl boot "$STD" || true; to 240 xcrun simctl bootstatus "$STD" -b >/dev/null || true
+          xcrun simctl ui "$STD" content_size extra-extra-extra-large || true
           shoot 5-standard-xxxl-text "$STD" "${KEY[@]}"
-          xcrun simctl ui "$STD" content_size large
-          xcrun simctl ui "$STD" appearance dark
+          xcrun simctl ui "$STD" content_size large || true
+          xcrun simctl ui "$STD" appearance dark || true
           shoot 6-standard-dark "$STD" "${KEY[@]}"
-          xcrun simctl ui "$STD" appearance light
+          xcrun simctl ui "$STD" appearance light || true
           # без интернета: адрес магазина ведёт в никуда
-          echo "127.0.0.1 albakovofficial.ru" | sudo tee -a /etc/hosts >/dev/null; sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder || true
+          echo "127.0.0.1 albakovofficial.ru" | sudo tee -a /etc/hosts >/dev/null; sudo dscacheutil -flushcache || true; sudo killall -HUP mDNSResponder || true
           shoot 7-offline "$STD" / /product/FIRST /cart "/order/d1"
-          sudo sed -i '' '/albakovofficial.ru/d' /etc/hosts; sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder || true
+          sudo sed -i '' '/albakovofficial.ru/d' /etc/hosts || true; sudo dscacheutil -flushcache || true; sudo killall -HUP mDNSResponder || true
           ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i albakov > out/crashes.txt || echo "сбоев приложения нет" > out/crashes.txt
           cat out/crashes.txt
 

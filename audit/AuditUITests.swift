@@ -52,7 +52,7 @@ final class AuditUITests: XCTestCase {
     func startClean() {
         launch("/cart")
         var n = 0
-        while button("Удалить").waitForExistence(timeout: 3) && n < 12 { button("Удалить").tap(); sleep(1); n += 1 }
+        while button("Удалить").waitForExistence(timeout: 3) && n < 12 { let b = button("Удалить"); scrollTo(b); b.tap(); sleep(1); n += 1 }
     }
     func shot(_ name: String) {
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
@@ -60,10 +60,32 @@ final class AuditUITests: XCTestCase {
     func note(_ text: String) {
         let a = XCTAttachment(string: text); a.name = "заметка"; a.lifetime = .keepAlways; add(a)
     }
+    /// Кнопка по подписи. «−» и «+» у количества iOS называет «Удалить» и «Добавить» — их исключаем
     func button(_ label: String) -> XCUIElement {
-        let exact = app.buttons[label]
+        let notStepper = "NOT (identifier IN {'minus', 'plus'})"
+        let exact = app.buttons.matching(NSPredicate(format: "label == %@ AND \(notStepper)", label)).firstMatch
         if exact.exists { return exact }
-        return app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", label)).firstMatch
+        return app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@ AND \(notStepper)", label)).firstMatch
+    }
+    /// Небольшая прокрутка (четверть экрана), чтобы элемент не оказался под закреплённой внизу кнопкой
+    func nudge(up: Bool = true) {
+        let w = app.windows.firstMatch
+        let from = w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.62 : 0.38))
+        let to = w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.38 : 0.62))
+        from.press(forDuration: 0.05, thenDragTo: to)
+    }
+    /// Размер: прокрутить так, чтобы кнопка была над кнопкой «Добавить в корзину», и нажать
+    func tapSize(_ size: String) -> Bool {
+        let chip = app.buttons.matching(NSPredicate(format: "label == %@", size)).firstMatch
+        guard chip.waitForExistence(timeout: 15) else { return false }
+        let bar = button("в корзину")
+        var n = 0
+        while n < 10 {
+            let top = bar.exists ? bar.frame.minY - 12 : app.windows.firstMatch.frame.maxY - 160
+            if chip.frame.maxY < top && chip.frame.minY > 110 { break }
+            nudge(up: chip.frame.maxY >= top); n += 1
+        }
+        chip.tap(); sleep(1); return true
     }
     func text(_ part: String) -> XCUIElement {
         app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", part)).firstMatch
@@ -97,9 +119,7 @@ final class AuditUITests: XCTestCase {
     }
     func addToCart(product: String, size: String) {
         launch("/product/\(product)")
-        let chip = app.buttons.matching(NSPredicate(format: "label == %@", size)).firstMatch
-        XCTAssertTrue(chip.waitForExistence(timeout: 15), "Нет размера \(size)")
-        scrollTo(chip); chip.tap()
+        XCTAssertTrue(tapSize(size), "Нет размера \(size)")
         tap("Добавить в корзину")
         sleep(1)
     }
@@ -128,12 +148,10 @@ final class AuditUITests: XCTestCase {
         shot("01 добавить без размера")
         XCTAssertFalse(button("Уже в корзине").exists, "Товар без размера попал в корзину")
         // L — 0 шт.
-        let l = app.buttons.matching(NSPredicate(format: "label == 'L'")).firstMatch
-        if l.waitForExistence(timeout: 5) { l.tap(); sleep(1); shot("01 размер L — нет в наличии") }
+        if tapSize("L") { shot("01 размер L — нет в наличии") }
         // XL — последняя штука
-        let xl = app.buttons.matching(NSPredicate(format: "label == 'XL'")).firstMatch
-        XCTAssertTrue(xl.waitForExistence(timeout: 5))
-        xl.tap(); tap("Добавить в корзину"); sleep(1)
+        XCTAssertTrue(tapSize("XL"))
+        tap("Добавить в корзину"); sleep(1)
         shot("01 последняя штука в корзине")
         XCTAssertTrue(button("Уже в корзине").waitForExistence(timeout: 5), "После последней штуки нет «Уже в корзине · перейти»")
     }
