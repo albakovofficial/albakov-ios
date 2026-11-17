@@ -4,7 +4,7 @@
    Тесты управляют связью: GET /__ctl/<режим>?scope=orders|all|<путь>&ms=…
      scope: orders — только оформление заказа; all — все запросы; иначе — запросы /api/<путь>… (этап B: support, quote,
      support/upload — проверка сообщений об ошибках сети на отдельных экранах)
-     on — обычная связь; off — обрыв соединения; slow — задержка ms;
+     on — обычная связь; off — обрыв соединения (с ms — обрыв через ms: ошибка приходит позже); slow — задержка ms;
      drop-after — запрос доходит до магазина, а ответ теряется (один раз);
      502 — ответ «502 Bad Gateway» как от nginx, когда магазин недоступен (один раз).
    GET /__ctl/stats?phone=7… — сколько заказов магазин реально создал (по ответам на POST /api/orders).
@@ -41,7 +41,7 @@ http.createServer((req, res) => {
     const logSupport = (status, note) => {
       if (isSupport) console.log(new Date().toISOString(), 'support #' + rid, req.method, u.pathname.replace(/\/file\/[^/]+$/, '/file/…'), 'тело', body.length, 'Б →', status, (Date.now() - t0) + ' мс', note || '');
     };
-    if (hit && mode === 'off') { logSupport('обрыв (режим off)'); req.socket.destroy(); return; }
+    if (hit && mode === 'off') { logSupport('обрыв (режим off' + (ms ? ', через ' + ms + ' мс' : '') + ')'); if (ms > 0) setTimeout(() => req.socket.destroy(), ms); else req.socket.destroy(); return; }
     if (hit && mode === '502') { logSupport(502, 'ответ 502 (режим 502)'); mode = 'on'; res.writeHead(502, { 'Content-Type': 'text/html' }); res.end('<html><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>'); return; }
     const go = () => {
       const r2 = http.request({ host: '127.0.0.1', port: T, method: req.method, path: req.url, headers: Object.assign({}, req.headers, { host: '127.0.0.1:' + T }) }, (pr) => {

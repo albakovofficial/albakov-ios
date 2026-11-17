@@ -522,8 +522,7 @@ final class Toast: ObservableObject {
         task?.cancel()
         task = Task { @MainActor in
             guard !Task.isCancelled else { return }   // сразу пришёл следующий тост — показываем его
-            ToastWindow.setVisible(true)
-            await Task.yield(); guard !Task.isCancelled else { return }   // окно успевает отрисоваться — тост появится с анимацией
+            ToastWindow.setVisible(true)   // окно показывается и отрисовывается пустым — тост появится с анимацией
             self.text = t
             // отмена сна — это новый тост вместо этого: он сам решит, когда спрятать окно
             try? await Task.sleep(nanoseconds: 2_400_000_000); guard !Task.isCancelled else { return }
@@ -540,11 +539,16 @@ final class Toast: ObservableObject {
 /// постоянное верхнее окно не влияло на строку состояния. Ограничение размера шрифта — как у всего приложения
 @MainActor enum ToastWindow {
     private static var window: UIWindow?
-    static func setVisible(_ on: Bool) { window?.isHidden = !on }
+    static func setVisible(_ on: Bool) {
+        window?.isHidden = !on
+        if on { window?.layoutIfNeeded() }   // отрисовать окно до появления текста: иначе первый тост появился бы без анимации
+    }
     /// Окно привязано к сцене. Если система подключила новую сцену, окно создаётся заново в ней,
     /// иначе тосты пропали бы до перезапуска (ревью этапа B)
     static func install() {
-        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first, window?.windowScene !== scene else { return }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first, window?.windowScene !== scene else { return }
+        window?.isHidden = true   // прежнее окно (если было) больше не показываем
         let w = UIWindow(windowScene: scene)
         let host = UIHostingController(rootView: ToastView().dynamicTypeSize(...DynamicTypeSize.accessibility1))
         host.view.backgroundColor = .clear
