@@ -375,8 +375,6 @@ struct CheckoutView: View {
     }
 }
 
-extension URL: Identifiable { public var id: String { absoluteString } }
-
 /// Ключ повтора заказа (1.0.2, аудит IOS-01): одинаков для одной и той же корзины и данных, пока заказ не оформлен —
 /// повторное нажатие или повтор после обрыва связи, даже с нового экрана оформления или после перезапуска,
 /// не создадут второй заказ. Раньше ключ был значением по умолчанию у @AppStorage и до первого заказа на телефоне
@@ -538,6 +536,21 @@ struct PaymentSheet: View {
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { done(false) } } }
         }
     }
+}
+
+extension View {
+    /// Оплата на весь экран, пока url задан; закрыли или оплатили — url = nil и closed().
+    /// Адрес оборачивается в свой Identifiable (PayLink) — без глобального «extension URL: Identifiable»:
+    /// чужой тип и чужой протокол, предупреждение компилятора и риск конфликта с Foundation (аудит Q-B9)
+    func paymentSheet(_ url: Binding<URL?>, closed: @escaping () -> Void) -> some View {
+        fullScreenCover(item: Binding(get: { url.wrappedValue.map(PayLink.init) }, set: { url.wrappedValue = $0?.url })) { link in
+            PaymentSheet(url: link.url) { _ in url.wrappedValue = nil; closed() }
+        }
+    }
+}
+private struct PayLink: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }   // как было у URL: тот же адрес — то же окно
 }
 
 struct PayWeb: UIViewRepresentable {

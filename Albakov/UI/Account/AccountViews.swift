@@ -32,7 +32,7 @@ struct AccountView: View {
             }
             .refreshable { await load() }
             .task { await load() }
-            .fullScreenCover(item: $payURL) { url in PaymentSheet(url: url) { _ in payURL = nil; Task { await load() } } }
+            .paymentSheet($payURL) { Task { await load() } }
         } else {
             AuthView()
         }
@@ -311,9 +311,7 @@ struct OrdersView: View {
             }
         }
         .listStyle(.plain)
-        .fullScreenCover(item: $payURL) { url in
-            PaymentSheet(url: url) { _ in payURL = nil; Task { await load() } }
-        }
+        .paymentSheet($payURL) { Task { await load() } }
         .overlay { if loading { ProgressView() } }
         .navigationTitle("Мои заказы").navigationBarTitleDisplayMode(.inline)
         .task { await load() }
@@ -485,9 +483,7 @@ struct OrderView: View {
         .task { await load() }
         .refreshable { await load() }
         .sheet(isPresented: $request) { if let o = order { RequestSheet(order: o) { order = $0 } } }
-        .fullScreenCover(item: $payURL) { url in
-            PaymentSheet(url: url) { _ in payURL = nil; Task { await load(); if order?.paid == true { Toast.shared.show("Оплата получена") } } }
-        }
+        .paymentSheet($payURL) { Task { await load(); if order?.paid == true { Toast.shared.show("Оплата получена") } } }
     }
     private func load() async {
         do { order = Order(try await API.shared.json("GET", "orders/\(id)", query: OrderTokens.all[id].map { ["t": $0] } ?? [:])["order"]); error = nil; notFound = false; if let o = order { shop.returnExpired(o) } }
