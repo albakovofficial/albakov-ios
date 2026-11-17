@@ -212,11 +212,13 @@ final class AuditUITests: XCTestCase {
             .filter { $0.frame.maxY <= y + 2 }.max { $0.frame.maxY < $1.frame.maxY }
     }
     /// Средняя яркость (0 — чёрный, 1 — белый) части снимка экрана: снимок — то, что видит человек, со всеми окнами.
-    /// rect — в точках экрана; nil — весь снимок
-    func luminance(_ image: UIImage, _ rect: CGRect? = nil) -> Double? {
+    /// rect — в точках экрана приложения; screenWidth — ширина экрана в точках (app.frame: у самого раннера тестов
+    /// UIScreen может быть в режиме совместимости с другой шириной — на этом ошибся прогон на iPhone SE); nil — весь снимок
+    func luminance(_ image: UIImage, _ rect: CGRect? = nil, screenWidth: CGFloat = 0) -> Double? {
         guard var cg = image.cgImage else { return nil }
         if let r = rect {
-            let k = CGFloat(cg.width) / UIScreen.main.bounds.width   // пикселей снимка на точку экрана
+            guard screenWidth > 0 else { return nil }
+            let k = CGFloat(cg.width) / screenWidth   // пикселей снимка на точку экрана
             guard let c = cg.cropping(to: CGRect(x: r.minX * k, y: r.minY * k, width: r.width * k, height: r.height * k)) else { return nil }
             cg = c
         }
@@ -240,12 +242,14 @@ final class AuditUITests: XCTestCase {
     /// Тост виден человеку: место тоста на экране, пока он показан, заметно отличается от того же места, когда он ушёл.
     /// Не зависит от цветов и раздела магазина; если тост закрыт листом или клавиатурой, разницы нет
     func assertToastVisible(_ shots: [XCUIScreenshot], _ f: CGRect, _ toast: XCUIElement, _ what: String) {
-        let during = shots.compactMap { luminance($0.image, f) }.min()
+        let w = app.frame.width
+        let during = shots.compactMap { luminance($0.image, f, screenWidth: w) }.min()
         if let last = shots.last { let a = XCTAttachment(screenshot: last); a.name = "тост " + what; a.lifetime = .keepAlways; add(a) }
         XCTAssertTrue(waitGone(toast, 8), "Тост не ушёл")
         sleep(1)
-        let after = luminance(XCUIScreen.main.screenshot().image, f)
+        let after = luminance(XCUIScreen.main.screenshot().image, f, screenWidth: w)
         guard let d = during, let a = after else { XCTFail("Не удалось снять экран (\(what))"); return }
+        note("Тост \(what): яркость его места \(d) с тостом и \(a) без него, рамка \(f), экран \(w) pt")
         XCTAssertGreaterThan(abs(a - d), 0.15, "Тост не виден (\(what)): яркость его места \(d) с тостом и \(a) без него")
     }
     /// Дождаться, что элемент пропал с экрана
@@ -718,7 +722,8 @@ final class AuditUITests: XCTestCase {
         let done = app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).firstMatch
         XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора"); done.tap()
         let toast = text("Нет соединения")
-        XCTAssertTrue(toast.waitForExistence(timeout: 20), "Сообщение об ошибке отправки фото не показано")
+        // большое фото (≈48 Мп из теста 13) в симуляторе читается и уменьшается до ~40 с — ждём до минуты
+        guard toast.waitForExistence(timeout: 60) else { XCTFail("Сообщение об ошибке отправки фото не показано"); return }
         // exists верно и для закрытого другим окном элемента — сравниваем место тоста на экране с ним и без него
         let shots = toastShots()
         assertToastVisible(shots, toast.frame, toast, "поверх листа")
