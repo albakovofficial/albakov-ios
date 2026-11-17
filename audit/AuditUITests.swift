@@ -290,6 +290,38 @@ final class AuditUITests: XCTestCase {
             usleep(500_000)
         }
     }
+    /// Выбрать n снимков в системном окне выбора фото и подтвердить выбор. Окно разное на iOS 18 и iOS 26 (этап E):
+    /// на iOS 26 это отдельный процесс, XCUITest считает его снимки «не нажимаемыми», а нижний ряд закрыт плавающей панелью;
+    /// кнопка подтверждения — «Готово» вместо «Добавить». Берём снимки с конца, как раньше (последние — те, что добавил
+    /// audit.yml): нажимаемый — обычным нажатием, иначе — только если он виден целиком и не под нижней панелью, нажатием
+    /// в его середину. Проверяем: выбрано ровно n (отметки у снимков или счётчик окна), кнопка подтверждения стала доступна,
+    /// окно после неё закрылось. false — что-то не так (причина уже записана через XCTFail)
+    @discardableResult func pickPhotos(_ n: Int, _ step: String) -> Bool {
+        // снимки окна — крупные квадраты с подписью «Фотография, …» (наши значки «фото» на экране под окном мельче)
+        let query = app.images.matching(NSPredicate(format: "label CONTAINS[c] 'фото' OR label CONTAINS[c] 'photo' OR label CONTAINS[c] 'изображ'"))
+        func cells() -> [XCUIElement] { query.allElementsBoundByIndex.filter { $0.frame.width >= 60 && $0.frame.height >= 60 } }
+        var w = 0
+        while cells().count < n && w < 20 { sleep(1); w += 1 }   // окно выбора подгружает снимки не сразу
+        let all = cells(), bottom = app.windows.firstMatch.frame.maxY - 100
+        note("\(step): снимков в окне выбора \(all.count)")
+        let usable = all.reversed().filter { $0.isHittable || ($0.frame.minY >= 0 && $0.frame.maxY <= bottom) }.prefix(n)
+        guard usable.count == n else { XCTFail("\(step): в окне выбора доступно снимков \(usable.count) из \(n) (всего \(all.count))"); return false }
+        for c in usable.reversed() {
+            if c.isHittable { c.tap() } else { c.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+            usleep(400_000)
+        }
+        let selected = cells().filter(\.isSelected).count
+        let counter = app.descendants(matching: .any).matching(NSPredicate(format: "label MATCHES %@", ".*(\\(\(n)\\)|[Вв]ыбран[оаы]*:? \(n)\\b|\\b\(n) выбран|[Ss]elected:? \(n)\\b|\\b\(n) [Ss]elected).*")).firstMatch
+        let counted = selected == n || counter.exists
+        note("\(step): отмечено снимков \(selected), счётчик окна: \(counter.exists ? counter.label : "нет")")
+        shot("\(step) выбрано \(n) фото")
+        guard counted else { XCTFail("\(step): не видно, что выбрано ровно \(n) (отмечено \(selected), счётчика нет)"); return false }
+        let done = app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).firstMatch
+        guard done.waitForExistence(timeout: 5), done.isEnabled else { XCTFail("\(step): кнопка подтверждения выбора \(done.exists ? "недоступна" : "не найдена")"); return false }
+        if done.isHittable { done.tap() } else { done.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+        guard let first = usable.first, waitGone(first, 10) else { XCTFail("\(step): окно выбора фото не закрылось после подтверждения"); return false }
+        return true
+    }
     /// Отметка времени для замера памяти: audit.yml пишет память приложения раз в полсекунды и считает пик между отметками
     func mark(_ label: String) {
         let s = "MEMMARK \(label) \(Int(Date().timeIntervalSince1970))"
@@ -612,16 +644,7 @@ final class AuditUITests: XCTestCase {
         addPhoto.tap(); sleep(5)
         shot("13 окно выбора фото")
         // системное окно выбора: последние 5 снимков — те, что audit.yml добавил в «Фото» симулятора
-        let cells = app.images.matching(NSPredicate(format: "label CONTAINS[c] 'фото' OR label CONTAINS[c] 'photo' OR label CONTAINS[c] 'изображ'"))
-        var w = 0
-        while cells.count < 5 && w < 20 { sleep(1); w += 1 }   // окно выбора подгружает снимки не сразу
-        note("Снимков в окне выбора: \(cells.count)")
-        guard cells.count >= 5 else { XCTFail("Не удалось выбрать фото в системном окне (видно снимков: \(cells.count))"); return }
-        for i in (cells.count - 5)..<cells.count { cells.element(boundBy: i).tap(); usleep(400_000) }
-        shot("13 выбрано 5 фото")
-        let done = app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора")
-        done.tap()
+        guard pickPhotos(5, "13") else { return }
         let removes = app.buttons.matching(NSPredicate(format: "label == 'Убрать фото'"))
         // Ждём событие, а не время (этап D): все 5 фото в обращении, обработка и отправка закончились (см. waitPhotos).
         // Пока фото появляются, ждём дальше; без нового фото дольше 90 с — сбой (на медленном Mac этапа C одно фото шло ~57 с).
@@ -743,13 +766,7 @@ final class AuditUITests: XCTestCase {
         guard addPhoto.waitForExistence(timeout: 12) else { XCTFail("Нет кнопки «Добавить фото»"); return }
         ctl("off?scope=support/upload")
         addPhoto.tap(); sleep(5)
-        let cells = app.images.matching(NSPredicate(format: "label CONTAINS[c] 'фото' OR label CONTAINS[c] 'photo' OR label CONTAINS[c] 'изображ'"))
-        var w = 0
-        while cells.count < 1 && w < 20 { sleep(1); w += 1 }
-        guard cells.count >= 1 else { XCTFail("Не удалось выбрать фото в системном окне"); return }
-        cells.element(boundBy: cells.count - 1).tap()
-        let done = app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора"); done.tap()
+        guard pickPhotos(1, "15в") else { return }
         let toast = text("Нет соединения")
         // большое фото (≈48 Мп из теста 13) в симуляторе читается и уменьшается до ~40 с — ждём до минуты
         guard toast.waitForExistence(timeout: 60) else { XCTFail("Сообщение об ошибке отправки фото не показано"); return }
