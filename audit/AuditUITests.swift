@@ -619,6 +619,7 @@ final class AuditUITests: XCTestCase {
         shot("13 выбрано 5 фото")
         let done = app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).firstMatch
         XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора")
+        ctl("slow?scope=support/upload&ms=15000")   // ПРОВЕРКА ТЕСТА (только ветка verify): каждая отправка фото 15 с — тест обязан дождаться и пройти
         done.tap()
         let removes = app.buttons.matching(NSPredicate(format: "label == 'Убрать фото'"))
         // Ждём событие, а не время (этап D): все 5 фото в обращении и ни одного индикатора — обработка и отправка закончились.
