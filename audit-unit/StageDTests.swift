@@ -108,12 +108,15 @@ final class FinanceValuesTests: XCTestCase {
         ["taxRate": NSNumber(value: 6), "sbpYk": NSNumber(value: 0.4), "sbpPartner": NSNumber(value: 1.5),
          "otherYk": NSNumber(value: 2.8), "otherPartner": NSNumber(value: 1), "partnerMin": NSNumber(value: 0.65), "codFee": NSNumber(value: 3)]
     }
-    private func json(_ v: [String: Any]) throws -> String { String(decoding: try JSONSerialization.checkedData(v, options: [.sortedKeys]), as: UTF8.self) }
+    /// Тело запроса, прочитанное обратно, — как его прочтёт сервер. Строкой не сравниваем: дробные JSONSerialization
+    /// пишет с 17 знаками (0.65 → «0.65000000000000002»), так приложение отправляло их и раньше; при чтении это ровно 0.65
+    private func parsed(_ d: Data) throws -> NSDictionary { try XCTUnwrap(JSONSerialization.jsonObject(with: d) as? NSDictionary) }
 
     /// Обычные значения уходят как есть; «Карты: комиссия ЮKassa» — числом, а не Optional (первопричина предупреждений)
     func test01_NormalValuesUnchanged() throws {
         let v = try XCTUnwrap(FinanceSettings.settingsValue(JSON(form()), categories: [["id": "c1", "name": "Реклама", "kind": "fixed"]], costs: ["p1": 450]))
-        XCTAssertEqual(try json(v), #"{"categories":[{"id":"c1","kind":"fixed","name":"Реклама"}],"codFee":3,"costs":{"p1":450},"partnerMin":0.65,"rates":{"other":{"partner":1,"yk":2.8},"sbp":{"partner":1.5,"yk":0.4}},"taxRate":6}"#)
+        let expected = #"{"categories":[{"id":"c1","kind":"fixed","name":"Реклама"}],"codFee":3,"costs":{"p1":450},"partnerMin":0.65,"rates":{"other":{"partner":1,"yk":2.8},"sbp":{"partner":1.5,"yk":0.4}},"taxRate":6}"#
+        XCTAssertEqual(try parsed(JSONSerialization.checkedData(v)), try parsed(Data(expected.utf8)))
         let other = try XCTUnwrap((v["rates"] as? [String: Any])?["other"] as? [String: Any])
         XCTAssertTrue(other["yk"] is Double, "Комиссия ушла не числом: \(type(of: other["yk"]))")
     }
