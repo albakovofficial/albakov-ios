@@ -82,11 +82,12 @@ jobs:
             -project Albakov.xcodeproj -scheme Albakov -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO $EXTRA 2>&1 | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
-          # в режиме Swift 6 ошибки ожидаемы — это и есть список для плана миграции
+          # в режиме Swift 6 ошибки ожидаемы — это и есть список для плана миграции (полный журнал — в артефактах запуска)
+          if [ "$CHECK" != none ]; then echo "Проверка $CHECK: ошибок $(grep -c ' error:' build.log), предупреждений $(grep -c ' warning:' build.log)"; fi
           [ "$CHECK" = swift6 ] || grep -q "BUILD SUCCEEDED" build.log
 
       - name: Лог сборки
-        if: failure()
+        if: failure() || (github.event_name == 'workflow_dispatch' && inputs.swift_check != '' && inputs.swift_check != 'none')
         uses: actions/upload-artifact@v4
         with:
           name: build-log

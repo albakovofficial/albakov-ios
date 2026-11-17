@@ -38,10 +38,12 @@ final class PriceTests: XCTestCase {
         XCTAssertEqual(price(product(2990, compareAt: 2500), []).oldPrice, 0, "Старая цена ниже текущей не показывается")
     }
 
-    /// Процент округляется как Math.round на сайте: 2990 · 0,85 = 2541,5 → 2542; фиксированная — минус сумма
+    /// Процент округляется как Math.round на сайте — половина вверх: 2990 · 0,85 = 2541,5 → 2542, 2970 · 0,85 = 2524,5 → 2525
+    /// (банковское округление дало бы 2524); фиксированная — минус сумма
     func test02_PercentAndFixed() {
-        let p = price(product(2990), [promo("percent", 15, title: "Минус 15%")])
-        XCTAssertEqual(p.price, 2542); XCTAssertEqual(p.oldPrice, 2990); XCTAssertEqual(p.promoTitle, "Минус 15%")
+        let p = price(product(2990), [promo("percent", 15, title: "Минус 15%", ends: "2026-11-30")])
+        XCTAssertEqual(p.price, 2542); XCTAssertEqual(p.oldPrice, 2990); XCTAssertEqual(p.promoTitle, "Минус 15%"); XCTAssertEqual(p.promoEnds, "2026-11-30")
+        XCTAssertEqual(price(product(2970), [promo("percent", 15)]).price, 2525, "Половина округляется вверх, как Math.round")
         XCTAssertEqual(price(product(2990), [promo("fixed", 500)]).price, 2490)
         XCTAssertEqual(price(product(1999), [promo("percent", 33)]).price, 1339)   // 1999 · 0,67 = 1339,33
     }
@@ -55,6 +57,8 @@ final class PriceTests: XCTestCase {
             promo("percent", 50, scope: "products", ids: ["p8"], title: "Чужой товар"),
         ])
         XCTAssertEqual(p.price, 2392); XCTAssertEqual(p.promoTitle, "Товар 20%"); XCTAssertEqual(p.percent, 20)
+        // одинаковая цена у двух акций — остаётся первая (на сайте сравнение строгое: price < bestPrice)
+        XCTAssertEqual(price(product(2990), [promo("fixed", 299, title: "Первая"), promo("percent", 10, title: "Вторая")]).promoTitle, "Первая")
     }
 
     /// Акция не применяется: другая категория, выключена, неизвестный охват
@@ -97,9 +101,11 @@ final class PriceTests: XCTestCase {
 // MARK: - Даты на экранах и для сервера
 
 final class DateFormatTests: XCTestCase {
-    /// Дата в поясе устройства: тесты не зависят от пояса Mac, на котором идут
+    /// Дата в поясе устройства, григорианский календарь (как у форматтеров с ru_RU и en_US_POSIX):
+    /// тесты не зависят ни от пояса Mac, ни от календаря в его настройках
+    private let cal: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = .current; return c }()
     private func local(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 12, _ min: Int = 0) -> Date {
-        guard let x = Calendar.current.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min)) else { preconditionFailure() }
+        guard let x = cal.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min)) else { preconditionFailure() }
         return x
     }
     private func iso(_ d: Date) -> String { ISO8601DateFormatter().string(from: d) }
@@ -127,14 +133,15 @@ final class DateFormatTests: XCTestCase {
 
     /// Поддержка: сегодня — время, вчера — «Вчера», раньше — «9 марта»
     func test03_SupportDates() {
-        let today = Date(), yesterday = Date().addingTimeInterval(-86400), old = local(2025, 3, 9, 9, 30)
+        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return XCTFail() }   // «Вчера» — по календарю телефона, как в Support.day
+        let today = Date(), old = local(2025, 3, 9, 9, 30)
         XCTAssertEqual(Support.day(iso(today)), "Сегодня")
         XCTAssertEqual(Support.day(iso(yesterday)), "Вчера")
         XCTAssertEqual(Support.day(iso(old)), "9 марта")
         XCTAssertEqual(Support.time(iso(old)), "9 марта")
         let hm = Calendar.current.dateComponents([.hour, .minute], from: today)
         XCTAssertEqual(Support.time(iso(today)), String(format: "%02d:%02d", hm.hour ?? 0, hm.minute ?? 0))
-        XCTAssertEqual(Support.clock(iso(old)), "09:30")
+        XCTAssertEqual(Support.clock(iso(old)), "09:30")   // время — в языке телефона (на CI en_US, 24 ч по формату «HH:mm»)
         XCTAssertEqual(Support.clock("не дата"), ""); XCTAssertEqual(Support.day(""), "")
     }
 
