@@ -23,7 +23,7 @@ enum Demo {
             products = ((pub["products"] as? [[String: Any]]) ?? []).map(withFit)
             pub["products"] = products; j["data"] = pub
             j["user"] = user; j["isAdmin"] = staff
-            return try JSONSerialization.data(withJSONObject: j)
+            return try JSONSerialization.checkedData(j)
         }
         if method == "POST" && path == "quote" { return nil }
         if path.hasPrefix("cdek/") { return nil }
@@ -60,7 +60,7 @@ enum Demo {
         default:
             if method == "GET" { return nil }   // остальные чтения — с сервера как есть
         }
-        return try JSONSerialization.data(withJSONObject: out)
+        return try JSONSerialization.checkedData(out)
     }
 
     /// Таблица размеров для снимков, если у товара на сайте её ещё нет: мерки оверсайз-футболки по размерам товара

@@ -7,6 +7,18 @@ struct APIError: LocalizedError {
     let status: Int
     var errorDescription: String? { message }
     static let offline = APIError(message: "Нет соединения с интернетом. Проверьте связь и попробуйте ещё раз.", status: 0)
+    /// Тело запроса нельзя записать в JSON: среди значений дата, NaN, бесконечность или свой тип.
+    /// Запрос не отправляется. Номер -2 — чтобы не спутать с обрывом связи (0) и непонятным ответом (-1)
+    static let invalidBody = APIError(message: "Не удалось подготовить запрос. Проверьте введённые числа; если не поможет — обновите приложение.", status: -2)
+}
+
+extension JSONSerialization {
+    /// data(withJSONObject:) с проверкой. Без неё недопустимое значение не становится ошибкой Swift,
+    /// а роняет приложение исключением Objective-C — try и catch его не ловят (аудит Q-B8)
+    static func checkedData(_ object: Any, options: WritingOptions = []) throws -> Data {
+        guard isValidJSONObject(object) else { throw APIError.invalidBody }
+        return try data(withJSONObject: object, options: options)
+    }
 }
 
 final class API {
@@ -62,15 +74,22 @@ final class API {
         return try await send(method, path, body: body, query: query)
     }
 
-    private func send(_ method: String, _ path: String, body: [String: Any]?, query: [String: String]) async throws -> Data {
+    /// Запрос к /api/…: без тела (body == nil) — без тела и без Content-Type, как раньше.
+    /// Тело, которое нельзя записать в JSON, — ошибка APIError.invalidBody, запрос не уходит
+    func request(_ method: String, _ path: String, body: [String: Any]?, query: [String: String]) throws -> URLRequest {
         var comps = URLComponents(url: base.appendingPathComponent("api/" + path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) } }
         var req = URLRequest(url: comps.url!)
         req.httpMethod = method
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try JSONSerialization.data(withJSONObject: body)
+            req.httpBody = try JSONSerialization.checkedData(body)
         }
+        return req
+    }
+
+    private func send(_ method: String, _ path: String, body: [String: Any]?, query: [String: String]) async throws -> Data {
+        let req = try request(method, path, body: body, query: query)
         let data: Data, resp: URLResponse
         do { (data, resp) = try await session.data(for: req) }
         catch let e as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed].contains(e.code) { throw APIError.offline }

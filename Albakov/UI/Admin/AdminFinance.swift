@@ -34,7 +34,10 @@ final class FinanceEngine: ObservableObject {
         } catch { self.error = error.userMessage; return false }
     }
     func report(_ input: [String: Any], kind: String, shift: Int, from: String, to: String) -> JSON {
-        guard let ctx, let d = try? JSONSerialization.data(withJSONObject: input) else { return JSON(nil) }
+        guard let ctx else { return JSON(nil) }
+        // данные панели пришли с сервера в JSON и обратно записываются всегда; иначе — причина вместо пустого отчёта
+        let d: Data
+        do { d = try JSONSerialization.checkedData(input) } catch { self.error = error.localizedDescription; return JSON(nil) }
         let s = ctx.objectForKeyedSubscript("finReport").call(withArguments: [String(decoding: d, as: UTF8.self), kind, shift, from, to])?.toString() ?? ""
         return JSON(data: Data(s.utf8))
     }

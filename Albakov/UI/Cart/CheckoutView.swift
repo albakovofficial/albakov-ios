@@ -401,11 +401,9 @@ enum CheckoutNonce {
     }
     /// idem для сервера: случайная часть + содержимое запроса. Другая корзина или данные — другой ключ,
     /// поэтому повтор с изменёнными данными не вернёт прежний заказ или сертификат
-    /// Не удалось разложить запрос в JSON — ошибка, а не ключ из одной случайной части (ревью этапа B)
+    /// Не удалось разложить запрос в JSON — ошибка APIError.invalidBody, а не ключ из одной случайной части (ревью этапа B)
     static func idem(_ nonce: String, _ b: [String: Any]) throws -> String {
-        // недопустимое значение JSONSerialization не выбрасывает как ошибку Swift, а роняет приложение — проверяем заранее
-        guard JSONSerialization.isValidJSONObject(b) else { throw CocoaError(.coderInvalidValue) }
-        let data = try JSONSerialization.data(withJSONObject: b, options: [.sortedKeys])
+        let data = try JSONSerialization.checkedData(b, options: [.sortedKeys])
         return SHA256.hash(data: Data(nonce.utf8) + data).map { String(format: "%02x", $0) }.joined().prefix(40).description
     }
 }
