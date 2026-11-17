@@ -40,6 +40,11 @@ on:
         type: choice
         options: [macos-15-intel, macos-26, macos-15]
         default: macos-15-intel
+      swift_check:
+        description: 'Только проверка готовности к Swift 6 (проект и обычные сборки не меняются): complete — все предупреждения о конкурентности, swift6 — ошибки режима Swift 6'
+        type: choice
+        options: [none, complete, swift6]
+        default: none
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -67,13 +72,18 @@ jobs:
           xcodegen generate
 
       - name: Собрать
+        env:
+          CHECK: ${{ inputs.swift_check || 'none' }}
         run: |
           set -o pipefail
+          # проверка Swift 6 — только флагом этой сборки, настройки проекта прежние
+          case "$CHECK" in complete) EXTRA="SWIFT_STRICT_CONCURRENCY=complete";; swift6) EXTRA="SWIFT_VERSION=6";; *) EXTRA="";; esac
           xcodebuild build \
             -project Albakov.xcodeproj -scheme Albakov -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
-          grep -q "BUILD SUCCEEDED" build.log
+            CODE_SIGNING_ALLOWED=NO $EXTRA 2>&1 | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
+          # в режиме Swift 6 ошибки ожидаемы — это и есть список для плана миграции
+          [ "$CHECK" = swift6 ] || grep -q "BUILD SUCCEEDED" build.log
 
       - name: Лог сборки
         if: failure()

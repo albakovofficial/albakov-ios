@@ -31,6 +31,10 @@ on:
         type: choice
         options: [macos-15-intel, macos-26, macos-15]
         default: macos-15-intel
+      tsan:
+        description: 'Thread Sanitizer: приложение и тесты собираются с поиском гонок данных, отчёты — в tsan/ (медленнее; только проверка)'
+        type: boolean
+        default: false
 
 concurrency:
   group: audit
@@ -102,13 +106,16 @@ jobs:
           xcrun simctl list devices | grep -E "$SMALL|$STD|$MAX"
 
       - name: Собрать приложение и тесты
+        env:
+          TSAN: ${{ inputs.tsan }}
         run: |
           set -o pipefail
           # тесты ходят в копию магазина на этом Mac (адрес меняется только в рабочей копии на GitHub)
           plutil -replace AlbakovBaseURL -string "http://127.0.0.1:3998" Albakov/Resources/Info.plist
           plutil -replace NSAppTransportSecurity -json '{"NSAllowsArbitraryLoads":true}' Albakov/Resources/Info.plist
           # тестовый раннер в симуляторе Xcode 26 должен быть подписан — подпись «для себя» (без профиля)
-          xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug \
+          SAN=""; [ "$TSAN" = true ] && SAN="-enableThreadSanitizer YES"
+          xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug $SAN \
             -destination "id=$SMALL" -derivedDataPath build CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
             2>&1 | tee build.log | grep -E "error:|TEST BUILD (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)" || true
           grep -qE "TEST BUILD SUCCEEDED|BUILD SUCCEEDED" build.log
@@ -154,13 +161,16 @@ jobs:
         timeout-minutes: 80   # 16 UI-тестов с этапа B идут ~45 мин на Intel-Mac — 50 минут впритык
         env:
           ONLY: ${{ inputs.only }}
+          TSAN: ${{ inputs.tsan }}
         run: |
           RUN=$(ls build/Build/Products/*.xctestrun | head -1)
+          # Thread Sanitizer: отчёты процессов в симуляторе (приложение под UI-тестами и хост юнит-тестов) — в файлы на этом Mac
+          SAN=""; if [ "$TSAN" = true ]; then SAN="-enableThreadSanitizer YES"; mkdir -p "$RUNNER_TEMP/tsan"; export SIMCTL_CHILD_TSAN_OPTIONS="log_path=$RUNNER_TEMP/tsan/report halt_on_error=0"; fi
           # память приложения (RSS, КБ) раз в полсекунды — пик между отметками MEMMARK из тестов (этап A, IOS-03)
           ( while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
           # «unit» — все юнит-тесты; иначе имя UI-теста
           SEL=""; for t in $ONLY; do if [ "$t" = unit ]; then SEL="$SEL -only-testing:AlbakovUnit"; else SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; fi; done
-          xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed" || true
+          xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SAN $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed|ThreadSanitizer" || true
 
       - name: Итоги тестов и снимки из них
         if: inputs.tests
@@ -182,6 +192,7 @@ jobs:
                       if os.path.exists(src): os.rename(src, os.path.join('out/tests', test + '__' + name))
           PY
           cp test.log server.log proxy.log mem.log out/ 2>/dev/null || true
+          if [ -d "$RUNNER_TEMP/tsan" ]; then mkdir -p out/tsan; cp "$RUNNER_TEMP"/tsan/* out/tsan/ 2>/dev/null || true; ls out/tsan | wc -l | xargs echo "отчётов Thread Sanitizer:"; fi
           python3 - <<'PY' > out/mem-summary.txt || true
           import re
           marks = [(m.group(1), int(m.group(2))) for m in re.finditer(r"MEMMARK (\S+) (\d+)", open('test.log', errors='ignore').read())]
