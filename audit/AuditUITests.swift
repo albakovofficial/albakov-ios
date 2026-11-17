@@ -264,22 +264,27 @@ final class AuditUITests: XCTestCase {
         f.typeText(text); hideKeyboard(); sleep(1)
         return before
     }
-    /// Ждать, пока в обращении будет n фото и не останется ни одного индикатора загрузки (фото обработаны и отправлены).
-    /// Возвращает, чем кончилось ожидание, — для заметки и текста ошибки. Каждое новое фото продлевает ожидание;
-    /// без нового фото дольше stall секунд — сбой. Индикаторов нет, а фото меньше n — обработка кончилась без части фото
-    func waitPhotos(_ photos: XCUIElementQuery, _ n: Int, stall: TimeInterval) -> String {
+    /// Ждать, пока в обращении будет n фото и все они обработаны и отправлены. ok — так и вышло; text — чем кончилось
+    /// ожидание (для заметки и текста ошибки). Каждое новое фото продлевает ожидание; без нового фото дольше stall секунд — сбой.
+    /// «Идёт работа» — по доступности кнопок, а не по индикаторам: пока снимок читается и уменьшается, на миниатюрах
+    /// индикатора нет (ревью этапа D). Пока фото меньше n, «Добавить фото» недоступна ровно тогда, когда идёт обработка
+    /// или отправка (SupportViews: .disabled(att.left == 0 || att.busy), а left > 0). При n фото — «Отправить»:
+    /// пока что-то отправляется, вместо подписи у неё индикатор и она недоступна.
+    /// Работы нет, а фото меньше n — часть фото потерялась: сбой сразу (через 3 с, чтобы обработка успела начаться)
+    func waitPhotos(_ photos: XCUIElementQuery, _ n: Int, addPhoto: XCUIElement, stall: TimeInterval) -> (ok: Bool, text: String) {
+        let send = app.buttons.matching(NSPredicate(format: "label == 'Отправить'")).firstMatch
         let start = Date()
         var last = Date(), seen = -1, idleSince: Date?
         while true {
-            let count = photos.count, busy = app.activityIndicators.count > 0, t = Int(Date().timeIntervalSince(start))
+            let count = photos.count, t = Int(Date().timeIntervalSince(start))
+            let busy = count < n ? !addPhoto.isEnabled : !(send.exists && send.isEnabled)
             if count != seen { seen = count; last = Date() }
-            if count == n && !busy { return "все \(n) фото за \(t) с" }
+            if count == n && !busy { return (true, "все \(n) фото за \(t) с") }
             if !busy && count < n {
-                // индикатор пропадает и между фото на мгновение — конец обработки засчитываем через 3 с без него
-                if let s = idleSince { if Date().timeIntervalSince(s) > 3 { return "обработка закончилась, а фото \(count) из \(n) (\(t) с)" } }
+                if let s = idleSince { if Date().timeIntervalSince(s) > 3 { return (false, "обработка закончилась, а фото \(count) из \(n) (\(t) с)") } }
                 else { idleSince = Date() }
             } else { idleSince = nil }
-            if Date().timeIntervalSince(last) > stall { return "за \(Int(stall)) с без нового фото: \(count) из \(n), обработка \(busy ? "идёт" : "стоит") (\(t) с)" }
+            if Date().timeIntervalSince(last) > stall { return (false, "за \(Int(stall)) с без нового фото: \(count) из \(n), работа \(busy ? "идёт" : "стоит") (\(t) с)") }
             usleep(500_000)
         }
     }
@@ -619,11 +624,12 @@ final class AuditUITests: XCTestCase {
         // Ждём событие, а не время (этап D): все 5 фото в обращении и ни одного индикатора — обработка и отправка закончились.
         // Пока фото появляются, ждём дальше; без нового фото дольше 90 с — сбой (на медленном Mac этапа C одно фото шло ~57 с).
         // Обработка кончилась, а фото меньше 5 — часть потерялась: падаем сразу, с числом
-        let waited = waitPhotos(removes, 5, stall: 90)
-        note("13: \(waited)")
+        let waited = waitPhotos(removes, 5, addPhoto: addPhoto, stall: 90)
+        note("13: \(waited.text)")
         mark("photos-loaded")
         shot("13 пять фото в обращении")
-        XCTAssertEqual(removes.count, 5, "В обращении не 5 фото: \(waited)")
+        XCTAssertTrue(waited.ok, "Фото в обращении не готовы: \(waited.text)")
+        XCTAssertEqual(removes.count, 5, "В обращении не 5 фото: \(waited.text)")
         XCTAssertEqual(app.state, .runningForeground, "Приложение закрылось при добавлении 5 больших фото")
         // убрать все фото, затем закрыть окно — память должна вернуться
         var k = 0

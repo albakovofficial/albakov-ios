@@ -112,20 +112,19 @@ final class FinanceValuesTests: XCTestCase {
     /// пишет с 17 знаками (0.65 → «0.65000000000000002»), так приложение отправляло их и раньше; при чтении это ровно 0.65
     private func parsed(_ d: Data) throws -> NSDictionary { try XCTUnwrap(JSONSerialization.jsonObject(with: d) as? NSDictionary) }
 
-    /// Обычные значения уходят как есть; «Карты: комиссия ЮKassa» — числом, а не Optional (первопричина предупреждений)
+    /// Обычные значения уходят как есть. Сама первопричина (Optional в Any у «Карты: комиссия ЮKassa») видна только
+    /// компилятору — её закрывает сборка без предупреждений; здесь — что сервер получит те же числа
     func test01_NormalValuesUnchanged() throws {
         let v = try XCTUnwrap(FinanceSettings.settingsValue(JSON(form()), categories: [["id": "c1", "name": "Реклама", "kind": "fixed"]], costs: ["p1": 450]))
         let expected = #"{"categories":[{"id":"c1","kind":"fixed","name":"Реклама"}],"codFee":3,"costs":{"p1":450},"partnerMin":0.65,"rates":{"other":{"partner":1,"yk":2.8},"sbp":{"partner":1.5,"yk":0.4}},"taxRate":6}"#
         XCTAssertEqual(try parsed(JSONSerialization.checkedData(v)), try parsed(Data(expected.utf8)))
-        let other = try XCTUnwrap((v["rates"] as? [String: Any])?["other"] as? [String: Any])
-        XCTAssertTrue(other["yk"] is Double, "Комиссия ушла не числом: \(type(of: other["yk"]))")
     }
 
     /// Нет какого-то числа — не сохраняем вовсе (раньше на его месте уходил 0: налог 0% — неверная прибыль)
     func test02_MissingValueNotSaved() {
         for k in form().keys {
             var f = form(); f.removeValue(forKey: k)
-            XCTAssertNil(FinanceSettings.settingsValue(JSON(f), categories: [], costs: [:]), "Без «\(k)» ушло бы значение по умолчанию")
+            XCTAssertNil(FinanceSettings.settingsValue(JSON(f), categories: [], costs: [String: Any]()), "Без «\(k)» ушло бы значение по умолчанию")
         }
     }
 
@@ -133,7 +132,7 @@ final class FinanceValuesTests: XCTestCase {
     func test03_InvalidValueNotSaved() {
         for bad: Any in ["2,8", NSNumber(value: Double.nan), NSNumber(value: Double.infinity), NSNull()] {
             var f = form(); f["otherYk"] = bad
-            XCTAssertNil(FinanceSettings.settingsValue(JSON(f), categories: [], costs: [:]), "Ушло значение из \(bad)")
+            XCTAssertNil(FinanceSettings.settingsValue(JSON(f), categories: [], costs: [String: Any]()), "Ушло значение из \(bad)")
         }
     }
 
@@ -147,14 +146,33 @@ final class FinanceValuesTests: XCTestCase {
         for bad in ["1.200,50", "1,2,3", ",", "."] { XCTAssertNil(FinanceCosts.value(bad), bad) }
     }
 
-    /// Себестоимость в поле — как пришла с сервера. Прежний %g давал «12345.7» и при сохранении менял сумму
-    func test05_CostTextExact() {
+    /// Себестоимость и сумма операции в поле — как пришли с сервера. Прежний %g давал «12345.7» и «1.23457e+06»,
+    /// и сохранение без правки меняло сумму
+    func test05_NumberTextExact() {
         XCTAssertEqual(String(format: "%g", 12345.67), "12345.7")   // так было
-        XCTAssertEqual(FinanceCosts.text(JSON(NSNumber(value: 12345.67))), "12345.67")
-        XCTAssertEqual(FinanceCosts.text(JSON(NSNumber(value: 1200))), "1200")
-        XCTAssertEqual(FinanceCosts.text(JSON(NSNumber(value: 450.5))), "450.5")
-        XCTAssertEqual(FinanceCosts.text(JSON(nil)), "")
-        XCTAssertEqual(FinanceCosts.value(FinanceCosts.text(JSON(NSNumber(value: 12345.67)))) as? Double, 12345.67, "Сохранение без правки меняет сумму")
+        XCTAssertEqual(String(format: "%g", 1234567.0), "1.23457e+06")
+        XCTAssertEqual(JSON(NSNumber(value: 12345.67)).numberText, "12345.67")
+        XCTAssertEqual(JSON(NSNumber(value: 1234567)).numberText, "1234567")
+        XCTAssertEqual(JSON(NSNumber(value: 1200)).numberText, "1200")
+        XCTAssertEqual(JSON(NSNumber(value: 450.5)).numberText, "450.5")
+        XCTAssertEqual(JSON(nil).numberText, "")
+        XCTAssertEqual(FinanceCosts.value(JSON(NSNumber(value: 12345.67)).numberText) as? Double, 12345.67, "Сохранение без правки меняет сумму")
+    }
+
+    /// Числовое поле панели (налог, ставки, цены): огромное или бесконечное число не роняет приложение (Int(1e19) — падение)
+    func test06_NumberFieldHugeValueNoCrash() {
+        let doc = Doc([:]), field = doc.number("taxRate")
+        field.wrappedValue = "9999999999999999999"
+        XCTAssertEqual((doc.v["taxRate"] as? NSNumber)?.doubleValue, 1e19)
+        field.wrappedValue = "inf"
+        XCTAssertEqual((doc.v["taxRate"] as? NSNumber)?.doubleValue, .infinity)
+        XCTAssertNil(FinanceSettings.settingsValue(JSON(doc.v), categories: [], costs: [String: Any]()), "Бесконечная ставка ушла бы на сервер")
+        field.wrappedValue = "450"
+        let n = doc.v["taxRate"] as? NSNumber
+        XCTAssertEqual(n?.intValue, 450)
+        XCTAssertFalse(n.map { CFNumberIsFloatType($0 as CFNumber) } ?? true, "Целое перестало храниться целым (на сервер ушло бы 450.0)")
+        field.wrappedValue = "2,8"
+        XCTAssertEqual((doc.v["taxRate"] as? NSNumber)?.doubleValue, 2.8)
     }
 }
 
@@ -194,5 +212,6 @@ final class ServerClockTests: XCTestCase {
         for r in reads + [ServerClock.skew] {
             XCTAssertTrue(allowed.contains { abs($0 - r) < 3 }, "Прочитано значение, которого никто не писал: \(r)")
         }
+        ServerClock.sync(header(Date()))   // расхождение — общее для процесса: возвращаем как у настоящего ответа
     }
 }
