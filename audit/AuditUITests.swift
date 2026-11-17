@@ -211,15 +211,39 @@ final class AuditUITests: XCTestCase {
         return app.buttons.matching(NSPredicate(format: "label IN %@", labels)).allElementsBoundByIndex
             .filter { $0.frame.maxY <= y + 2 }.max { $0.frame.maxY < $1.frame.maxY }
     }
-    /// Средняя яркость места элемента на экране (0 — чёрный, 1 — белый): снимок — то, что видит человек, со всеми окнами
-    func luminance(_ e: XCUIElement) -> Double {
-        guard let cg = e.screenshot().image.cgImage else { return 1 }
-        var px = [UInt8](repeating: 0, count: 16 * 16 * 4)
-        guard let ctx = CGContext(data: &px, width: 16, height: 16, bitsPerComponent: 8, bytesPerRow: 64, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return 1 }
+    /// Средняя яркость (0 — чёрный, 1 — белый) части снимка экрана: снимок — то, что видит человек, со всеми окнами.
+    /// rect — в точках экрана; nil — весь снимок
+    func luminance(_ image: UIImage, _ rect: CGRect? = nil) -> Double? {
+        guard var cg = image.cgImage else { return nil }
+        if let r = rect {
+            let k = CGFloat(cg.width) / image.size.width
+            guard let c = cg.cropping(to: CGRect(x: r.minX * k, y: r.minY * k, width: r.width * k, height: r.height * k)) else { return nil }
+            cg = c
+        }
+        guard let ctx = CGContext(data: nil, width: 16, height: 16, bitsPerComponent: 8, bytesPerRow: 64, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+              let data = ctx.data else { return nil }
+        ctx.interpolationQuality = .high
         ctx.draw(cg, in: CGRect(x: 0, y: 0, width: 16, height: 16))
+        let px = data.bindMemory(to: UInt8.self, capacity: 16 * 16 * 4)
         var sum = 0.0
-        for i in stride(from: 0, to: px.count, by: 4) { sum += 0.299 * Double(px[i]) + 0.587 * Double(px[i + 1]) + 0.114 * Double(px[i + 2]) }
+        for i in stride(from: 0, to: 16 * 16 * 4, by: 4) { sum += 0.299 * Double(px[i]) + 0.587 * Double(px[i + 1]) + 0.114 * Double(px[i + 2]) }
         return sum / (16 * 16 * 255)
+    }
+    /// Тост виден человеку: место тоста на экране, пока он показан, заметно отличается от того же места, когда он ушёл.
+    /// Не зависит от цветов и раздела магазина; если тост закрыт листом или клавиатурой, разницы нет
+    func assertToastVisible(_ toast: XCUIElement, _ what: String) {
+        let f = toast.frame
+        var during: Double?, seen: XCUIScreenshot?
+        for _ in 0..<6 {   // ждём конца анимации появления
+            let s = XCUIScreen.main.screenshot(); seen = s
+            during = luminance(s.image, f); if let d = during, d < 0.75 { break }; usleep(250_000)
+        }
+        if let seen { let a = XCTAttachment(screenshot: seen); a.name = "тост " + what; a.lifetime = .keepAlways; add(a) }
+        XCTAssertTrue(waitGone(toast, 8), "Тост не ушёл")
+        sleep(1)
+        let after = luminance(XCUIScreen.main.screenshot().image, f)
+        guard let d = during, let a = after else { XCTFail("Не удалось снять экран (\(what))"); return }
+        XCTAssertGreaterThan(abs(a - d), 0.15, "Тост не виден (\(what)): яркость его места \(d) с тостом и \(a) без него")
     }
     /// Дождаться, что элемент пропал с экрана
     func waitGone(_ e: XCUIElement, _ timeout: TimeInterval) -> Bool {
@@ -692,12 +716,9 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора"); done.tap()
         let toast = text("Нет соединения")
         XCTAssertTrue(toast.waitForExistence(timeout: 20), "Сообщение об ошибке отправки фото не показано")
-        // exists верно и для закрытого другим окном элемента. Тост — белый текст на тёмной капсуле: если его закрывает
-        // лист (белый фон), снимок места тоста почти белый. Проверяем сразу — тост виден ~2,4 с
-        let lum = luminance(toast)
-        XCTAssertLessThan(lum, 0.6, "Тост закрыт листом (средняя яркость места тоста \(lum))")
+        // exists верно и для закрытого другим окном элемента — сравниваем место тоста на экране с ним и без него
+        assertToastVisible(toast, "поверх листа")
         XCTAssertTrue(button("Добавить фото").exists, "Лист обращения закрылся — проверка не поверх листа")
-        shot("15в ошибка поверх листа обращения")
         ctl("on?scope=all")
         tap("Закрыть")
         // г) тост при открытой клавиатуре: ответ в переписке не отправился — сообщение не прячется под клавиатурой
@@ -709,19 +730,19 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(tap("Отправить"))
         let composer = field("Сообщение")
         guard composer.waitForExistence(timeout: 20) else { XCTFail("Переписка не открылась"); return }
-        sleep(2); composer.tap(); composer.typeText("Ещё вопрос")   // клавиатура открыта
-        ctl("off?scope=support")
+        sleep(2); composer.tap(); composer.typeText("Ещё вопрос")
+        ctl("off?scope=support&ms=4000")   // обрыв через 4 с: ошибка придёт, когда клавиатура уже снова открыта
         let send = app.buttons.matching(NSPredicate(format: "label == 'Отправить'")).firstMatch
         XCTAssertTrue(send.waitForExistence(timeout: 5), "Нет кнопки «Отправить»"); send.tap()
-        // касание кнопки закрывает клавиатуру (KeyboardDismisser) — сразу открываем её снова касанием в поле
-        composer.tap()
+        // касание кнопки закрывает клавиатуру (KeyboardDismisser) — открываем её снова касанием в поле.
+        // У заполненного поля XCUITest не отдаёт подсказку — ищем поле по введённому тексту
+        app.textFields.matching(NSPredicate(format: "value == %@", "Ещё вопрос")).firstMatch.tap()
         let toast2 = text("Нет соединения"), kb = app.keyboards.firstMatch
+        XCTAssertTrue(kb.waitForExistence(timeout: 5), "Клавиатура не открылась — проверка не при открытой клавиатуре")
         XCTAssertTrue(toast2.waitForExistence(timeout: 20), "Сообщение об ошибке отправки ответа не показано")
-        XCTAssertTrue(kb.waitForExistence(timeout: 3), "Клавиатура не открылась — проверка не при открытой клавиатуре")
-        let tf = toast2.frame, kf = kb.frame, lum2 = luminance(toast2)
+        let tf = toast2.frame, kf = kb.frame
         XCTAssertLessThanOrEqual(tf.maxY, kf.minY + 1, "Тост под клавиатурой: \(tf) / \(kf)")
-        XCTAssertLessThan(lum2, 0.6, "Тост закрыт (средняя яркость места тоста \(lum2))")
-        shot("15г ошибка при открытой клавиатуре")
+        assertToastVisible(toast2, "при открытой клавиатуре")
         ctl("on?scope=all")
     }
 }
