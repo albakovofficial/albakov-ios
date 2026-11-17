@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 import Network
 
 /// Аудит приложения на GitHub (только проверка, в приложение не входит).
@@ -209,6 +210,16 @@ final class AuditUITests: XCTestCase {
         let y = field.frame.minY
         return app.buttons.matching(NSPredicate(format: "label IN %@", labels)).allElementsBoundByIndex
             .filter { $0.frame.maxY <= y + 2 }.max { $0.frame.maxY < $1.frame.maxY }
+    }
+    /// Средняя яркость места элемента на экране (0 — чёрный, 1 — белый): снимок — то, что видит человек, со всеми окнами
+    func luminance(_ e: XCUIElement) -> Double {
+        guard let cg = e.screenshot().image.cgImage else { return 1 }
+        var px = [UInt8](repeating: 0, count: 16 * 16 * 4)
+        guard let ctx = CGContext(data: &px, width: 16, height: 16, bitsPerComponent: 8, bytesPerRow: 64, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return 1 }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: 16, height: 16))
+        var sum = 0.0
+        for i in stride(from: 0, to: px.count, by: 4) { sum += 0.299 * Double(px[i]) + 0.587 * Double(px[i + 1]) + 0.114 * Double(px[i + 2]) }
+        return sum / (16 * 16 * 255)
     }
     /// Дождаться, что элемент пропал с экрана
     func waitGone(_ e: XCUIElement, _ timeout: TimeInterval) -> Bool {
@@ -584,7 +595,9 @@ final class AuditUITests: XCTestCase {
         let sizes = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Размер"))
         func size(_ v: String) -> XCUIElement { app.textFields.matching(NSPredicate(format: "value == %@", v)).firstMatch }
         // Три новых размера (только кириллица — раскладка русская): ЦА, ЦБ, ЦВ. Курсор — в среднем, удаляем верхний.
-        // При строках по номеру поле, оставшееся в фокусе, после удаления оказывалось привязано к соседней строке (Q-2, ревью)
+        // Это проверка «удаление и правка в панели работают» на интерфейсе. Сам дефект строк по номеру (поле, оставшееся
+        // в фокусе, привязывается к соседней строке) через интерфейс не воспроизводится: касание ✕ снимает фокус
+        // (KeyboardDismisser). Его ловят модельные тесты RowKeysTests (test01, test02)
         for _ in 1...3 {
             let plus = lastButton(["+ Размер"]); scrollTo(plus)
             guard plus.exists else { XCTFail("Нет кнопки «+ Размер»"); return }
@@ -679,10 +692,12 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора"); done.tap()
         let toast = text("Нет соединения")
         XCTAssertTrue(toast.waitForExistence(timeout: 20), "Сообщение об ошибке отправки фото не показано")
-        shot("15в ошибка поверх листа обращения")
+        // exists верно и для закрытого другим окном элемента. Тост — белый текст на тёмной капсуле: если его закрывает
+        // лист (белый фон), снимок места тоста почти белый. Проверяем сразу — тост виден ~2,4 с
+        let lum = luminance(toast)
+        XCTAssertLessThan(lum, 0.6, "Тост закрыт листом (средняя яркость места тоста \(lum))")
         XCTAssertTrue(button("Добавить фото").exists, "Лист обращения закрылся — проверка не поверх листа")
-        // exists верно и для закрытого другим окном элемента: проверяем, что тост в пределах экрана и не под клавиатурой
-        XCTAssertTrue(app.windows.firstMatch.frame.contains(toast.frame), "Тост вне экрана")
+        shot("15в ошибка поверх листа обращения")
         ctl("on?scope=all")
         tap("Закрыть")
         // г) тост при открытой клавиатуре: ответ в переписке не отправился — сообщение не прячется под клавиатурой
@@ -698,12 +713,15 @@ final class AuditUITests: XCTestCase {
         ctl("off?scope=support")
         let send = app.buttons.matching(NSPredicate(format: "label == 'Отправить'")).firstMatch
         XCTAssertTrue(send.waitForExistence(timeout: 5), "Нет кнопки «Отправить»"); send.tap()
-        let toast2 = text("Нет соединения")
+        // касание кнопки закрывает клавиатуру (KeyboardDismisser) — сразу открываем её снова касанием в поле
+        composer.tap()
+        let toast2 = text("Нет соединения"), kb = app.keyboards.firstMatch
         XCTAssertTrue(toast2.waitForExistence(timeout: 20), "Сообщение об ошибке отправки ответа не показано")
+        XCTAssertTrue(kb.waitForExistence(timeout: 3), "Клавиатура не открылась — проверка не при открытой клавиатуре")
+        let tf = toast2.frame, kf = kb.frame, lum2 = luminance(toast2)
+        XCTAssertLessThanOrEqual(tf.maxY, kf.minY + 1, "Тост под клавиатурой: \(tf) / \(kf)")
+        XCTAssertLessThan(lum2, 0.6, "Тост закрыт (средняя яркость места тоста \(lum2))")
         shot("15г ошибка при открытой клавиатуре")
-        let kb = app.keyboards.firstMatch
-        XCTAssertTrue(kb.exists, "Клавиатура закрылась — проверка не при открытой клавиатуре")
-        XCTAssertLessThanOrEqual(toast2.frame.maxY, kb.frame.minY + 1, "Тост под клавиатурой: \(toast2.frame) / \(kb.frame)")
         ctl("on?scope=all")
     }
 }
