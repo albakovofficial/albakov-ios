@@ -360,7 +360,7 @@ enum Fmt {
         let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.timeZone = .autoupdatingCurrent; f.dateFormat = format
         return f
     }
-    private static let day = ruDates("d LLLL yyyy"), dayTime   // ПОРЧА 3: именительный падеж = ruDates("d MMMM, HH:mm")
+    private static let day = ruDates("d LLLL yyyy") /* ПОРЧА 3: именительный падеж */, dayTime = ruDates("d MMMM, HH:mm")
     /// «ноября 2026» — для «С нами с ноября 2026» (родительный падеж — по своему списку месяцев;
     /// созданный здесь раньше форматтер не использовался — убран, аудит Q-B6)
     static func monthYear(_ iso: String) -> String {
