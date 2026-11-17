@@ -321,9 +321,12 @@ final class AuditUITests: XCTestCase {
     /// счётчик окна), кнопка подтверждения доступна, окно после неё закрылось. false — не вышло (причина — в XCTFail)
     func pickPhotos(_ n: Int, _ step: String) -> Bool {
         let year = #"\b(19|20)\d{2}\b"#
+        var snapError = ""
         func cells() -> [XCUIElementSnapshot] {
-            // snapshot() бросает ошибку, пока дерево недоступно (окно ещё открывается): это «пока снимков нет», пробуем снова
-            guard let root = try? app.snapshot() else { return [] }
+            // snapshot() бросает ошибку, пока дерево недоступно (окно ещё открывается): это «пока снимков нет», пробуем снова;
+            // последняя ошибка — в текст сбоя, если снимков так и не будет
+            let root: XCUIElementSnapshot
+            do { root = try app.snapshot() } catch { snapError = "\(error)"; return [] }
             var out: [XCUIElementSnapshot] = []
             func walk(_ e: XCUIElementSnapshot) {
                 let l = e.label.lowercased()
@@ -334,9 +337,11 @@ final class AuditUITests: XCTestCase {
             return out
         }
         func ours(_ all: [XCUIElementSnapshot]) -> [XCUIElementSnapshot] { all.filter { $0.label.range(of: year, options: .regularExpression) == nil } }
-        let deadline = Date().addingTimeInterval(20)   // окно выбора подгружает снимки не сразу
+        // окно выбора подгружает снимки не сразу; на медленном Mac (Intel, Thread Sanitizer) — дольше 20 с (этап E)
+        let deadline = Date().addingTimeInterval(60)
         var all = cells()
         while ours(all).count < n && Date() < deadline { sleep(1); all = cells() }
+        guard !all.isEmpty else { XCTFail("\(step): снимков в окне выбора не видно за 60 с" + (snapError.isEmpty ? "" : " (\(snapError))")); return false }
         // признак «без года» должен различать снимки: если года нет ни в одной подписи, свои от стандартных не отличить —
         // молча взять первые попавшиеся значило бы проверять не те фото
         guard all.contains(where: { $0.label.range(of: year, options: .regularExpression) != nil }) else {
