@@ -601,10 +601,10 @@ final class AuditUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления размера")
         XCTAssertFalse(size("ЦА").exists, "Удалённый размер остался на экране")
         XCTAssertTrue(size("ЦБ").exists, "Соседний размер пропал или изменился")
-        // нижнее поле осталось в фокусе — ввод продолжается именно в нём
-        size("ЦБ").typeText("Ж")
+        // Нажатие ✕ закрывает клавиатуру (так устроено приложение: касание вне поля — KeyboardDismisser), поэтому
+        // правка соседнего размера — новым касанием в него: она должна попасть именно в него, а не в другую строку
+        append(size("ЦБ"), "Ж")
         XCTAssertTrue(size("ЦБЖ").exists, "Ввод ушёл не в соседний размер")
-        hideKeyboard()
         shot("14.1 после удаления верхнего размера и ввода в нижний")
         launch("/admin?s=payment")
         let addPickup = button("+ Самовывоз"); scrollTo(addPickup, max: 30)
@@ -682,11 +682,12 @@ final class AuditUITests: XCTestCase {
         tap("Закрыть")
         // г) тост при открытой клавиатуре: ответ в переписке не отправился — сообщение не прячется под клавиатурой
         XCTAssertTrue(tap("Написать в поддержку"))
-        let body = app.textViews.firstMatch   // многострочное поле — в XCUITest это textView
+        // многострочный TextField(axis: .vertical) в XCUITest — textField, а не textView: ищем по подсказке
+        let body = field("Что случилось и чем помочь")
         guard body.waitForExistence(timeout: 10) else { XCTFail("Нет поля сообщения"); return }
         scrollTo(body); body.tap(); body.typeText("Проверка сообщений"); hideKeyboard()
         XCTAssertTrue(tap("Отправить"))
-        let composer = app.textViews.firstMatch
+        let composer = field("Сообщение")
         guard composer.waitForExistence(timeout: 20) else { XCTFail("Переписка не открылась"); return }
         sleep(2); composer.tap(); composer.typeText("Ещё вопрос")   // клавиатура открыта
         ctl("off?scope=support")
