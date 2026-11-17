@@ -165,5 +165,6 @@ extension Error {
     /// Запрос отменён (ушли с экрана, ввели следующую букву) — это не ошибка для покупателя
     /// Текст ошибки для человека; отменённый запрос — nil: «отменено» нигде не показываем
     var userMessage: String? { isCancel ? nil : localizedDescription }
-    var isCancel: Bool { self is CancellationError || (self as? URLError)?.code == .cancelled || (self as NSError).code == NSURLErrorCancelled }
+    /// CocoaError.userCancelled — человек сам закрыл окно выбора файла (импорт остатков)
+    var isCancel: Bool { self is CancellationError || (self as? URLError)?.code == .cancelled || (self as NSError).code == NSURLErrorCancelled || (self as? CocoaError)?.code == .userCancelled }
 }

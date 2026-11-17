@@ -201,6 +201,9 @@ final class Shop: ObservableObject {
         if f != favorites { favorites = f }
         PushManager.shared.resend()
     }
+    /// Попутное обновление витрины и покупателя после действия (вход, заказ, сохранение в панели, открытие кабинета).
+    /// Сбой здесь не показывается сознательно (аудит Q-B1): само действие уже сообщило о своём результате, прежние данные
+    /// не стираются, а витрина ещё раз обновится при возврате в приложение (Shop.load через 10 минут) или потягиванием вниз
     func refreshUser() async {
         if let j = try? await API.shared.json("GET", "state") { apply(j["data"]); setUser(User(j["user"]), staff: j["isAdmin"].bool) }
     }

@@ -435,13 +435,25 @@ struct ImageField: View {
         .onChange(of: item) { it in Task { await upload(it) } }
     }
     private func upload(_ it: PhotosPickerItem?) async {
-        guard let it, let data = try? await it.loadTransferable(type: Data.self) else { return }
+        guard let it else { return }
         busy = true; defer { busy = false; item = nil }
-        do { value = try await API.shared.upload(ImageKit.jpeg(data)) } catch { Toast.shared.show(error.userMessage) }
+        do { value = try await API.shared.upload(ImageKit.jpeg(try await ImageKit.load(it))) } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
 enum ImageKit {
+    struct OpenFailed: LocalizedError {
+        var errorDescription: String? { "Не получилось открыть фото. Если оно хранится в iCloud — проверьте связь и попробуйте ещё раз." }
+    }
+    /// Фото из галереи. Раньше сбой (фото в iCloud без связи, неподдерживаемый формат) молча пропускался:
+    /// сотрудник выбирал фото, и ничего не происходило (аудит Q-B1). Отмена остаётся отменой — без сообщения
+    static func load(_ item: PhotosPickerItem) async throws -> Data {
+        let data: Data?
+        do { data = try await item.loadTransferable(type: Data.self) }
+        catch { throw error.isCancel ? error : OpenFailed() }
+        guard let data else { throw OpenFailed() }
+        return data
+    }
     /// Фото с телефона — в JPEG не больше 2000 px по длинной стороне (сервер принимает до 12 МБ)
     static func jpeg(_ data: Data, max side: CGFloat = 2000) -> Data {
         guard let img = UIImage(data: data) else { return data }

@@ -266,8 +266,7 @@ struct ColorPhotos: View {
         guard !items.isEmpty else { return }
         busy = true; defer { busy = false; picks = [] }
         for it in items {
-            guard let d = try? await it.loadTransferable(type: Data.self) else { continue }
-            do { images.append(try await API.shared.upload(ImageKit.jpeg(d))) } catch { Toast.shared.show(error.userMessage) }
+            do { images.append(try await API.shared.upload(ImageKit.jpeg(try await ImageKit.load(it)))) } catch { Toast.shared.show(error.userMessage) }
         }
     }
 }
@@ -608,12 +607,15 @@ struct ProductsBulkView: View {
             let u = FileManager.default.temporaryDirectory.appendingPathComponent("ostatki.csv"); try d.write(to: u); exportURL = u
         } catch { Toast.shared.show(error.userMessage) }
     }
+    /// Файл, который не открылся (не скачан из iCloud, нет доступа), раньше молча пропускался (аудит Q-B1)
     private func importCsv(_ r: Result<URL, Error>) async {
-        guard case .success(let u) = r else { return }
-        let ok = u.startAccessingSecurityScopedResource(); defer { if ok { u.stopAccessingSecurityScopedResource() } }
-        guard let d = try? Data(contentsOf: u) else { return }
-        csvText = String(data: d, encoding: .utf8) ?? String(data: d, encoding: .windowsCP1251) ?? ""
-        do { preview = try await AdminAPI.post("products/stock", ["csv": csvText, "dry": true]) } catch { Toast.shared.show(error.userMessage) }
+        do {
+            let u = try r.get()
+            let ok = u.startAccessingSecurityScopedResource(); defer { if ok { u.stopAccessingSecurityScopedResource() } }
+            let d = try Data(contentsOf: u)
+            csvText = String(data: d, encoding: .utf8) ?? String(data: d, encoding: .windowsCP1251) ?? ""
+            preview = try await AdminAPI.post("products/stock", ["csv": csvText, "dry": true])
+        } catch { Toast.shared.show(error.userMessage) }
     }
     private func applyCsv() async {
         do { let r = try await AdminAPI.post("products/stock", ["csv": csvText]); preview = JSON(nil); await AdminAPI.reload(); Toast.shared.show(notifyMsg("Остатки обновлены: \(r["changed"].int ?? 0)", r["notify"])) }

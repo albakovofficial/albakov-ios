@@ -379,7 +379,9 @@ struct ShipEstimate: View {
     let product: Product
     @EnvironmentObject private var shop: Shop
     @State private var methods: [JSON] = []
+    @State private var methodsCity: Int?   // для какого города methods: сбой обновления того же города их не стирает
     @State private var loading = true
+    @State private var loadError: String?
     @State private var pickCity = false
     @AppStorage("shipCityCode") private var code = 44
     @AppStorage("shipCityName") private var city = "Москва"
@@ -416,6 +418,7 @@ struct ShipEstimate: View {
                         }
                     }
                 }
+                if let e = loadError { ErrorRetry(text: "Срок доставки не загрузился. " + e) { Task { await load() } } }
                 if methods.contains(where: { !$0["days"].str.isEmpty }) { Text("Срок СДЭК — со дня отправки заказа. Точную цену покажем при оформлении.").font(Theme.font(12)).foregroundStyle(Theme.dim) }
             }
             .padding(.horizontal, 18).padding(.vertical, 16).softCard(18)
@@ -424,8 +427,19 @@ struct ShipEstimate: View {
         }
     }
     private func load() async {
+        let c = code   // «Повторить» идёт мимо .task(id:): ответ для прежнего города, пришедший позже, не показываем
         loading = true; defer { loading = false }
-        if let r = try? await API.shared.json("GET", "cdek/estimate", query: ["city": String(code), "pid": product.id]) { methods = r["methods"].array }
+        do {
+            let r = try await API.shared.json("GET", "cdek/estimate", query: ["city": String(c), "pid": product.id])["methods"].array
+            guard c == code else { return }
+            methods = r; methodsCity = c; loadError = nil
+        } catch {
+            guard let m = error.userMessage, c == code else { return }   // город сменили — уже идёт запрос для нового
+            guard methodsCity != c else { return }   // сроки этого города уже на экране — оставляем их
+            // Раньше при сбое оставались сроки и цены прежнего города под названием нового (аудит Q-B1).
+            // Теперь — общие условия из настроек магазина (как до первой загрузки) и причина с «Повторить»
+            methods = []; methodsCity = nil; loadError = m
+        }
     }
     static func days(_ d: String) -> String {
         let n = Int(d.components(separatedBy: CharacterSet.decimalDigits.inverted).filter { !$0.isEmpty }.last ?? "") ?? 0

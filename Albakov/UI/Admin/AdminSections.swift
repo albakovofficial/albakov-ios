@@ -343,6 +343,7 @@ struct AdminStat: View {
 struct StoreServiceCard: View {
     @State private var seq = ""
     @State private var health = JSON(nil)
+    @State private var loadError: String?
     @ObservedObject private var admin = Admin.shared
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -364,14 +365,24 @@ struct StoreServiceCard: View {
                     li("Онлайн-оплата", h["pay"].bool ? "подключена" : "не подключена")
                     li("Работает без перезапуска", "\(h["uptimeH"].double ?? 0) ч")
                 }
-            } else { ProgressView() }
+            } else if let e = loadError { ErrorRetry(text: e) { Task { await load() } } }
+            else { ProgressView() }
             if admin.data["backup"].exists { li("Резервная копия", admin.data["backup"]["ok"].bool ? "последняя: " + Fmt.date(ISO.date(admin.data["backup"]["at"].str), time: true) : (admin.data["backup"]["error"].string ?? "не делалась"), bad: !admin.data["backup"]["ok"].bool) }
             if admin.data["update"].exists { li("Версия сайта", admin.data["update"]["version"].string ?? admin.data["update"]["sha"].str) }
         }
         .padding(16).softCard(20)
-        .task {
-            if let r = try? await API.shared.json("GET", "admin/order-seq") { seq = String(r["next"].int ?? 0) }
-            if let r = try? await API.shared.json("GET", "admin/health") { health = r["health"] }
+        .task { await load() }
+    }
+    /// Раньше сбой оставлял вечную загрузку вместо состояния магазина и пустой номер (аудит Q-B1).
+    /// Уже показанное не стирается: значения меняются только по ответу
+    private func load() async {
+        loadError = nil
+        do {
+            seq = String(try await API.shared.json("GET", "admin/order-seq")["next"].int ?? 0)
+            health = try await API.shared.json("GET", "admin/health")["health"]
+        } catch {
+            guard let m = error.userMessage else { return }   // ушли с экрана
+            if health.exists { Toast.shared.show(m) } else { loadError = m }   // состояние уже на экране — оставляем его
         }
     }
     private func saveSeq() async {

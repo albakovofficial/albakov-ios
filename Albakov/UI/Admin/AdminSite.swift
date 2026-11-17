@@ -332,10 +332,10 @@ private struct LogoSlot: View {
         .onChange(of: item) { it in Task { await upload(it) } }
     }
     private func upload(_ it: PhotosPickerItem?) async {
-        guard let it, let data = try? await it.loadTransferable(type: Data.self) else { return }
+        guard let it else { return }
         busy = true; defer { busy = false; item = nil }
         do {
-            let r = try LogoKit.process(data, removeBg: removeBg, recolor: recolor)
+            let r = try LogoKit.process(try await ImageKit.load(it), removeBg: removeBg, recolor: recolor)
             let url = try await API.shared.upload(r.png, mime: "image/png")
             set(["src": url, "w": r.w, "h": r.h])
             if let n = r.note { Toast.shared.show(n) }

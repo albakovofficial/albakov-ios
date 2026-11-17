@@ -444,21 +444,39 @@ struct AdminPushView: View {
 struct AdminAuditView: View {
     @State private var items: [JSON] = []
     @State private var q = ""
+    @State private var loadError: String?
     var body: some View {
-        List {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, x in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(x["text"].str).font(Theme.font(14))
-                    Text([x["name"].string ?? "Система", x["role"].str, Fmt.date(ISO.date(x["at"].str), time: true)].filter { !$0.isEmpty }.joined(separator: " · ")).font(Theme.font(11.5)).foregroundStyle(Theme.dim)
-                }.padding(.vertical, 3)
+        Group {
+            // Ошибка — вместо списка: иначе на экране остались бы записи прежнего поиска, будто это ответ на новый (аудит Q-B1)
+            if let e = loadError { EmptyState.loadFailed(e) { Task { await load() } } }
+            else {
+                List {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, x in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(x["text"].str).font(Theme.font(14))
+                            Text([x["name"].string ?? "Система", x["role"].str, Fmt.date(ISO.date(x["at"].str), time: true)].filter { !$0.isEmpty }.joined(separator: " · ")).font(Theme.font(11.5)).foregroundStyle(Theme.dim)
+                        }.padding(.vertical, 3)
+                    }
+                }
+                .listStyle(.plain)
             }
         }
-        .listStyle(.plain)
         .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Номер заказа, товар, слово")
         .navigationTitle("Журнал действий").navigationBarTitleDisplayMode(.inline)
         .task(id: q) {
             guard (try? await Task.sleep(nanoseconds: q.isEmpty ? 0 : 300_000_000)) != nil else { return }
-            if let r = try? await API.shared.json("GET", "admin/audit", query: q.isEmpty ? [:] : ["q": q]) { items = r["items"].array }
+            await load()
+        }
+    }
+    private func load() async {
+        let query = q   // «Повторить» идёт мимо .task(id:): ответ на прежний поиск, пришедший позже, не показываем
+        do {
+            let r = try await API.shared.json("GET", "admin/audit", query: query.isEmpty ? [:] : ["q": query])["items"].array
+            guard query == q else { return }
+            items = r; loadError = nil
+        } catch {
+            guard let m = error.userMessage, query == q else { return }   // поиск сменился — следующий запрос уже идёт
+            loadError = m
         }
     }
 }

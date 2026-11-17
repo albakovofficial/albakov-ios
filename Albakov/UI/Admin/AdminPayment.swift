@@ -15,6 +15,7 @@ struct AdminPayment: View {
     @State private var error: String?
     @State private var secret = ""
     @State private var secState: (String, Bool)?
+    @State private var secError: String?
     @State private var cdekId = ""
     @State private var cdekSecret = ""
     @State private var cdekTest = false
@@ -39,7 +40,8 @@ struct AdminPayment: View {
                 HStack {
                     GhostButton(title: "Сохранить ключ", height: 44) { Task { await saveSecret() } }.disabled(secret.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
-                if let s = secState { stateLine(s.0, s.1) }
+                if let e = secError { ErrorRetry(text: "Не удалось узнать, сохранён ли ключ. " + e) { Task { await loadSecret() } } }
+                else if let s = secState { stateLine(s.0, s.1) }
             }.padding(16).softCard(20)
 
             sec("Чеки по 54-ФЗ", "ЮKassa отправит чек в налоговую и покупателю на почту. Нужна «Чеки от ЮKassa» или своя онлайн-касса.")
@@ -83,7 +85,7 @@ struct AdminPayment: View {
             methodKeys.match(count: methods.count)   // список способов задаётся только здесь — ключи сразу под него
             cdekId = s["cdek"]["clientId"].str; cdekTest = s["cdek"]["test"].bool
             loaded = true
-            if let r = try? await AdminAPI.post("payment-secret") { showSecret(r) }
+            await loadSecret()
         }
     }
 
@@ -128,7 +130,12 @@ struct AdminPayment: View {
         }
         m["id"] = uid("d"); withAnimation { methodKeys.append(m, to: &methods) }
     }
+    /// Состояние ключа ЮKassa (без тела запрос ключ не меняет). Раньше сбой молча убирал строку состояния (аудит Q-B1)
+    private func loadSecret() async {
+        do { showSecret(try await AdminAPI.post("payment-secret")) } catch { secError = error.userMessage }
+    }
     private func showSecret(_ r: JSON) {
+        secError = nil
         let mask = r["mask"].str
         if !r["hasSecret"].bool { secState = ("Ключ не задан — онлайн-оплата не работает", false) }
         else if mask.hasPrefix("test_") { secState = ("Сохранён тестовый ключ (\(mask)) — деньги не списываются", false) }
