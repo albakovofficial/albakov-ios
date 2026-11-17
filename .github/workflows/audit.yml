@@ -151,7 +151,7 @@ jobs:
       - name: UI-тесты покупки
         if: inputs.tests
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 80   # 16 UI-тестов с этапа B идут ~45 мин на Intel-Mac — 50 минут впритык
         env:
           ONLY: ${{ inputs.only }}
         run: |
