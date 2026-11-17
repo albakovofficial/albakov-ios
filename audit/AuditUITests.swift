@@ -756,4 +756,65 @@ final class AuditUITests: XCTestCase {
         assertToastVisible(shots2, tf, toast2, "при открытой клавиатуре")
         ctl("on?scope=all")
     }
+
+    // MARK: - 16. Этап C (Q-B1): сбои загрузки в панели и на странице товара — причина и «Повторить», а не пустота
+
+    func test16_AdminLoadErrorsVisible() {
+        signInOwner()
+        // а) журнал действий: раньше — пустой список, как будто записей нет
+        ctl("off?scope=admin/audit")
+        launch("/admin?s=audit")
+        let failed = text("Не удалось загрузить")
+        XCTAssertTrue(failed.waitForExistence(timeout: 25), "Ошибка загрузки журнала не показана")
+        shot("16а журнал — нет связи")
+        ctl("on?scope=all")
+        tap("Повторить")
+        XCTAssertTrue(waitGone(failed, 20), "После «Повторить» ошибка журнала не ушла")
+        shot("16а журнал — после «Повторить»")
+        // б) состояние ключа ЮKassa: раньше строка состояния молча пропадала (ключ не меняется — запрос без тела)
+        ctl("off?scope=admin/payment-secret")
+        launch("/admin?s=payment")
+        let keyErr = text("Не удалось узнать, сохранён ли ключ")
+        if !keyErr.waitForExistence(timeout: 25) { scrollTo(keyErr, max: 10) }
+        XCTAssertTrue(keyErr.exists, "Ошибка состояния ключа не показана")
+        shot("16б ключ оплаты — нет связи")
+        ctl("on?scope=all")
+        tap("Повторить")
+        XCTAssertTrue(waitGone(keyErr, 20), "После «Повторить» ошибка ключа не ушла")
+        let keyState = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Ключ не задан' OR label CONTAINS 'ключ ('")).firstMatch
+        XCTAssertTrue(keyState.waitForExistence(timeout: 10), "Состояние ключа не показано после «Повторить»")
+        shot("16б ключ оплаты — после «Повторить»")
+        // в) настройки → состояние магазина: раньше — вечная загрузка
+        ctl("off?scope=admin/order-seq")
+        launch("/admin?s=settings")
+        let state = text("Состояние магазина")
+        scrollTo(state, max: 30)
+        let stateErr = text("Нет соединения")
+        if !stateErr.waitForExistence(timeout: 20) { scrollTo(stateErr, max: 6) }
+        XCTAssertTrue(stateErr.exists, "Ошибка загрузки состояния магазина не показана")
+        shot("16в состояние магазина — нет связи")
+        ctl("on?scope=all")
+        tap("Повторить")
+        XCTAssertTrue(text("База данных").waitForExistence(timeout: 20), "После «Повторить» состояние магазина не загрузилось")
+        shot("16в состояние магазина — после «Повторить»")
+        // г) срок доставки на странице товара: раньше при сбое оставались сроки прежнего города
+        ctl("off?scope=cdek/estimate")
+        launch("/product/p5")
+        let ship = text("Доставка в")
+        scrollTo(ship, max: 12)
+        if ship.exists {
+            let shipErr = text("Срок доставки не загрузился")
+            if !shipErr.waitForExistence(timeout: 20) { scrollTo(shipErr, max: 4) }
+            XCTAssertTrue(shipErr.exists, "Ошибка срока доставки не показана")
+            shot("16г срок доставки — нет связи")
+            ctl("on?scope=all")
+            tap("Повторить")
+            XCTAssertTrue(waitGone(shipErr, 20), "После «Повторить» ошибка срока доставки не ушла")
+            shot("16г срок доставки — после «Повторить»")
+        } else {
+            note("16г: блока «Доставка в…» нет — в копии магазина нет способов доставки СДЭК; проверка срока не выполнялась")
+            shot("16г страница товара без блока доставки")
+        }
+        ctl("on?scope=all")
+    }
 }
