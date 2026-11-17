@@ -74,10 +74,10 @@ final class Shop: ObservableObject {
         let base = p.price
         var best: Promotion?, bestPrice = base
         for pr in promotions where pr.inWindow(now) && pr.applies(to: p) {
-            let v = pr.type == "fixed" ? base - Int(pr.value) : Int((Double(base) * (100 - pr.value) / 100).rounded())
+            let v = pr.type == "fixed" ? base - Int(pr.value) : Int(Double(base) * (100 - pr.value) / 100)   /* ПОРЧА 2: отбрасывание вместо округления */
             if max(0, v) < bestPrice { bestPrice = max(0, v); best = pr }
         }
-        let old = best != nil ? max(base, p.compareAt) : (p.compareAt > base ? p.compareAt : 0)
+        let old = best != nil ? p.compareAt /* ПОРЧА 5 */ : (p.compareAt > base ? p.compareAt : 0)
         return Price(price: bestPrice, oldPrice: old > bestPrice ? old : 0, promoTitle: best?.title ?? "", promoEnds: best?.endsAt ?? "")
     }
 

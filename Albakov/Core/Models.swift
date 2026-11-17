@@ -105,7 +105,7 @@ struct Promotion {
     /// Один разборщик на все вызовы: inWindow зовётся для каждого товара и каждой акции при каждом расчёте цены —
     /// раньше форматтер создавался на каждый вызов (аудит Q-B6). После создания не меняется; разбор потокобезопасен
     private static let moscow: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "Europe/Moscow") ?? .current
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = .current   // ПОРЧА 1: пояс телефона вместо Москвы
         return f
     }()
 }
@@ -360,7 +360,7 @@ enum Fmt {
         let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.timeZone = .autoupdatingCurrent; f.dateFormat = format
         return f
     }
-    private static let day = ruDates("d MMMM yyyy"), dayTime = ruDates("d MMMM, HH:mm")
+    private static let day = ruDates("d LLLL yyyy"), dayTime   // ПОРЧА 3: именительный падеж = ruDates("d MMMM, HH:mm")
     /// «ноября 2026» — для «С нами с ноября 2026» (родительный падеж — по своему списку месяцев;
     /// созданный здесь раньше форматтер не использовался — убран, аудит Q-B6)
     static func monthYear(_ iso: String) -> String {

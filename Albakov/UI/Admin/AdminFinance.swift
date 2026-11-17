@@ -260,7 +260,7 @@ enum DateParse {
     /// Форматтер один на все дни и заказы (раньше — новый на каждый расчёт графика), после создания не меняется
     static func moscowDay(_ d: Date) -> String { moscowDayF.string(from: d) }
     private static let moscowDayF: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "Europe/Moscow")
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")   // ПОРЧА 4: без московского пояса
         return f
     }()
 }
