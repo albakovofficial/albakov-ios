@@ -39,13 +39,17 @@ final class Doc: ObservableObject {
     /// Число: целое хранится целым, дробное — дробным (как Number(input.value) на сайте)
     func number(_ k: String) -> Binding<String> {
         Binding(get: { let s = self.str(k); return s == "0" && self.v[k] == nil ? "" : s },
-                set: { t in let n = Double(t.replacingOccurrences(of: ",", with: ".")) ?? 0; self.v[k] = n == n.rounded() ? NSNumber(value: Int(n)) : NSNumber(value: n) })
+                // целым — только то, что точно помещается в Int: Int(1e19) или Int(.infinity) роняли приложение (ревью этапа D)
+                set: { t in let n = Double(t.replacingOccurrences(of: ",", with: ".")) ?? 0; self.v[k] = n == n.rounded() && abs(n) < 1e15 ? NSNumber(value: Int(n)) : NSNumber(value: n) })
     }
 }
 
 extension JSON {
     var dictAny: [String: Any] { (raw as? [String: Any]) ?? [:] }
     var arrAny: [Any] { (raw as? [Any]) ?? [] }
+    /// Число для поля ввода — как пришло с сервера (12345.67 → «12345.67»); не число — пусто.
+    /// Раньше суммы шли через %g: 6 значащих цифр, 12345.67 → «12345.7», и сохранение без правки меняло сумму (аудит Q-B4)
+    var numberText: String { (raw as? NSNumber)?.stringValue ?? "" }
 }
 
 func uid(_ prefix: String) -> String { prefix + String(Int(Date().timeIntervalSince1970 * 1000), radix: 36) + String(Int.random(in: 0..<60_466_176), radix: 36) }

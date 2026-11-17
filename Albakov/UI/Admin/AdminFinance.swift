@@ -233,7 +233,7 @@ struct ExpenseSheet: View {
             .navigationTitle(expense == nil ? "Новая операция" : "Операция").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() } } }
             .onAppear {
-                if let e = expense { date = DateParse.ymd(e["date"].str) ?? Date(); cat = e["categoryId"].str; amount = String(format: "%g", e["amount"].double ?? 0); note = e["note"].str }
+                if let e = expense { date = DateParse.ymd(e["date"].str) ?? Date(); cat = e["categoryId"].str; amount = e["amount"].numberText; note = e["note"].str }
                 else if cat.isEmpty { cat = cats.first?["id"].str ?? "" }
             }
         }
@@ -275,11 +275,8 @@ struct FinanceCosts: View {
             }
             Button("Сохранить себестоимость") { Task { await save() } }.font(Theme.font(15, .medium)).disabled(busy)
         }
-        .onAppear { if costs.isEmpty { for (k, v) in admin.data["finance"]["costs"].dict { costs[k] = FinanceCosts.text(v) } } }
+        .onAppear { if costs.isEmpty { for (k, v) in admin.data["finance"]["costs"].dict { costs[k] = v.numberText } } }
     }
-    /// Себестоимость в поле — как пришла с сервера. Раньше %g оставлял 6 значащих цифр: 12345.67 показывалось «12345.7»
-    /// и при следующем сохранении менялось само (аудит Q-B4)
-    static func text(_ v: JSON) -> String { (v.raw as? NSNumber)?.stringValue ?? "" }
     /// Значение для сервера: пусто — себестоимости нет (""), иначе число. nil — текст не число («1.200,50»):
     /// раньше он молча становился 0, а 0 сервер понимает как «себестоимость не задана» — она пропадала (аудит Q-B4)
     static func value(_ text: String) -> Any? {
@@ -322,9 +319,9 @@ struct FinanceSettings: View {
             loaded = true
         }
     }
-    /// Ставки для PUT admin/finance/settings — в том же виде, что и раньше. nil — какого-то числа нет или оно не конечное.
-    /// Раньше на его месте уходил 0 (налог 0% — неверная прибыль), а у «Карты: комиссия ЮKassa» тип выводился как Double?,
-    /// приведённый к Any: ?? не срабатывал, и в запрос попадал Optional (предупреждения компилятора, аудит Q-B4)
+    /// Ставки для PUT admin/finance/settings — в том же виде, что и раньше. nil — какого-то числа в форме нет или оно
+    /// не конечное (вставили «nan», «inf»): такое не сохраняем, а не подставляем 0. Раньше у «Карты: комиссия ЮKassa»
+    /// тип выводился как Double?, приведённый к Any: ?? не срабатывал, в запрос попадал Optional (предупреждения, аудит Q-B4)
     static func settingsValue(_ d: JSON, categories: [[String: Any]], costs: Any) -> [String: Any]? {
         func rate(_ k: String) -> Double? { d[k].double.flatMap { $0.isFinite ? $0 : nil } }
         guard let tax = rate("taxRate"), let sbpYk = rate("sbpYk"), let sbpPartner = rate("sbpPartner"), let otherYk = rate("otherYk"),
@@ -336,7 +333,7 @@ struct FinanceSettings: View {
         var cats = (doc.v["categories"] as? [[String: Any]]) ?? []
         for i in cats.indices where (cats[i]["id"] as? String ?? "").hasPrefix("r") || (cats[i]["id"] as? String ?? "").isEmpty { cats[i]["id"] = uid("fc") }
         guard let v = FinanceSettings.settingsValue(JSON(doc.v), categories: cats, costs: admin.data["finance"]["costs"].raw ?? [String: Any]()) else {
-            Toast.shared.show("Заполните все ставки числами — пустое поле не сохраняем нулём"); return
+            Toast.shared.show("Ставки должны быть числами — проверьте поля"); return
         }
         do { _ = try await API.shared.json("PUT", "admin/finance/settings", body: ["value": v]); await admin.load(); Toast.shared.show("Сохранено") } catch { Toast.shared.show(error.userMessage) }
     }
