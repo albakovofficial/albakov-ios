@@ -322,18 +322,24 @@ final class AuditUITests: XCTestCase {
     func pickPhotos(_ n: Int, _ step: String) -> Bool {
         let year = #"\b(19|20)\d{2}\b"#
         var snapError = ""
+        // верх нижней панели окна выбора — по её подписи; снимки ниже него закрыты панелью.
+        // Жёсткий запас от низа экрана не годится: на iPhone SE (iOS 18) он отсекал целиком видимый ряд (этап E)
+        var barTop = app.frame.maxY - 100
+        let barLabels = ["Выбрать фото", "Choose Photos", "Select Photos", "Показать выбранные", "Show Selected"]
         func cells() -> [XCUIElementSnapshot] {
             // snapshot() бросает ошибку, пока дерево недоступно (окно ещё открывается): это «пока снимков нет», пробуем снова;
             // последняя ошибка — в текст сбоя, если снимков так и не будет
             let root: XCUIElementSnapshot
             do { root = try app.snapshot() } catch { snapError = "\(error)"; return [] }
-            var out: [XCUIElementSnapshot] = []
+            var out: [XCUIElementSnapshot] = [], bar: CGFloat?
             func walk(_ e: XCUIElementSnapshot) {
                 let l = e.label.lowercased()
                 if e.elementType == .image, e.frame.width >= 60, e.frame.height >= 60, ["фото", "photo", "изображ"].contains(where: { l.contains($0) }) { out.append(e) }
+                if barLabels.contains(where: { e.label.hasPrefix($0) }), e.frame.minY > app.frame.midY { bar = min(bar ?? .infinity, e.frame.minY - 16) }
                 e.children.forEach(walk)
             }
             walk(root)
+            if let bar { barTop = bar }
             return out
         }
         func ours(_ all: [XCUIElementSnapshot]) -> [XCUIElementSnapshot] { all.filter { $0.label.range(of: year, options: .regularExpression) == nil } }
@@ -347,9 +353,8 @@ final class AuditUITests: XCTestCase {
         guard all.contains(where: { $0.label.range(of: year, options: .regularExpression) != nil }) else {
             XCTFail("\(step): по подписям не отличить снимки audit.yml от стандартных: " + all.map(\.label).joined(separator: " | ")); return false
         }
-        let bottom = app.frame.maxY - 100
-        let usable = Array(ours(all).filter { $0.frame.minY >= 0 && $0.frame.maxY <= bottom }.prefix(n))
-        note("\(step): снимков в окне \(all.count), своих \(ours(all).count); выбираем: " + usable.map(\.label).joined(separator: " | "))
+        let usable = Array(ours(all).filter { $0.frame.minY >= 0 && $0.frame.maxY <= barTop }.prefix(n))
+        note("\(step): снимков в окне \(all.count), своих \(ours(all).count), нижняя панель с \(Int(barTop)) pt; выбираем: " + usable.map(\.label).joined(separator: " | "))
         guard usable.count == n else { XCTFail("\(step): в окне выбора видно своих снимков \(usable.count) из \(n); подписи: " + all.map(\.label).joined(separator: " | ")); return false }
         let origin = app.coordinate(withNormalizedOffset: .zero)
         for c in usable { origin.withOffset(CGVector(dx: c.frame.midX, dy: c.frame.midY)).tap(); usleep(400_000) }
