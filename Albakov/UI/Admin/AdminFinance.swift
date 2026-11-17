@@ -254,6 +254,15 @@ struct ExpenseSheet: View {
 
 enum DateParse {
     static func ymd(_ s: String) -> Date? { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f.date(from: s) }
+    /// День статистики — как его пишет сервер: «ГГГГ-ММ-ДД» по Москве, григорианский календарь
+    /// (new Date(Date.now() + 3 ч).toISOString().slice(0, 10), api-shop.js). Без en_US_POSIX календарь брался из настроек
+    /// телефона: при буддийском или японском году ключи не совпадали с серверными — графики были пустыми (аудит Q-B6).
+    /// Форматтер один на все дни и заказы (раньше — новый на каждый расчёт графика), после создания не меняется
+    static func moscowDay(_ d: Date) -> String { moscowDayF.string(from: d) }
+    private static let moscowDayF: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "Europe/Moscow")
+        return f
+    }()
 }
 
 /// Себестоимость одной вещи по каждому товару
@@ -354,11 +363,10 @@ struct AdminAnalytics: View {
     private func days(_ n: Int) -> [[String: Any]] {
         let st = admin.data["stats"]
         let ord = admin.orders.filter { $0.payMethod != "exchange" && $0.status != "canceled" && !($0.payMethod == "online" && !["paid", "refunded"].contains($0.payStatus)) }
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = TimeZone(identifier: "Europe/Moscow")
         return (0..<n).reversed().map { i in
-            let d = f.string(from: Date().addingTimeInterval(-Double(i) * 86400))
+            let d = DateParse.moscowDay(Date().addingTimeInterval(-Double(i) * 86400))
             var x = st[d].dictAny; x["day"] = d
-            let list = ord.filter { $0.createdAt.map { f.string(from: $0) } == d }
+            let list = ord.filter { $0.createdAt.map(DateParse.moscowDay) == d }
             x["o"] = list.count; x["rev"] = list.reduce(0) { $0 + $1.total - ($1.raw["refunded"].int ?? 0) }
             return x
         }

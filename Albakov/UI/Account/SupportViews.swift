@@ -11,21 +11,23 @@ enum Support {
     static let adminState = ["open": "Ждёт ответа", "answered": "Отвечено", "closed": "Решено"]
     static let topicIcon = ["Заказ": "bag", "Доставка": "shippingbox", "Размер и посадка": "ruler", "Возврат и обмен": "arrow.uturn.left", "Другое": "ellipsis"]
 
+    // Даты в строках переписки и списков обращений — форматтеры создаются один раз, а не на каждое сообщение (аудит Q-B6)
+    private static let hm = Fmt.ruDates("HH:mm"), dayMonth = Fmt.ruDates("d MMMM")
+    /// Время у сообщения — как было: в языке телефона, а не по-русски
+    private static let clockF: DateFormatter = { let f = DateFormatter(); f.locale = .autoupdatingCurrent; f.timeZone = .autoupdatingCurrent; f.dateFormat = "HH:mm"; return f }()
     static func time(_ iso: String) -> String {
         guard let d = ISO.date(iso) else { return "" }
-        let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU")
-        f.dateFormat = Calendar.current.isDateInToday(d) ? "HH:mm" : "d MMMM"
-        return f.string(from: d)
+        return (Calendar.current.isDateInToday(d) ? hm : dayMonth).string(from: d)
     }
     static func clock(_ iso: String) -> String {
         guard let d = ISO.date(iso) else { return "" }
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: d)
+        return clockF.string(from: d)
     }
     static func day(_ iso: String) -> String {
         guard let d = ISO.date(iso) else { return "" }
         if Calendar.current.isDateInToday(d) { return "Сегодня" }
         if Calendar.current.isDateInYesterday(d) { return "Вчера" }
-        let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.dateFormat = "d MMMM"; return f.string(from: d)
+        return dayMonth.string(from: d)
     }
     /// Последнее сообщение без заметок сотрудников: «Фото», если текста нет
     static func preview(_ t: JSON) -> (shop: Bool, text: String) {

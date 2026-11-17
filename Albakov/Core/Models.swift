@@ -96,12 +96,18 @@ struct Promotion {
     }
     func inWindow(_ now: Date) -> Bool {
         guard active else { return false }
-        // даты акций — по Москве, как на сервере и сайте: цена на карточке совпадает с ценой в корзине в любом поясе (аудит V-3, 16.11)
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "Europe/Moscow") ?? .current
+        let f = Promotion.moscow
         if !startsAt.isEmpty, let d = f.date(from: startsAt + " 00:00:00"), now < d { return false }
         if !endsAt.isEmpty, let d = f.date(from: endsAt + " 23:59:59"), now > d { return false }
         return true
     }
+    /// Даты акций — по Москве, как на сервере и сайте: цена на карточке совпадает с ценой в корзине в любом поясе (аудит V-3, 16.11).
+    /// Один разборщик на все вызовы: inWindow зовётся для каждого товара и каждой акции при каждом расчёте цены —
+    /// раньше форматтер создавался на каждый вызов (аудит Q-B6). После создания не меняется; разбор потокобезопасен
+    private static let moscow: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "Europe/Moscow") ?? .current
+        return f
+    }()
 }
 
 struct Price { let price: Int; let oldPrice: Int; var promoTitle = ""; var promoEnds = ""; var percent: Int { oldPrice > 0 ? Int((1 - Double(price) / Double(oldPrice)) * 100 + 0.5) : 0 } }
@@ -348,10 +354,17 @@ enum ISO {
 
 enum Fmt {
     private static let money: NumberFormatter = { let f = NumberFormatter(); f.numberStyle = .decimal; f.groupingSeparator = "\u{00A0}"; f.maximumFractionDigits = 0; return f }()
-    /// «ноября 2026» — для «С нами с ноября 2026»
+    /// Форматтер дат для экранов: по-русски, в поясе телефона (и после его смены — autoupdatingCurrent, как было у
+    /// форматтера, создаваемого на каждый вызов). Создаётся один раз и не меняется (аудит Q-B6): даты стоят в строках списков
+    static func ruDates(_ format: String) -> DateFormatter {
+        let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.timeZone = .autoupdatingCurrent; f.dateFormat = format
+        return f
+    }
+    private static let day = ruDates("d MMMM yyyy"), dayTime = ruDates("d MMMM, HH:mm")
+    /// «ноября 2026» — для «С нами с ноября 2026» (родительный падеж — по своему списку месяцев;
+    /// созданный здесь раньше форматтер не использовался — убран, аудит Q-B6)
     static func monthYear(_ iso: String) -> String {
         guard let d = ISO.date(iso) else { return "" }
-        let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.dateFormat = "LLLL yyyy"
         let months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
         return months[Calendar.current.component(.month, from: d) - 1] + " " + String(Calendar.current.component(.year, from: d))
     }
@@ -361,8 +374,7 @@ enum Fmt {
     static func plain(_ s: String) -> String { s.replacingOccurrences(of: #"\*(.+?)\*"#, with: "$1", options: .regularExpression) }
     static func date(_ d: Date?, time: Bool = false) -> String {
         guard let d else { return "" }
-        let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.dateFormat = time ? "d MMMM, HH:mm" : "d MMMM yyyy"
-        return f.string(from: d)
+        return (time ? dayTime : day).string(from: d)
     }
     static func phone(_ digits: String) -> String {
         let d = digits.filter(\.isNumber)
