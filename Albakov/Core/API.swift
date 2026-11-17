@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // Связь с сервером магазина albakovofficial.ru — тем же, что у сайта: товары, корзина, заказы, оплата, кабинет, панель.
 // Вход хранится в куки сессии (как в браузере), HTTPCookieStorage сохраняет их между запусками.
@@ -155,10 +156,18 @@ private struct AnyDecodable: Decodable {
 
 /// Часы сервера (1.0.3): срок оплаты считаем по ним, а не по часам телефона — если на телефоне время сбито, отсчёт всё равно верный.
 enum ServerClock {
-    /// Серверное время − время телефона, в секундах
-    private(set) static var skew: TimeInterval = 0
+    /// Серверное время − время телефона, в секундах. Пишется из ответов API — они разбираются вне главного потока
+    /// и бывают одновременными, читается таймером оплаты в главном. Раньше — static var без защиты: гонка данных (аудит Q-B5)
+    static var skew: TimeInterval { state.withLock { $0 } }
+    private static let state = OSAllocatedUnfairLock(initialState: TimeInterval(0))
+    /// DateFormatter потокобезопасен (iOS 7+); разбор — вне замка, под замком только запись числа
     private static let f: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "GMT"); f.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"; return f }()
-    static func sync(_ header: String) { if let d = f.date(from: header) { skew = d.timeIntervalSinceNow + 0.5 } }
+    static func sync(_ header: String) {
+        guard let s = offset(header) else { return }
+        state.withLock { $0 = s }
+    }
+    /// Расхождение по заголовку Date ответа; nil — заголовок не разобран (прежнее значение остаётся)
+    static func offset(_ header: String) -> TimeInterval? { f.date(from: header).map { $0.timeIntervalSinceNow + 0.5 } }
 }
 
 extension Error {
