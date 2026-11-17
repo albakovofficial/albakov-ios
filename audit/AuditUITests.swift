@@ -722,7 +722,8 @@ final class AuditUITests: XCTestCase {
         let done = app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).firstMatch
         XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора"); done.tap()
         let toast = text("Нет соединения")
-        XCTAssertTrue(toast.waitForExistence(timeout: 20), "Сообщение об ошибке отправки фото не показано")
+        // большое фото (≈48 Мп из теста 13) в симуляторе читается и уменьшается до ~40 с — ждём до минуты
+        guard toast.waitForExistence(timeout: 60) else { XCTFail("Сообщение об ошибке отправки фото не показано"); return }
         // exists верно и для закрытого другим окном элемента — сравниваем место тоста на экране с ним и без него
         let shots = toastShots()
         assertToastVisible(shots, toast.frame, toast, "поверх листа")
