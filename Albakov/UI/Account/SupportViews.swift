@@ -929,22 +929,32 @@ private struct SupportCustomerSheet: View {
 }
 
 /// Шаблоны ответов: название кнопки и текст, одни на всех сотрудников (как на сайте)
+/// Строки узнаются по ключам RowKeys, а не по номеру (аудит Q-B2): после удаления свайпом поле удалённой строки,
+/// теряя фокус, отдавало значение по старому номеру — запись в соседний шаблон или падение «Index out of range»
 private struct SupportTemplatesSheet: View {
-    @State var list: [(String, String)]
+    @State private var list: [(String, String)]
+    @State private var keys: RowKeys
     let saved: ([JSON]) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var busy = false
+    /// Список задаётся только здесь, один раз, — ключи сразу под него, без временных ключей до первого показа
+    init(list: [(String, String)], saved: @escaping ([JSON]) -> Void) {
+        var k = RowKeys(); k.match(count: list.count)
+        _list = State(initialValue: list); _keys = State(initialValue: k); self.saved = saved
+    }
     var body: some View {
+        let ids = keys.displayKeys(count: list.count)
         NavigationStack {
             List {
-                ForEach(list.indices, id: \.self) { i in
+                ForEach(ids, id: \.self) { id in
                     VStack(alignment: .leading, spacing: 8) {
-                        TextField("Название", text: Binding(get: { list[i].0 }, set: { list[i].0 = $0 })).font(Theme.font(15, .medium))
-                        TextField("Текст ответа", text: Binding(get: { list[i].1 }, set: { list[i].1 = $0 }), axis: .vertical).font(Theme.font(14)).lineLimit(2...6)
+                        // строку уже удалили — показывать и записывать некуда
+                        TextField("Название", text: Binding(get: { keys.row(id, in: list)?.0 ?? "" }, set: { v in keys.update(id, in: &list) { $0.0 = v } })).font(Theme.font(15, .medium))
+                        TextField("Текст ответа", text: Binding(get: { keys.row(id, in: list)?.1 ?? "" }, set: { v in keys.update(id, in: &list) { $0.1 = v } }), axis: .vertical).font(Theme.font(14)).lineLimit(2...6)
                     }.padding(.vertical, 4)
                 }
-                .onDelete { list.remove(atOffsets: $0) }
-                Button { list.append(("", "")) } label: { Label("Добавить шаблон", systemImage: "plus") }
+                .onDelete { keys.remove(atOffsets: $0, from: &list) }
+                Button { keys.append(("", ""), to: &list) } label: { Label("Добавить шаблон", systemImage: "plus") }
             }
             .navigationTitle("Шаблоны ответов").navigationBarTitleDisplayMode(.inline)
             .toolbar {

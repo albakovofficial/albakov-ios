@@ -492,6 +492,14 @@ struct RowKeys {
         guard let i = position(key, in: rows) else { return }
         rows.remove(at: i); keys.remove(at: i)
     }
+    /// Удаление свайпом в List (onDelete): номера — места строк сейчас, ключи удаляются вместе со строками.
+    /// Номера вне списка — ничего не удаляется: стереть чужую строку хуже, чем не стереть
+    mutating func remove<T>(atOffsets offsets: IndexSet, from rows: inout [T]) {
+        guard offsets.allSatisfy({ rows.indices.contains($0) }) else { return }
+        let synced = keys.count == rows.count
+        rows.remove(atOffsets: offsets)
+        if synced { keys.remove(atOffsets: offsets) } else { match(count: rows.count) }
+    }
     mutating func move<T>(_ key: UUID, by offset: Int, in rows: inout [T]) {
         guard let i = position(key, in: rows), rows.indices.contains(i + offset) else { return }
         rows.swapAt(i, i + offset); keys.swapAt(i, i + offset)
