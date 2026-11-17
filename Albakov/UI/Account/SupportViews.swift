@@ -13,7 +13,7 @@ enum Support {
 
     // Даты в строках переписки и списков обращений — форматтеры создаются один раз, а не на каждое сообщение (аудит Q-B6)
     private static let hm = Fmt.ruDates("HH:mm"), dayMonth = Fmt.ruDates("d MMMM")
-    /// Время у сообщения — как было: в языке телефона, а не по-русски
+    /// Время у сообщения — как было: в языке и поясе телефона, а не по-русски
     private static let clockF: DateFormatter = { let f = DateFormatter(); f.locale = .autoupdatingCurrent; f.timeZone = .autoupdatingCurrent; f.dateFormat = "HH:mm"; return f }()
     static func time(_ iso: String) -> String {
         guard let d = ISO.date(iso) else { return "" }

@@ -354,8 +354,8 @@ enum ISO {
 
 enum Fmt {
     private static let money: NumberFormatter = { let f = NumberFormatter(); f.numberStyle = .decimal; f.groupingSeparator = "\u{00A0}"; f.maximumFractionDigits = 0; return f }()
-    /// Форматтер дат для экранов: по-русски, в поясе телефона (и после его смены — autoupdatingCurrent, как было у
-    /// форматтера, создаваемого на каждый вызов). Создаётся один раз и не меняется (аудит Q-B6): даты стоят в строках списков
+    /// Новый форматтер дат для экранов: по-русски, в поясе телефона. Вызывающие хранят его в static let — он создаётся
+    /// один раз и после этого не меняется (аудит Q-B6): даты стоят в строках списков, раньше форматтер создавался на каждую
     static func ruDates(_ format: String) -> DateFormatter {
         let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.timeZone = .autoupdatingCurrent; f.dateFormat = format
         return f
