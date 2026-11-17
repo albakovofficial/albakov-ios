@@ -270,17 +270,19 @@ final class AuditUITests: XCTestCase {
     /// индикатора нет (ревью этапа D). Пока фото меньше n, «Добавить фото» недоступна ровно тогда, когда идёт обработка
     /// или отправка (SupportViews: .disabled(att.left == 0 || att.busy), а left > 0). При n фото — «Отправить»:
     /// пока что-то отправляется, вместо подписи у неё индикатор и она недоступна.
-    /// Работы нет, а фото меньше n — часть фото потерялась: сбой сразу (через 3 с, чтобы обработка успела начаться)
+    /// Работа уже шла и кончилась, а фото меньше n — часть фото потерялась: сбой (через 3 с простоя).
+    /// Простой до начала работы не считается: окно выбора на медленном Mac может закрываться дольше
     func waitPhotos(_ photos: XCUIElementQuery, _ n: Int, addPhoto: XCUIElement, stall: TimeInterval) -> (ok: Bool, text: String) {
         let send = app.buttons.matching(NSPredicate(format: "label == 'Отправить'")).firstMatch
         let start = Date()
-        var last = Date(), seen = -1, idleSince: Date?
+        var last = Date(), seen = -1, idleSince: Date?, started = false
         while true {
             let count = photos.count, t = Int(Date().timeIntervalSince(start))
             let busy = count < n ? !addPhoto.isEnabled : !(send.exists && send.isEnabled)
+            if busy || count > 0 { started = true }
             if count != seen { seen = count; last = Date() }
             if count == n && !busy { return (true, "все \(n) фото за \(t) с") }
-            if !busy && count < n {
+            if started && !busy && count < n {
                 if let s = idleSince { if Date().timeIntervalSince(s) > 3 { return (false, "обработка закончилась, а фото \(count) из \(n) (\(t) с)") } }
                 else { idleSince = Date() }
             } else { idleSince = nil }
@@ -621,7 +623,7 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора")
         done.tap()
         let removes = app.buttons.matching(NSPredicate(format: "label == 'Убрать фото'"))
-        // Ждём событие, а не время (этап D): все 5 фото в обращении и ни одного индикатора — обработка и отправка закончились.
+        // Ждём событие, а не время (этап D): все 5 фото в обращении, обработка и отправка закончились (см. waitPhotos).
         // Пока фото появляются, ждём дальше; без нового фото дольше 90 с — сбой (на медленном Mac этапа C одно фото шло ~57 с).
         // Обработка кончилась, а фото меньше 5 — часть потерялась: падаем сразу, с числом
         let waited = waitPhotos(removes, 5, addPhoto: addPhoto, stall: 90)

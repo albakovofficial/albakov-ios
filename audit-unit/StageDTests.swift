@@ -166,7 +166,8 @@ final class FinanceValuesTests: XCTestCase {
         XCTAssertEqual((doc.v["taxRate"] as? NSNumber)?.doubleValue, 1e19)
         field.wrappedValue = "inf"
         XCTAssertEqual((doc.v["taxRate"] as? NSNumber)?.doubleValue, .infinity)
-        XCTAssertNil(FinanceSettings.settingsValue(JSON(doc.v), categories: [], costs: [String: Any]()), "Бесконечная ставка ушла бы на сервер")
+        var f = form(); f["taxRate"] = doc.v["taxRate"]
+        XCTAssertNil(FinanceSettings.settingsValue(JSON(f), categories: [], costs: [String: Any]()), "Бесконечная ставка из поля ушла бы на сервер")
         field.wrappedValue = "450"
         let n = doc.v["taxRate"] as? NSNumber
         XCTAssertEqual(n?.intValue, 450)
