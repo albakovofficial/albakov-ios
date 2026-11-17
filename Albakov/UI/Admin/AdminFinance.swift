@@ -275,12 +275,25 @@ struct FinanceCosts: View {
             }
             Button("Сохранить себестоимость") { Task { await save() } }.font(Theme.font(15, .medium)).disabled(busy)
         }
-        .onAppear { if costs.isEmpty { for (k, v) in admin.data["finance"]["costs"].dict { costs[k] = String(format: "%g", v.double ?? 0) } } }
+        .onAppear { if costs.isEmpty { for (k, v) in admin.data["finance"]["costs"].dict { costs[k] = FinanceCosts.text(v) } } }
+    }
+    /// Себестоимость в поле — как пришла с сервера. Раньше %g оставлял 6 значащих цифр: 12345.67 показывалось «12345.7»
+    /// и при следующем сохранении менялось само (аудит Q-B4)
+    static func text(_ v: JSON) -> String { (v.raw as? NSNumber)?.stringValue ?? "" }
+    /// Значение для сервера: пусто — себестоимости нет (""), иначе число. nil — текст не число («1.200,50»):
+    /// раньше он молча становился 0, а 0 сервер понимает как «себестоимость не задана» — она пропадала (аудит Q-B4)
+    static func value(_ text: String) -> Any? {
+        if text.isEmpty { return "" }
+        guard let n = Double(text.replacingOccurrences(of: ",", with: ".")), n.isFinite else { return nil }
+        return n
     }
     private func save() async {
-        busy = true; defer { busy = false }
         var v: [String: Any] = [:]
-        for p in admin.data["products"].array { let s = costs[p["id"].str] ?? ""; v[p["id"].str] = s.isEmpty ? "" : (Double(s.replacingOccurrences(of: ",", with: ".")) ?? 0) }
+        for p in admin.data["products"].array {
+            guard let x = FinanceCosts.value(costs[p["id"].str] ?? "") else { Toast.shared.show("Себестоимость «\(p["name"].str)» — не число. Пример: 450 или 450,50"); return }
+            v[p["id"].str] = x
+        }
+        busy = true; defer { busy = false }
         do { _ = try await API.shared.json("PUT", "admin/finance/costs", body: ["costs": v]); await admin.load(); Toast.shared.show("Себестоимость сохранена") } catch { Toast.shared.show(error.userMessage) }
     }
 }
@@ -309,12 +322,22 @@ struct FinanceSettings: View {
             loaded = true
         }
     }
+    /// Ставки для PUT admin/finance/settings — в том же виде, что и раньше. nil — какого-то числа нет или оно не конечное.
+    /// Раньше на его месте уходил 0 (налог 0% — неверная прибыль), а у «Карты: комиссия ЮKassa» тип выводился как Double?,
+    /// приведённый к Any: ?? не срабатывал, и в запрос попадал Optional (предупреждения компилятора, аудит Q-B4)
+    static func settingsValue(_ d: JSON, categories: [[String: Any]], costs: Any) -> [String: Any]? {
+        func rate(_ k: String) -> Double? { d[k].double.flatMap { $0.isFinite ? $0 : nil } }
+        guard let tax = rate("taxRate"), let sbpYk = rate("sbpYk"), let sbpPartner = rate("sbpPartner"), let otherYk = rate("otherYk"),
+              let otherPartner = rate("otherPartner"), let partnerMin = rate("partnerMin"), let codFee = rate("codFee") else { return nil }
+        let rates: [String: Any] = ["sbp": ["yk": sbpYk, "partner": sbpPartner], "other": ["yk": otherYk, "partner": otherPartner]]
+        return ["taxRate": tax, "rates": rates, "partnerMin": partnerMin, "codFee": codFee, "categories": categories, "costs": costs]
+    }
     private func save() async {
-        let d = JSON(doc.v)
         var cats = (doc.v["categories"] as? [[String: Any]]) ?? []
         for i in cats.indices where (cats[i]["id"] as? String ?? "").hasPrefix("r") || (cats[i]["id"] as? String ?? "").isEmpty { cats[i]["id"] = uid("fc") }
-        let v: [String: Any] = ["taxRate": d["taxRate"].double ?? 0, "rates": ["sbp": ["yk": d["sbpYk"].double ?? 0, "partner": d["sbpPartner"].double ?? 0], "other": ["yk": d["otherYk"].double ?? 0, "partner": d["otherPartner"].double ?? 0]],
-                                "partnerMin": d["partnerMin"].double ?? 0, "codFee": d["codFee"].double ?? 0, "categories": cats, "costs": admin.data["finance"]["costs"].raw ?? [String: Any]()]
+        guard let v = FinanceSettings.settingsValue(JSON(doc.v), categories: cats, costs: admin.data["finance"]["costs"].raw ?? [String: Any]()) else {
+            Toast.shared.show("Заполните все ставки числами — пустое поле не сохраняем нулём"); return
+        }
         do { _ = try await API.shared.json("PUT", "admin/finance/settings", body: ["value": v]); await admin.load(); Toast.shared.show("Сохранено") } catch { Toast.shared.show(error.userMessage) }
     }
 }
