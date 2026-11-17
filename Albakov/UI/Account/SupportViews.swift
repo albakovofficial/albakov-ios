@@ -489,7 +489,7 @@ struct NewTicketSheet: View {
                     if topics.contains("Другое") { tile("Другое", wide: true) }
                     if orders.isEmpty, let ordersError {   // заказы не загрузились (Q-3) — не выдаём это за «заказов нет»
                         caption("Какой заказ").padding(.top, 6)
-                        ErrorRetry(text: "Заказы не загрузились: \(ordersError) Обращение можно отправить и без заказа.") { Task { await loadOrders() } }
+                        ErrorRetry(text: "Обращение можно отправить и без заказа. Заказы не загрузились: " + ordersError) { Task { await loadOrders() } }
                     }
                     if !orders.isEmpty {
                         caption("Какой заказ").padding(.top, 6)
