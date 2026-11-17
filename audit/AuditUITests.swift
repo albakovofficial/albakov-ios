@@ -583,29 +583,32 @@ final class AuditUITests: XCTestCase {
         let del = ["Удалить", "Удалить строку", "Закрыть", "Close", "xmark"]
         let sizes = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Размер"))
         func size(_ v: String) -> XCUIElement { app.textFields.matching(NSPredicate(format: "value == %@", v)).firstMatch }
-        // Два новых размера (только кириллица — раскладка русская). Курсор — в нижнем, удаляем верхний.
-        // При строках по номеру поле в фокусе исчезало вместе с последним номером, а соседнее показывало чужие данные (Q-2)
-        for _ in 1...2 {
+        // Три новых размера (только кириллица — раскладка русская): ЦА, ЦБ, ЦВ. Курсор — в среднем, удаляем верхний.
+        // При строках по номеру поле, оставшееся в фокусе, после удаления оказывалось привязано к соседней строке (Q-2, ревью)
+        for _ in 1...3 {
             let plus = lastButton(["+ Размер"]); scrollTo(plus)
             guard plus.exists else { XCTFail("Нет кнопки «+ Размер»"); return }
             plus.tap(); sleep(1)
         }
-        let a = sizes.element(boundBy: sizes.count - 2); scrollTo(a)
-        a.tap(); a.typeText("ЦА"); hideKeyboard()
-        let b = sizes.element(boundBy: sizes.count - 1); scrollTo(b)
-        b.tap(); b.typeText("ЦБ")   // клавиатура открыта, курсор в нижнем размере
-        shot("14.1 два новых размера, курсор в нижнем")
+        for (k, v) in [(3, "ЦА"), (2, "ЦБ"), (1, "ЦВ")] {
+            let f = sizes.element(boundBy: sizes.count - k); scrollTo(f)
+            f.tap(); f.typeText(v); hideKeyboard()
+        }
+        let mid = size("ЦБ"); scrollTo(mid)
+        mid.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()   // курсор в среднем размере, клавиатура открыта
+        shot("14.1 три новых размера, курсор в среднем")
         guard let x = button(inRowOf: size("ЦА"), del) else { XCTFail("Нет кнопки удаления размера"); return }
         if x.isHittable { x.tap() } else { x.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
         sleep(1)
         XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления размера")
         XCTAssertFalse(size("ЦА").exists, "Удалённый размер остался на экране")
-        XCTAssertTrue(size("ЦБ").exists, "Соседний размер пропал или изменился")
+        XCTAssertTrue(size("ЦБ").exists && size("ЦВ").exists, "Соседние размеры пропали или изменились")
         // Нажатие ✕ закрывает клавиатуру (так устроено приложение: касание вне поля — KeyboardDismisser), поэтому
-        // правка соседнего размера — новым касанием в него: она должна попасть именно в него, а не в другую строку
+        // правка среднего размера — новым касанием в него: она должна попасть именно в него, нижний — не меняться
         append(size("ЦБ"), "Ж")
-        XCTAssertTrue(size("ЦБЖ").exists, "Ввод ушёл не в соседний размер")
-        shot("14.1 после удаления верхнего размера и ввода в нижний")
+        XCTAssertTrue(size("ЦБЖ").exists, "Ввод ушёл не в средний размер")
+        XCTAssertTrue(size("ЦВ").exists, "Нижний размер изменился — правка ушла в чужую строку")
+        shot("14.1 после удаления верхнего размера и правки среднего")
         launch("/admin?s=payment")
         let addPickup = button("+ Самовывоз"); scrollTo(addPickup, max: 30)
         guard addPickup.waitForExistence(timeout: 20) else { XCTFail("Нет кнопки «+ Самовывоз»"); return }
@@ -678,6 +681,8 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(toast.waitForExistence(timeout: 20), "Сообщение об ошибке отправки фото не показано")
         shot("15в ошибка поверх листа обращения")
         XCTAssertTrue(button("Добавить фото").exists, "Лист обращения закрылся — проверка не поверх листа")
+        // exists верно и для закрытого другим окном элемента: проверяем, что тост в пределах экрана и не под клавиатурой
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(toast.frame), "Тост вне экрана")
         ctl("on?scope=all")
         tap("Закрыть")
         // г) тост при открытой клавиатуре: ответ в переписке не отправился — сообщение не прячется под клавиатурой
@@ -696,6 +701,9 @@ final class AuditUITests: XCTestCase {
         let toast2 = text("Нет соединения")
         XCTAssertTrue(toast2.waitForExistence(timeout: 20), "Сообщение об ошибке отправки ответа не показано")
         shot("15г ошибка при открытой клавиатуре")
+        let kb = app.keyboards.firstMatch
+        XCTAssertTrue(kb.exists, "Клавиатура закрылась — проверка не при открытой клавиатуре")
+        XCTAssertLessThanOrEqual(toast2.frame.maxY, kb.frame.minY + 1, "Тост под клавиатурой: \(toast2.frame) / \(kb.frame)")
         ctl("on?scope=all")
     }
 }

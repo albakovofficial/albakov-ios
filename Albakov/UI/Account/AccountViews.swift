@@ -168,7 +168,10 @@ struct AccountView: View {
             if let m = error.userMessage { if orders.isEmpty { ordersError = m } else { Toast.shared.show(m) } }   // заказы уже на экране — оставляем их
         }
         do { bonusLog = try await API.shared.json("GET", "me")["bonusLog"].array; bonusError = nil }
-        catch { if let m = error.userMessage, bonusLog.isEmpty { bonusError = m } }   // история уже на экране — оставляем её
+        catch {
+            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
+            if bonusLog.isEmpty { bonusError = m } else { Toast.shared.show(m) }   // история уже на экране — оставляем её
+        }
     }
 }
 

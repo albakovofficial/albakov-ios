@@ -34,13 +34,17 @@ struct AdminMail: View {
     }
     private func load() async {
         do { mail = try await API.shared.json("GET", "admin/mail")["mail"]; mailError = nil }
-        catch { if let m = error.userMessage { mailError = m } }
+        catch {
+            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
+            if mail.exists { Toast.shared.show(m) } else { mailError = m }   // настройки уже на экране — оставляем их
+        }
     }
 }
 
 /// Все письма, которые сайт отправляет сам: тема, кому, когда; посмотреть и отправить пример
 private struct MailLetters: View {
     @State private var r = JSON(nil)
+    @State private var loadError: String?
     @State private var to = ""
     @State private var view: JSON?
     var body: some View {
@@ -52,6 +56,8 @@ private struct MailLetters: View {
                 LabeledContent("Пишут вам", value: [mi["support"].str, mi["replyTo"].str].first { !$0.isEmpty } ?? "—")
                 Text(mi["ready"].bool ? "Почта настроена, письма уходят" : "Не настроена — письма не отправляются").font(Theme.font(12.5)).foregroundStyle(mi["ready"].bool ? Theme.ok : Theme.warn)
                 TextField("Почта для примера", text: $to).keyboardType(.emailAddress).textInputAutocapitalization(.never)
+            } else if let loadError {   // список писем не загрузился (Q-3) — причина и «Повторить», а не вечная загрузка
+                ErrorRetry(text: "Список писем не загрузился: " + loadError) { Task { await load() } }
             } else { ProgressView() }
         }
         Section("Письма") {
@@ -68,10 +74,14 @@ private struct MailLetters: View {
                 }.padding(.vertical, 4)
             }
         }
-        .task { if !r.exists, let x = try? await API.shared.json("GET", "admin/mail-catalog") { r = x; to = x["mail"]["support"].str } }
+        .task { if !r.exists { await load() } }
         .sheet(item: Binding(get: { view.map { Letter(j: $0) } }, set: { view = $0?.j })) { w in
             NavigationStack { HTMLView(html: w.j["html"].str).ignoresSafeArea(edges: .bottom).navigationTitle(w.j["subject"].str).navigationBarTitleDisplayMode(.inline) }
         }
+    }
+    private func load() async {
+        do { let x = try await API.shared.json("GET", "admin/mail-catalog"); r = x; to = x["mail"]["support"].str; loadError = nil }
+        catch { if let m = error.userMessage { loadError = m } }
     }
     private func send(_ key: String) async {
         do { let s = try await API.shared.json("POST", "admin/mail-catalog", body: ["key": key, "to": to]); Toast.shared.show("Отправлено на " + s["sent"].str) } catch { Toast.shared.show(error.userMessage) }

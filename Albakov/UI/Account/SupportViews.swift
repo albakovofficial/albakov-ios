@@ -473,6 +473,7 @@ struct NewTicketSheet: View {
     @State private var topic = ""
     @State private var text = ""
     @State private var orders: [JSON] = []
+    @State private var ordersError: String?
     @State private var orderId = ""
     @State private var busy = false
     @State private var error: String?
@@ -486,6 +487,10 @@ struct NewTicketSheet: View {
                         ForEach(topics.filter { $0 != "Другое" }, id: \.self) { tile($0) }
                     }
                     if topics.contains("Другое") { tile("Другое", wide: true) }
+                    if orders.isEmpty, let ordersError {   // заказы не загрузились (Q-3) — не выдаём это за «заказов нет»
+                        caption("Какой заказ").padding(.top, 6)
+                        ErrorRetry(text: "Заказы не загрузились: \(ordersError) Обращение можно отправить и без заказа.") { Task { await loadOrders() } }
+                    }
                     if !orders.isEmpty {
                         caption("Какой заказ").padding(.top, 6)
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -521,8 +526,12 @@ struct NewTicketSheet: View {
             .navigationTitle("Новое обращение").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() } } }
             .onAppear { if topic.isEmpty { topic = topics.last ?? "" } }
-            .task { if let r = try? await API.shared.json("GET", "orders") { orders = r["orders"].array } }
+            .task { await loadOrders() }
         }
+    }
+    private func loadOrders() async {
+        do { orders = try await API.shared.json("GET", "orders")["orders"].array; ordersError = nil }
+        catch { if let m = error.userMessage { ordersError = m } }
     }
     private func caption(_ s: String) -> some View { Text(s.uppercased()).font(Theme.font(12, .medium)).kerning(0.9).foregroundStyle(Theme.dim).padding(.horizontal, 4) }
     private func tile(_ t: String, wide: Bool = false) -> some View {
@@ -843,7 +852,7 @@ struct AdminTicketView: View {
             guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
             if t.exists { Toast.shared.show(m) } else { loadError = m }   // переписка уже на экране — оставляем её
         }
-        if !templatesLoaded { await loadTemplates() }
+        if t.exists && !templatesLoaded { await loadTemplates() }   // переписка не загрузилась — второго сообщения не нужно
     }
     private func loadTemplates() async {
         do { templates = try await API.shared.json("GET", "admin/support")["templates"].array; templatesLoaded = true }

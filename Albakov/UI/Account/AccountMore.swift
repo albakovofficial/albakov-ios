@@ -114,6 +114,7 @@ struct DeleteAccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
     @State private var going: [Order] = []
+    @State private var goingError: String?
     @State private var busy = false
     @State private var error: String?
     var body: some View {
@@ -126,6 +127,7 @@ struct DeleteAccountSheet: View {
                     line(false, "Имя, телефон, почта, избранное и корзина удалятся навсегда")
                     if let b = shop.user?.bonus, b > 0 { line(false, "Сгорят \(Fmt.num(b)) \(Fmt.plural(b, "бонус", "бонуса", "бонусов"))") }
                     ForEach(going) { o in line(true, "Заказ № \(o.number) — доставим его как обычно") }
+                    if let goingError { ErrorRetry(text: "Не удалось проверить незавершённые заказы: " + goingError) { Task { await loadGoing() } } }
                     line(true, "Чеки и история заказов останутся у магазина — так требует закон")
                 }
                 Field(label: "Пароль — для подтверждения", text: $password, content: .password, secure: true).padding(.top, 6)
@@ -138,9 +140,13 @@ struct DeleteAccountSheet: View {
             }.padding(20).padding(.top, 8)
         }
         .scrollDismissesKeyboard(.interactively)
-        .task {
-            if let r = try? await API.shared.json("GET", "orders") { going = r["orders"].array.map(Order.init).filter { ["new", "processing", "shipped"].contains($0.status) } }
-        }
+        .task { await loadGoing() }
+    }
+    /// Незавершённые заказы — чтобы покупатель знал, что их доставят. Не загрузились — говорим об этом (Q-3):
+    /// иначе выглядело бы, будто незавершённых заказов нет
+    private func loadGoing() async {
+        do { going = try await API.shared.json("GET", "orders")["orders"].array.map(Order.init).filter { ["new", "processing", "shipped"].contains($0.status) }; goingError = nil }
+        catch { if let m = error.userMessage { goingError = m } }
     }
     private func line(_ ok: Bool, _ t: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
@@ -188,7 +194,7 @@ struct NotificationsView: View {
             Section("Что присылать") {
                 if let prefsError, !prefsLoaded { ErrorRetry(text: "Настройки не загрузились: " + prefsError) { Task { await loadPrefs() } } }
                 ForEach(kinds.filter { $0.0 != "bonus" || shop.settings.bonusEnabled }, id: \.0) { k in
-                    Toggle(isOn: Binding(get: { prefs[k.0] ?? false }, set: { on in prefs[k.0] = on; Task { await save(k.0, was: !on) } })) {
+                    Toggle(isOn: Binding(get: { prefs[k.0] ?? false }, set: { on in prefs[k.0] = on; saving = true; Task { await save(k.0, was: !on) } })) {
                         VStack(alignment: .leading, spacing: 2) { Text(k.1).font(Theme.font(15)); Text(k.2).font(Theme.font(12.5)).foregroundStyle(Theme.muted) }
                     }.tint(Theme.ink).disabled(!prefsLoaded || saving)
                 }
@@ -201,9 +207,10 @@ struct NotificationsView: View {
         do { prefs = try await API.shared.json("GET", "me/push")["prefs"].dict.mapValues(\.bool); prefsLoaded = true; prefsError = nil }
         catch { if let m = error.userMessage { prefsError = m } }
     }
-    /// Не сохранилось — переключатель возвращается как был, причина — сообщением
+    /// Не сохранилось — переключатель возвращается как был, причина — сообщением.
+    /// saving ставится ещё в переключателе, до запуска задачи: иначе второй переключатель успел бы отправить своё сохранение
     private func save(_ kind: String, was: Bool) async {
-        saving = true; defer { saving = false }
+        defer { saving = false }
         do { _ = try await API.shared.raw("PUT", "me/push", body: ["prefs": prefs]) }
         catch { prefs[kind] = was; Toast.shared.show(error.userMessage) }
     }

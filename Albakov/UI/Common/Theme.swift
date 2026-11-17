@@ -519,9 +519,11 @@ final class Toast: ObservableObject {
     /// Сообщение об ошибке: отменённый запрос (nil) не показываем (1.0.3)
     func show(_ t: String?) { if let t, !t.isEmpty { show(t) } }
     func show(_ t: String) {
-        task?.cancel(); text = t
+        task?.cancel()
         task = Task { @MainActor in
+            guard !Task.isCancelled else { return }   // сразу пришёл следующий тост — показываем его
             ToastWindow.setVisible(true)
+            self.text = t   // текст — уже в видимом окне, чтобы тост появился с анимацией (ревью этапа B)
             // отмена сна — это новый тост вместо этого: он сам решит, когда спрятать окно
             try? await Task.sleep(nanoseconds: 2_400_000_000); guard !Task.isCancelled else { return }
             self.text = nil
@@ -538,8 +540,10 @@ final class Toast: ObservableObject {
 @MainActor enum ToastWindow {
     private static var window: UIWindow?
     static func setVisible(_ on: Bool) { window?.isHidden = !on }
+    /// Окно привязано к сцене. Если система отключила сцену и подключила новую, прежнее окно осталось без сцены
+    /// (windowScene — слабая ссылка) — создаём окно заново, иначе тосты пропали бы до перезапуска (ревью этапа B)
     static func install() {
-        guard window == nil, let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+        guard window?.windowScene == nil, let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
         let w = UIWindow(windowScene: scene)
         let host = UIHostingController(rootView: ToastView().dynamicTypeSize(...DynamicTypeSize.accessibility1))
         host.view.backgroundColor = .clear

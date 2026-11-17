@@ -37,28 +37,28 @@ final class CheckoutNonceTests: XCTestCase {
     }
 
     /// Обрыв связи: заказ не подтверждён — ключ не меняется, повторная отправка того же заказа даёт тот же idem
-    func test03_ConnectionDropRetrySameIdem() {
-        let sent = CheckoutNonce.idem(CheckoutNonce.loadOrCreate(d), body)
+    func test03_ConnectionDropRetrySameIdem() throws {
+        let sent = try CheckoutNonce.idem(CheckoutNonce.loadOrCreate(d), body)
         // ответ не пришёл — renew() не вызывается
-        let retry = CheckoutNonce.idem(CheckoutNonce.loadOrCreate(d), body)
+        let retry = try CheckoutNonce.idem(CheckoutNonce.loadOrCreate(d), body)
         XCTAssertEqual(sent, retry, "Повтор после обрыва ушёл с другим ключом — сервер создаст второй заказ")
         XCTAssertEqual(sent.count, 40)
     }
 
     /// Повторная отправка с другими данными — это уже другой заказ: другой idem
-    func test04_ResendWithChangedOrderGetsOtherIdem() {
+    func test04_ResendWithChangedOrderGetsOtherIdem() throws {
         var other = body; other["deliveryId"] = "door"
         let key = CheckoutNonce.loadOrCreate(d)
-        XCTAssertNotEqual(CheckoutNonce.idem(key, body), CheckoutNonce.idem(key, other))
+        XCTAssertNotEqual(try CheckoutNonce.idem(key, body), try CheckoutNonce.idem(key, other))
     }
 
     /// Успешное создание заказа: ключ меняется, следующий заказ с теми же данными — новый
-    func test05_SuccessRenewsKey() {
+    func test05_SuccessRenewsKey() throws {
         let before = CheckoutNonce.loadOrCreate(d)
         let after = CheckoutNonce.renew(d)
         XCTAssertNotEqual(before, after)
         XCTAssertEqual(CheckoutNonce.loadOrCreate(d), after, "Новый ключ не сохранён")
-        XCTAssertNotEqual(CheckoutNonce.idem(after, body), CheckoutNonce.idem(before, body))
+        XCTAssertNotEqual(try CheckoutNonce.idem(after, body), try CheckoutNonce.idem(before, body))
     }
 
     /// Обновление с прошлой версии: ключ, уже сохранённый у покупателя, не теряется

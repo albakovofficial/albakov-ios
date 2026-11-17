@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Подарочные сертификаты: покупка (оплата ЮKassa в окне приложения, код уходит получателю на почту) и проверка остатка.
+// Подарочные сертификаты: покупка (оплата — кнопкой на странице заказа, код уходит получателю на почту) и проверка остатка.
 struct GiftView: View {
     @EnvironmentObject private var shop: Shop
     @EnvironmentObject private var router: Router
@@ -173,8 +173,8 @@ struct GiftView: View {
                                 "customer": ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email], "consent": true]
         // Ключ повтора хранится в памяти телефона до успешной покупки (Q-1): повтор после обрыва связи — даже с нового
         // экрана или после перезапуска — вернёт тот же сертификат, а не создаст второй
-        b["idem"] = CheckoutNonce.idem(CheckoutNonce.loadOrCreate(key: CheckoutNonce.giftKey), b)
         do {
+            b["idem"] = try CheckoutNonce.idem(CheckoutNonce.loadOrCreate(key: CheckoutNonce.giftKey), b)
             let r = try await API.shared.json("POST", "gifts", body: b)
             CheckoutNonce.renew(key: CheckoutNonce.giftKey)   // сертификат оформлен: следующая покупка — новая
             let id = r["order"]["id"].str

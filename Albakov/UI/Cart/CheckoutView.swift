@@ -36,7 +36,8 @@ struct CheckoutView: View {
     @State private var error: String?
     @State private var pickCity = false
     @State private var pickPoint = false
-    @State private var placed: (id: String, token: String)?
+    /// Заказ оформлен — «Купить сейчас» не сбрасываем при уходе с экрана (нужен только факт оформления)
+    @State private var placed = false
 
     private var method: DeliveryMethod? { shop.settings.delivery.first { $0.id == deliveryId } }
     /// Доставка заполнена: для СДЭК — город и пункт (или адрес для курьера), для своей доставки — город и адрес
@@ -122,7 +123,7 @@ struct CheckoutView: View {
         .scrollDismissesKeyboard(.interactively)
         .onAppear(perform: prefill)
         .onChange(of: draftKey) { _ in saveDraft() }   // вышли с оформления случайно — всё заполненное на месте
-        .onDisappear { if placed == nil && ![router.home, router.catalog, router.favorites, router.cart, router.account].contains(where: { $0.contains(.checkout) }) { shop.buyNow = nil } }
+        .onDisappear { if !placed && ![router.home, router.catalog, router.favorites, router.cart, router.account].contains(where: { $0.contains(.checkout) }) { shop.buyNow = nil } }
         .task(id: quoteKey) { await recalc() }
         .sheet(isPresented: $ageAsk) { AgeCheckSheet(step: $ageStep) { Task { await place() } } }
         .sheet(isPresented: $pickCity) { CityPicker { city = $0; point = nil; pickCity = false } }
@@ -349,14 +350,14 @@ struct CheckoutView: View {
         b["comment"] = comment
         if let p = point { b["pvz"] = p.code }
         if m.isDoor || !(shop.cdekReady && m.isPvz) { b["address"] = address; b["city"] = city?.city ?? cityText }
-        b["idem"] = CheckoutNonce.idem(CheckoutNonce.loadOrCreate(), b)
         do {
+            b["idem"] = try CheckoutNonce.idem(CheckoutNonce.loadOrCreate(), b)
             let r = try await API.shared.json("POST", "orders", body: b)
             CheckoutNonce.renew()   // заказ оформлен: следующий будет новым
             comment = ""; saveDraft()     // доставку и контакты помним для следующего заказа, комментарий — нет
             let id = r["order"]["id"].str, token = r["token"].str
             OrderTokens.save(id, token)
-            placed = (id, token)
+            placed = true
             if shop.buyNow != nil { shop.buyNow = nil } else { shop.clearCart() }
             Haptic.success()
             // 1.0.3: онлайн-оплата — сначала страница заказа с отсчётом и кнопкой «Оплатить», ЮKassa — по нажатию
@@ -400,8 +401,9 @@ enum CheckoutNonce {
     }
     /// idem для сервера: случайная часть + содержимое запроса. Другая корзина или данные — другой ключ,
     /// поэтому повтор с изменёнными данными не вернёт прежний заказ или сертификат
-    static func idem(_ nonce: String, _ b: [String: Any]) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: b, options: [.sortedKeys])) ?? Data()
+    /// Не удалось разложить запрос в JSON — ошибка, а не ключ из одной случайной части (ревью этапа B)
+    static func idem(_ nonce: String, _ b: [String: Any]) throws -> String {
+        let data = try JSONSerialization.data(withJSONObject: b, options: [.sortedKeys])
         return SHA256.hash(data: Data(nonce.utf8) + data).map { String(format: "%02x", $0) }.joined().prefix(40).description
     }
 }
