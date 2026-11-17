@@ -68,7 +68,9 @@ final class Shop: ObservableObject {
     }
 
     // MARK: Цены — как на сайте (Pricing.productPrice): лучшая из действующих акций или старая цена
-    func price(_ p: Product, now: Date = Date()) -> Price {
+    func price(_ p: Product, now: Date = Date()) -> Price { Shop.price(p, promotions: promotions, now: now) }
+    /// Сам расчёт — без состояния магазина: его проверяют юнит-тесты по правилам сайта (аудит Q-B10)
+    nonisolated static func price(_ p: Product, promotions: [Promotion], now: Date) -> Price {
         let base = p.price
         var best: Promotion?, bestPrice = base
         for pr in promotions where pr.inWindow(now) && pr.applies(to: p) {
