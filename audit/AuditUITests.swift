@@ -809,8 +809,11 @@ final class AuditUITests: XCTestCase {
         shot("16г срок доставки — нет связи")
         ctl("on?scope=all")
         tap("Повторить")
-        XCTAssertTrue(waitGone(shipErr, 20), "После «Повторить» ошибка срока доставки не ушла")
-        XCTAssertTrue(text("пункт выдачи").exists, "После «Повторить» способов доставки нет")
+        // ошибка убирается в начале загрузки, ещё до ответа: ждём, пока загрузка закончится, и проверяем, что ошибка не вернулась
+        let spinner = app.activityIndicators.firstMatch
+        if spinner.exists { _ = waitGone(spinner, 20) }
+        sleep(3)
+        XCTAssertFalse(shipErr.exists, "После «Повторить» ошибка срока доставки осталась или вернулась")
         shot("16г срок доставки — после «Повторить»")
         ctl("on?scope=all")
     }

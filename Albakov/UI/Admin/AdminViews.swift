@@ -449,7 +449,7 @@ struct AdminAuditView: View {
         List {
             // Ошибка — вместо записей: иначе на экране остались бы записи прежнего поиска, будто это ответ на новый (аудит Q-B1).
             // Внутри того же List: строка поиска и клавиатура не пересоздаются, если ошибка придёт во время набора
-            if let e = loadError { EmptyState.loadFailed(e) { Task { await load() } }.listRowSeparator(.hidden) }
+            if let e = loadError { EmptyState.loadFailed(e) { Task { await load() } }.listRowInsets(EdgeInsets()).listRowSeparator(.hidden) }
             else {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, x in
                     VStack(alignment: .leading, spacing: 4) {
