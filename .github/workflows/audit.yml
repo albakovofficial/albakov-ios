@@ -165,7 +165,7 @@ jobs:
         run: |
           RUN=$(ls build/Build/Products/*.xctestrun | head -1)
           # Thread Sanitizer: отчёты процессов в симуляторе (приложение под UI-тестами и хост юнит-тестов) — в файлы на этом Mac
-          SAN=""; if [ "$TSAN" = true ]; then SAN="-enableThreadSanitizer YES"; mkdir -p "$RUNNER_TEMP/tsan"; export SIMCTL_CHILD_TSAN_OPTIONS="log_path=$RUNNER_TEMP/tsan/report halt_on_error=0"; fi
+          SAN=""; if [ "$TSAN" = true ]; then SAN="-enableThreadSanitizer YES"; mkdir -p "$RUNNER_TEMP/tsan"; export SIMCTL_CHILD_TSAN_OPTIONS="log_path=$RUNNER_TEMP/tsan/report halt_on_error=0"; export TEST_RUNNER_TSAN_OPTIONS="$SIMCTL_CHILD_TSAN_OPTIONS"; fi
           # память приложения (RSS, КБ) раз в полсекунды — пик между отметками MEMMARK из тестов (этап A, IOS-03)
           ( while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
           # «unit» — все юнит-тесты; иначе имя UI-теста

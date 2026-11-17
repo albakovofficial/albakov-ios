@@ -251,9 +251,10 @@ final class AuditUITests: XCTestCase {
             // snapshot() бросает ошибку, пока тоста нет: это «ещё не появился», ждём дальше
             if let s = try? toast.snapshot() {
                 let shots = toastShots()
-                // рамку берём из второго снимка дерева, если тост ещё на месте: в первом он мог быть посреди анимации появления
-                let settled = (try? toast.snapshot())?.frame ?? s.frame
-                return (settled, shots)
+                // тост и появляется, и уходит снизу: место, где он стоит, — самое верхнее из увиденных. Второй снимок дерева
+                // поправляет рамку, снятую посреди появления; на iOS 26 он может попасть уже на уход — тогда остаётся первая
+                let second = (try? toast.snapshot())?.frame ?? s.frame
+                return (second.minY < s.frame.minY ? second : s.frame, shots)
             }
             usleep(200_000)
         }
@@ -336,13 +337,20 @@ final class AuditUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(20)   // окно выбора подгружает снимки не сразу
         var all = cells()
         while ours(all).count < n && Date() < deadline { sleep(1); all = cells() }
+        // признак «без года» должен различать снимки: если года нет ни в одной подписи, свои от стандартных не отличить —
+        // молча взять первые попавшиеся значило бы проверять не те фото
+        guard all.contains(where: { $0.label.range(of: year, options: .regularExpression) != nil }) else {
+            XCTFail("\(step): по подписям не отличить снимки audit.yml от стандартных: " + all.map(\.label).joined(separator: " | ")); return false
+        }
         let bottom = app.frame.maxY - 100
         let usable = Array(ours(all).filter { $0.frame.minY >= 0 && $0.frame.maxY <= bottom }.prefix(n))
         note("\(step): снимков в окне \(all.count), своих \(ours(all).count); выбираем: " + usable.map(\.label).joined(separator: " | "))
         guard usable.count == n else { XCTFail("\(step): в окне выбора видно своих снимков \(usable.count) из \(n); подписи: " + all.map(\.label).joined(separator: " | ")); return false }
         let origin = app.coordinate(withNormalizedOffset: .zero)
         for c in usable { origin.withOffset(CGVector(dx: c.frame.midX, dy: c.frame.midY)).tap(); usleep(400_000) }
-        let selected = cells().filter(\.isSelected).count
+        let marked = cells().filter(\.isSelected), selected = marked.count
+        // где отметки видны — все отмеченные должны быть своими (сетка могла сдвинуться после первого нажатия)
+        guard ours(marked).count == marked.count else { XCTFail("\(step): отмечены не те снимки: " + marked.map(\.label).joined(separator: " | ")); return false }
         let counter = app.descendants(matching: .any).matching(NSPredicate(format: "label MATCHES %@",
             ".*(\\(\(n)\\)|[Вв]ыбран[оаы]*:? \(n)\\b|\\b\(n) (фото |снимк[аов]* )?выбран|[Ss]elected:? \(n)\\b|\\b\(n) ([Pp]hotos? )?[Ss]elected).*")).firstMatch
         let counted = selected == n || counter.exists
