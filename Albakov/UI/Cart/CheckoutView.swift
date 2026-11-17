@@ -30,11 +30,12 @@ struct CheckoutView: View {
     @State private var consent = false
     @State private var offer = false
     @State private var quote = JSON(nil)
+    /// Итог не посчитан из-за ошибки (Q-3): вместо «0 ₽» — причина и «Посчитать ещё раз»
+    @State private var quoteError: String?
     @State private var busy = false
     @State private var error: String?
     @State private var pickCity = false
     @State private var pickPoint = false
-    @State private var payURL: URL?
     @State private var placed: (id: String, token: String)?
 
     private var method: DeliveryMethod? { shop.settings.delivery.first { $0.id == deliveryId } }
@@ -108,7 +109,7 @@ struct CheckoutView: View {
                     checkRow($offer) { Text("Принимаю условия ") + Text("публичной оферты").underline() }
                     checkRow($consent) { Text("Даю ") + Text("согласие на обработку персональных данных").underline() }
                     ErrorText(text: error)
-                    PrimaryButton(title: payment == "online" && onlineOk && !paidInFull ? "Перейти к оплате · \(Fmt.rub(quote["total"].int ?? 0))" : "Подтвердить заказ", busy: busy, disabled: !consent || !offer) { Task { await place() } }
+                    PrimaryButton(title: payment == "online" && onlineOk && !paidInFull ? "Перейти к оплате" + (quote["total"].int.map { " · " + Fmt.rub($0) } ?? "") : "Подтвердить заказ", busy: busy, disabled: !consent || !offer) { Task { await place() } }
                     HStack(spacing: 14) {
                         ForEach(["offer", "privacy", "consent"], id: \.self) { s in if let p = shop.page(s) { Button(p.title) { router.push(.page(s)) }.font(Theme.font(11.5)).foregroundStyle(Theme.dim) } }
                     }
@@ -126,13 +127,6 @@ struct CheckoutView: View {
         .sheet(isPresented: $ageAsk) { AgeCheckSheet(step: $ageStep) { Task { await place() } } }
         .sheet(isPresented: $pickCity) { CityPicker { city = $0; point = nil; pickCity = false } }
         .sheet(isPresented: $pickPoint) { if let c = city { PointPicker(city: c, cod: payment == "cod") { point = $0; pickPoint = false } } }
-        .fullScreenCover(item: $payURL) { url in
-            PaymentSheet(url: url) { finished in
-                payURL = nil
-                // окно закрыли до оплаты — заказ сохранён и ждёт оплаты; вернулись со страницы оплаты — статус покажет заказ
-                if let p = placed { openOrder(p.id, toast: finished ? "Спасибо! Заказ оформлен" : "Заказ ждёт оплаты — оплатить можно в заказе") }
-            }
-        }
     }
 
     // «Ваш заказ»: вещи, промокод, сертификат, бонусы и суммы
@@ -254,14 +248,18 @@ struct CheckoutView: View {
     }
     private var summary: some View {
         VStack(spacing: 12) {
-            row("Товары", Fmt.rub(quote["baseTotal"].int ?? quote["subtotal"].int ?? 0))
+            row("Товары", (quote["baseTotal"].int ?? quote["subtotal"].int).map(Fmt.rub) ?? "—")
             if let v = quote["saleDiscount"].int, v > 0 { row("Скидка по акциям", "−" + Fmt.rub(v), Theme.sale) }
             if let v = quote["promoDiscount"].int, v > 0 { row("Промокод", "−" + Fmt.rub(v), Theme.sale) }
             if let v = quote["bonusUsed"].int, v > 0 { row("Бонусы", "−" + Fmt.rub(v), Theme.sale) }
             if let v = quote["giftUsed"].int, v > 0 { row("Подарочный сертификат", "−" + Fmt.rub(v), Theme.sale) }
             row("Доставка", deliveryLine)
             Divider1()
-            HStack(alignment: .firstTextBaseline) { Text("К оплате").font(Theme.font(19)); Spacer(); Text(Fmt.rub(quote["total"].int ?? 0)).font(Theme.font(23, .light)) }
+            HStack(alignment: .firstTextBaseline) { Text("К оплате").font(Theme.font(19)); Spacer(); Text(quote["total"].int.map(Fmt.rub) ?? "—").font(Theme.font(23, .light)) }
+            if let quoteError {   // сумму считает сервер; без его ответа честно показываем, что не посчитали
+                ErrorText(text: "Не удалось посчитать сумму: " + quoteError)
+                Button("Посчитать ещё раз") { Task { await recalc() } }.font(Theme.font(14, .medium)).foregroundStyle(Theme.text).frame(maxWidth: .infinity, alignment: .leading)
+            }
             if quote["delivery"]["pending"].bool { Text("Без доставки — её цену СДЭК посчитает после выбора города и пункта").font(Theme.font(12.5)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .leading) }
             if paidInFull { Text("Заказ полностью оплачен \(giftUsed > 0 && (quote["bonusUsed"].int ?? 0) > 0 ? "сертификатом и бонусами" : giftUsed > 0 ? "подарочным сертификатом" : "бонусами") — платить ничего не нужно.").font(Theme.font(13)).foregroundStyle(Theme.ok).frame(maxWidth: .infinity, alignment: .leading) }
             if let b = earn, b > 0 {
@@ -320,7 +318,14 @@ struct CheckoutView: View {
         return b
     }
     private func recalc() async {
-        if let r = try? await API.shared.json("POST", "quote", body: body0) { withAnimation { quote = r["quote"] } }
+        do {
+            let q = try await API.shared.json("POST", "quote", body: body0)["quote"]
+            quoteError = nil
+            withAnimation { quote = q }
+        } catch {
+            guard let m = error.userMessage else { return }   // пересчёт отменён следующим — ждём его ответа
+            quote = JSON(nil); quoteError = m                  // прежний итог уже не про эти данные — не показываем его
+        }
     }
     private func place() async {
         error = nil
@@ -339,7 +344,7 @@ struct CheckoutView: View {
         b["comment"] = comment
         if let p = point { b["pvz"] = p.code }
         if m.isDoor || !(shop.cdekReady && m.isPvz) { b["address"] = address; b["city"] = city?.city ?? cityText }
-        b["idem"] = Self.idem(CheckoutNonce.loadOrCreate(), b)
+        b["idem"] = CheckoutNonce.idem(CheckoutNonce.loadOrCreate(), b)
         do {
             let r = try await API.shared.json("POST", "orders", body: b)
             CheckoutNonce.renew()   // заказ оформлен: следующий будет новым
@@ -355,11 +360,6 @@ struct CheckoutView: View {
             // связь пропала: заказ мог успеть оформиться — повторное нажатие вернёт его же, второго не будет
             self.error = "Связь прервалась. Нажмите кнопку ещё раз — если заказ уже оформлен, мы просто откроем его, второго не будет."; Haptic.error()
         } catch { self.error = error.userMessage; Haptic.error() }
-    }
-    /// Ключ повтора: случайная часть + содержимое заказа. Другая корзина или данные — другой ключ
-    static func idem(_ nonce: String, _ b: [String: Any]) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: b, options: [.sortedKeys])) ?? Data()
-        return SHA256.hash(data: Data(nonce.utf8) + data).map { String(format: "%02x", $0) }.joined().prefix(40).description
     }
     private func openOrder(_ id: String, toast: String) {
         router.reset(.cart)
@@ -377,18 +377,27 @@ extension URL: Identifiable { public var id: String { absoluteString } }
 /// не сохранялся: каждый новый экран оформления получал новый ключ, и повтор мог создать второй заказ.
 /// Теперь ключ сохраняется при первом открытии оформления — до первой отправки — и меняется только после
 /// оформленного заказа. Имя ключа в памяти телефона прежнее («checkoutNonce»): у кого он уже есть, он сохраняется.
+/// Покупка сертификата (Q-1) устроена так же, со своим ключом «giftNonce»: раньше её ключ жил в @State экрана,
+/// и повтор с нового экрана после обрыва связи мог создать вторую покупку.
 enum CheckoutNonce {
     static let key = "checkoutNonce"
+    static let giftKey = "giftNonce"
     /// Сохранённый ключ; если его ещё нет — создаёт новый и сразу сохраняет (запись — только в этом случае)
-    @discardableResult static func loadOrCreate(_ d: UserDefaults = .standard) -> String {
+    @discardableResult static func loadOrCreate(_ d: UserDefaults = .standard, key: String = CheckoutNonce.key) -> String {
         if let s = d.string(forKey: key), !s.isEmpty { return s }
-        return renew(d)
+        return renew(d, key: key)
     }
-    /// Создаёт и сохраняет новый ключ: заказ оформлен — следующий будет новым
-    @discardableResult static func renew(_ d: UserDefaults = .standard) -> String {
+    /// Создаёт и сохраняет новый ключ: заказ (покупка) оформлен — следующий будет новым
+    @discardableResult static func renew(_ d: UserDefaults = .standard, key: String = CheckoutNonce.key) -> String {
         let s = UUID().uuidString
         d.set(s, forKey: key)
         return s
+    }
+    /// idem для сервера: случайная часть + содержимое запроса. Другая корзина или данные — другой ключ,
+    /// поэтому повтор с изменёнными данными не вернёт прежний заказ или сертификат
+    static func idem(_ nonce: String, _ b: [String: Any]) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: b, options: [.sortedKeys])) ?? Data()
+        return SHA256.hash(data: Data(nonce.utf8) + data).map { String(format: "%02x", $0) }.joined().prefix(40).description
     }
 }
 

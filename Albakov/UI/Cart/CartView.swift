@@ -8,6 +8,8 @@ struct CartView: View {
     @EnvironmentObject private var router: Router
     @State private var quote = JSON(nil)
     @State private var loading = false
+    /// Итог не посчитан из-за ошибки (Q-3): вместо «0 ₽» — причина и «Посчитать ещё раз»
+    @State private var quoteError: String?
 
     var body: some View {
         ScrollView {
@@ -28,13 +30,17 @@ struct CartView: View {
     }
 
     private var summary: some View {
-        let sub = quote["subtotal"].int ?? 0, count = quote["count"].int ?? shop.cartCount
+        let sub = quote["subtotal"].int, count = quote["count"].int ?? shop.cartCount
         return VStack(alignment: .leading, spacing: 14) {
-            FreeShipBar(subtotal: sub)
-            row("\(count) \(Fmt.plural(count, "товар", "товара", "товаров"))", Fmt.rub(quote["baseTotal"].int ?? sub))
+            if let sub { FreeShipBar(subtotal: sub) }
+            row("\(count) \(Fmt.plural(count, "товар", "товара", "товаров"))", (quote["baseTotal"].int ?? sub).map(Fmt.rub) ?? "—")
             if let d = quote["saleDiscount"].int, d > 0 { row("Скидка по акциям", "−" + Fmt.rub(d), Theme.sale) }
             Divider1()
-            HStack { Text("Итого").font(Theme.font(19)); Spacer(); Text(Fmt.rub(sub)).font(Theme.font(21, .light)) }
+            HStack { Text("Итого").font(Theme.font(19)); Spacer(); Text(sub.map(Fmt.rub) ?? "—").font(Theme.font(21, .light)) }
+            if let quoteError {   // сумму считает сервер; без его ответа честно показываем, что не посчитали
+                ErrorText(text: "Не удалось посчитать сумму: " + quoteError)
+                Button("Посчитать ещё раз") { Task { await recalc() } }.font(Theme.font(14, .medium)).foregroundStyle(Theme.text)
+            }
             if let b = quote["bonusEarn"].int, b > 0 {
                 HStack(spacing: 8) {
                     Text("Б").font(Theme.font(10, .semibold)).foregroundStyle(.white).frame(width: 17, height: 17).background(Circle().fill(Theme.accent))
@@ -58,9 +64,15 @@ struct CartView: View {
     }
     private func recalc() async {
         guard !shop.cart.isEmpty else { return }
-        loading = true
-        if let r = try? await API.shared.json("POST", "quote", body: ["lines": shop.cart.map(\.dict)]) { withAnimation { quote = r["quote"] } }
-        loading = false
+        loading = true; defer { loading = false }
+        do {
+            let q = try await API.shared.json("POST", "quote", body: ["lines": shop.cart.map(\.dict)])["quote"]
+            quoteError = nil
+            withAnimation { quote = q }
+        } catch {
+            guard let m = error.userMessage else { return }   // пересчёт отменён следующим — ждём его ответа
+            quote = JSON(nil); quoteError = m                  // прежний итог уже не про эту корзину — не показываем его
+        }
     }
 }
 

@@ -492,6 +492,10 @@ struct EmptyState: View {
         .hairline(RoundedRectangle(cornerRadius: 24), 0.06)
         .padding(.horizontal, Theme.gutter)
     }
+    /// Данные экрана не загрузились (Q-3): причина и «Повторить» вместо пустого экрана
+    static func loadFailed(_ text: String, retry: @escaping () -> Void) -> EmptyState {
+        EmptyState(icon: "wifi.exclamationmark", title: "Не удалось загрузить", text: text, button: "Повторить", action: retry)
+    }
 }
 
 /// Всплывающая подсказка внизу экрана («Добавлено в корзину»)
@@ -504,6 +508,24 @@ final class Toast: ObservableObject {
     func show(_ t: String) {
         task?.cancel(); text = t
         task = Task { @MainActor in try? await Task.sleep(nanoseconds: 2_400_000_000); if !Task.isCancelled { self.text = nil } }
+    }
+}
+
+/// Тосты — в отдельном окне поверх всех листов и полноэкранных окон (Q-4). Раньше ToastView был частью корневого
+/// экрана, и открытый лист закрывал сообщение: например, об ошибке отправки фото в обращении. Окно не принимает
+/// касаний — они проходят к приложению под ним. Ограничение размера шрифта — как у всего приложения (AlbakovApp)
+@MainActor enum ToastWindow {
+    private static var window: UIWindow?
+    static func install() {
+        guard window == nil, let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+        let w = UIWindow(windowScene: scene)
+        let host = UIHostingController(rootView: ToastView().dynamicTypeSize(...DynamicTypeSize.accessibility1))
+        host.view.backgroundColor = .clear
+        w.rootViewController = host
+        w.windowLevel = .alert + 1
+        w.isUserInteractionEnabled = false
+        w.isHidden = false
+        window = w
     }
 }
 

@@ -20,11 +20,7 @@ struct GiftView: View {
     @State private var offer = false
     @State private var consent = false
     @State private var busy = false
-    /// Ключ повтора покупки (1.0.2): повтор после обрыва связи вернёт тот же сертификат
-    @State private var giftIdem = UUID().uuidString.replacingOccurrences(of: "-", with: "")
     @State private var error: String?
-    @State private var payURL: URL?
-    @State private var placed: (id: String, token: String)?
     @State private var checkCode = ""
     @State private var checked = JSON(nil)
     @State private var checkError: String?
@@ -132,12 +128,6 @@ struct GiftView: View {
             if amount == 0 { amount = nominals.count > 1 ? nominals[1] : nominals.first ?? 0 }
             if let u = shop.user, firstName.isEmpty { firstName = u.firstName; lastName = u.lastName; phone = Fmt.phone(u.phone); email = u.email; fromName = u.firstName }
         }
-        .fullScreenCover(item: $payURL) { url in
-            PaymentSheet(url: url) { _ in
-                payURL = nil
-                if let p = placed { router.reset(.account, to: [.orders, .order(p.id)]); Toast.shared.show("Спасибо! Сертификат оплачен") }
-            }
-        }
     }
 
     // Карточка сертификата — сумма и подпись меняются по мере заполнения
@@ -179,14 +169,16 @@ struct GiftView: View {
         if !consent { error = "Нужно согласие на обработку персональных данных"; return }
         busy = true; defer { busy = false }
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
-        let b: [String: Any] = ["amount": sum, "toName": toName, "toEmail": toEmail, "message": message, "fromName": fromName, "sendAt": onDate ? f.string(from: sendAt) : "",
-                                "customer": ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email], "consent": true, "idem": giftIdem]
+        var b: [String: Any] = ["amount": sum, "toName": toName, "toEmail": toEmail, "message": message, "fromName": fromName, "sendAt": onDate ? f.string(from: sendAt) : "",
+                                "customer": ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email], "consent": true]
+        // Ключ повтора хранится в памяти телефона до успешной покупки (Q-1): повтор после обрыва связи — даже с нового
+        // экрана или после перезапуска — вернёт тот же сертификат, а не создаст второй
+        b["idem"] = CheckoutNonce.idem(CheckoutNonce.loadOrCreate(key: CheckoutNonce.giftKey), b)
         do {
             let r = try await API.shared.json("POST", "gifts", body: b)
-            giftIdem = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+            CheckoutNonce.renew(key: CheckoutNonce.giftKey)   // сертификат оформлен: следующая покупка — новая
             let id = r["order"]["id"].str
             OrderTokens.save(id, r["token"].str)
-            placed = (id, r["token"].str)
             router.reset(.account, to: [.orders, .order(id)])   // 1.0.3: оплата — кнопкой на странице заказа
         } catch { self.error = error.userMessage; Haptic.error() }
     }

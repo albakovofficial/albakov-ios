@@ -8,6 +8,8 @@ struct AdminPayment: View {
     @State private var p: [String: Any] = [:]
     @State private var yk: [String: Any] = [:]
     @State private var methods: [[String: Any]] = []
+    /// Стабильные ключи способов доставки (Q-2): номер способа меняется при перестановке и удалении
+    @State private var methodKeys = RowKeys()
     @State private var loaded = false
     @State private var busy = false
     @State private var error: String?
@@ -51,9 +53,10 @@ struct AdminPayment: View {
             }.padding(16).softCard(20)
 
             sec("Способы доставки", "Порядок здесь = порядок при оформлении. Первый способ выбран у покупателя по умолчанию.")
-            ForEach(methods.indices, id: \.self) { i in
-                DeliveryCard(m: Binding(get: { i < methods.count ? methods[i] : [:] }, set: { if i < methods.count { methods[i] = $0 } }), first: i == 0, last: i == methods.count - 1,
-                             move: { d in withAnimation { methods.swapAt(i, i + d) } }, remove: { withAnimation { _ = methods.remove(at: i) } })
+            let ids = methodKeys.displayKeys(count: methods.count)
+            ForEach(Array(ids.enumerated()), id: \.element) { i, id in
+                DeliveryCard(m: Binding(get: { methodKeys.row(id, in: methods) ?? [:] }, set: { v in methodKeys.update(id, in: &methods) { $0 = v } }), first: i == 0, last: i == ids.count - 1,
+                             move: { d in withAnimation { methodKeys.move(id, by: d, in: &methods) } }, remove: { withAnimation { methodKeys.remove(id, from: &methods) } })
             }
             FlowRow(spacing: 8) {
                 Chip(title: "+ Доставка с адресом", on: false, out: true) { add("courier") }
@@ -77,6 +80,7 @@ struct AdminPayment: View {
             let s = admin.data["settings"]
             p = s["payment"].dictAny; yk = s["payment"]["yookassa"].dictAny
             methods = s["delivery"]["methods"].array.map(\.dictAny)
+            methodKeys.match(count: methods.count)   // список способов задаётся только здесь — ключи сразу под него
             cdekId = s["cdek"]["clientId"].str; cdekTest = s["cdek"]["test"].bool
             loaded = true
             if let r = try? await AdminAPI.post("payment-secret") { showSecret(r) }
@@ -122,7 +126,7 @@ struct AdminPayment: View {
         case "door": m = ["name": "Курьером СДЭК", "desc": "До двери по всей России", "price": 600, "freeFrom": 0, "needsAddress": true, "cdekDoor": true, "pickupPoint": false, "priceAuto": true, "markup": 0]
         default: m = ["name": "", "desc": "", "price": 0, "freeFrom": 0, "needsAddress": true, "pickupPoint": false]
         }
-        m["id"] = uid("d"); withAnimation { methods.append(m) }
+        m["id"] = uid("d"); withAnimation { methodKeys.append(m, to: &methods) }
     }
     private func showSecret(_ r: JSON) {
         let mask = r["mask"].str

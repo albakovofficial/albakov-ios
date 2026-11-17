@@ -22,9 +22,9 @@ struct RootView: View {
             } else if let err = shop.loadError {
                 OfflineView(text: err) { Task { await shop.load() } }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.white.ignoresSafeArea())
             }
-            ToastView()
         }
         .background(KeyboardDismisser())
+        .onAppear { ToastWindow.install() }   // сообщения — в своём окне поверх листов (Q-4)
         .task { try? await Task.sleep(nanoseconds: 1_200_000_000); splashShown = true; revealIfReady() }
         .sheet(isPresented: $askPush) { PushAskSheet().presentationDetents([.medium, .large]) }
         .fullScreenCover(item: $update) { UpdateView(info: $0) }

@@ -199,6 +199,29 @@ final class AuditUITests: XCTestCase {
         let q = app.buttons.matching(NSPredicate(format: "label IN %@", labels))
         return q.element(boundBy: max(0, q.count - 1))
     }
+    /// Кнопка в той же строке, что и поле (✕ у строки размера), — не зависит от того, что ещё есть на экране
+    func button(inRowOf field: XCUIElement, _ labels: [String]) -> XCUIElement? {
+        let y = field.frame.midY
+        return app.buttons.matching(NSPredicate(format: "label IN %@", labels)).allElementsBoundByIndex.first { abs($0.frame.midY - y) < 14 }
+    }
+    /// Ближайшая кнопка над полем (шапка карточки: ↑ ↓ ✕)
+    func button(above field: XCUIElement, _ labels: [String]) -> XCUIElement? {
+        let y = field.frame.minY
+        return app.buttons.matching(NSPredicate(format: "label IN %@", labels)).allElementsBoundByIndex
+            .filter { $0.frame.maxY <= y + 2 }.max { $0.frame.maxY < $1.frame.maxY }
+    }
+    /// Дождаться, что элемент пропал с экрана
+    func waitGone(_ e: XCUIElement, _ timeout: TimeInterval) -> Bool {
+        let x = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: e)
+        return XCTWaiter.wait(for: [x], timeout: timeout) == .completed
+    }
+    /// Поставить курсор в конец поля и дописать текст; вернуть значение до правки
+    @discardableResult func append(_ f: XCUIElement, _ text: String) -> String {
+        let before = f.value as? String ?? ""
+        f.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
+        f.typeText(text); hideKeyboard(); sleep(1)
+        return before
+    }
     /// Отметка времени для замера памяти: audit.yml пишет память приложения раз в полсекунды и считает пик между отметками
     func mark(_ label: String) {
         let s = "MEMMARK \(label) \(Int(Date().timeIntervalSince1970))"
@@ -549,5 +572,103 @@ final class AuditUITests: XCTestCase {
         tap("Закрыть"); sleep(5)
         mark("sheet-closed")
         XCTAssertEqual(app.state, .runningForeground, "Приложение закрылось")
+    }
+
+    // MARK: - 14. Q-2: панель — размеры товара и способы доставки: удаление при активном поле, правка соседних (ничего не сохраняем)
+
+    func test14_AdminSizesAndDeliveryDelete() {
+        signInOwner()
+        launch("/admin?s=products&id=p1")
+        XCTAssertTrue(text("Цвета, фото и остатки").waitForExistence(timeout: 25), "Карточка товара не открылась")
+        let del = ["Удалить", "Удалить строку", "Закрыть", "Close", "xmark"]
+        let sizes = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Размер"))
+        // русская раскладка: только кириллица
+        for (round, typed) in [(1, "ЦА"), (2, "ЦБ")] {
+            let plus = lastButton(["+ Размер"]); scrollTo(plus)
+            guard plus.exists else { XCTFail("Нет кнопки «+ Размер»"); return }
+            plus.tap(); sleep(1)
+            let f = sizes.element(boundBy: sizes.count - 1); scrollTo(f)
+            f.tap(); f.typeText(typed)
+            shot("14.\(round) поле нового размера в фокусе")
+            guard let x = button(inRowOf: f, del) else { XCTFail("Нет кнопки удаления размера"); return }
+            x.tap(); sleep(1)
+            XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления размера (круг \(round))")
+            XCTAssertFalse(app.textFields.matching(NSPredicate(format: "value == %@", typed)).firstMatch.exists, "Удалённый размер остался на экране")
+            // правка соседнего размера: текст попадает именно в него
+            let g = sizes.element(boundBy: sizes.count - 1); scrollTo(g)
+            let before = append(g, "Ж")
+            shot("14.\(round) после удаления и правки соседнего размера")
+            XCTAssertEqual(g.value as? String, before + "Ж", "Правка ушла не в соседний размер (круг \(round))")
+        }
+        launch("/admin?s=payment")
+        let addPickup = button("+ Самовывоз"); scrollTo(addPickup, max: 30)
+        guard addPickup.waitForExistence(timeout: 20) else { XCTFail("Нет кнопки «+ Самовывоз»"); return }
+        addPickup.tap(); sleep(1)
+        let descs = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Например, 1–2 дня, с примеркой"))
+        let names = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Например, Курьер по Москве"))
+        let f = descs.element(boundBy: descs.count - 1); scrollTo(f)
+        f.tap(); f.typeText("ПРОВЕРКА")
+        shot("14.3 поле нового способа доставки в фокусе")
+        let name = names.element(boundBy: names.count - 1)
+        guard let x = button(above: name, del) else { XCTFail("Нет кнопки удаления способа доставки"); return }
+        x.tap()
+        let yes = app.sheets.buttons["Удалить"].exists ? app.sheets.buttons["Удалить"] : app.buttons.matching(NSPredicate(format: "label == 'Удалить'")).firstMatch
+        XCTAssertTrue(yes.waitForExistence(timeout: 5), "Нет подтверждения удаления"); yes.tap(); sleep(1)
+        XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления способа доставки")
+        XCTAssertFalse(app.textFields.matching(NSPredicate(format: "value == %@", "ПРОВЕРКА")).firstMatch.exists, "Удалённый способ остался на экране")
+        let g = descs.element(boundBy: descs.count - 1); scrollTo(g)
+        let before = append(g, "Ж")
+        shot("14.3 после удаления и правки соседнего способа")
+        XCTAssertEqual(g.value as? String, before + "Ж", "Правка ушла не в соседний способ доставки")
+        app.terminate()   // выходим без сохранения
+    }
+
+    // MARK: - 15. Q-3, Q-4: ошибки сети видны — на экране с «Повторить», в корзине вместо «0 ₽», поверх открытого листа
+
+    func test15_NetworkErrorsVisible() {
+        signInOwner()
+        // а) список обращений не загрузился — не пустой экран, а причина и «Повторить»
+        ctl("off?scope=support")
+        launch("/account?tab=support")
+        let failed = text("Не удалось загрузить")
+        XCTAssertTrue(failed.waitForExistence(timeout: 25), "Ошибка загрузки обращений не показана")
+        shot("15а обращения — нет связи")
+        ctl("on?scope=all")
+        tap("Повторить")
+        XCTAssertTrue(waitGone(failed, 20), "После «Повторить» ошибка не ушла")
+        shot("15а обращения — после «Повторить»")
+        // б) корзина: сумма не посчиталась — «—» и причина, а не «0 ₽»
+        startClean()
+        addToCart(product: "p5", size: "M")
+        ctl("off?scope=quote")
+        launch("/cart")
+        let qErr = text("Не удалось посчитать сумму")
+        XCTAssertTrue(qErr.waitForExistence(timeout: 25), "Ошибка расчёта суммы не показана")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '0' AND label CONTAINS '₽'")).firstMatch.exists, "В корзине показано «0 ₽»")
+        shot("15б корзина — сумма не посчиталась")
+        ctl("on?scope=all")
+        tap("Посчитать ещё раз")
+        XCTAssertTrue(waitGone(qErr, 20), "После «Посчитать ещё раз» ошибка не ушла")
+        shot("15б корзина — сумма посчитана")
+        // в) сообщение об ошибке поверх открытого листа: фото в обращении не отправилось
+        launch("/account?tab=support")
+        XCTAssertTrue(tap("Написать в поддержку"))
+        let addPhoto = button("Добавить фото")
+        guard addPhoto.waitForExistence(timeout: 12) else { XCTFail("Нет кнопки «Добавить фото»"); return }
+        ctl("off?scope=support/upload")
+        addPhoto.tap(); sleep(5)
+        let cells = app.images.matching(NSPredicate(format: "label CONTAINS[c] 'фото' OR label CONTAINS[c] 'photo' OR label CONTAINS[c] 'изображ'"))
+        var w = 0
+        while cells.count < 1 && w < 20 { sleep(1); w += 1 }
+        guard cells.count >= 1 else { XCTFail("Не удалось выбрать фото в системном окне"); return }
+        cells.element(boundBy: cells.count - 1).tap()
+        let done = app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора"); done.tap()
+        let toast = text("Нет соединения")
+        XCTAssertTrue(toast.waitForExistence(timeout: 20), "Сообщение об ошибке отправки фото не показано")
+        shot("15в ошибка поверх листа обращения")
+        XCTAssertTrue(button("Добавить фото").exists, "Лист обращения закрылся — проверка не поверх листа")
+        ctl("on?scope=all")
+        tap("Закрыть")
     }
 }

@@ -7,6 +7,8 @@ struct AccountView: View {
     @State private var tab = "orders"
     @State private var orders: [Order] = []
     @State private var bonusLog: [JSON] = []
+    /// Заказы и история бонусов не загрузились (Q-3): вместо «пока нет заказов» — причина и «Повторить»
+    @State private var loadError: String?
     @State private var confirmLogout = false
     @State private var payURL: URL?
 
@@ -122,7 +124,7 @@ struct AccountView: View {
                 LoyalCard().padding(.vertical, 10)
                 Text("Начисляем \(shop.settings.bonusPercent)% с каждой покупки" + (shop.settings.bonusOnlineExtra > 0 ? " и ещё \(shop.settings.bonusOnlineExtra)% при оплате онлайн" : "") + ". 1 бонус = 1 ₽ — списать можно при оформлении следующего заказа.")
                     .font(Theme.font(14.5)).foregroundStyle(Theme.muted)
-                if bonusLog.isEmpty { Text("Пока нет начислений").font(Theme.font(14)).foregroundStyle(Theme.muted) }
+                if bonusLog.isEmpty { if let loadError { ErrorText(text: "История не загрузилась: " + loadError) } else { Text("Пока нет начислений").font(Theme.font(14)).foregroundStyle(Theme.muted) } }
                 VStack(spacing: 0) {
                     ForEach(Array(bonusLog.enumerated()), id: \.offset) { _, e in
                         let a = e["amount"].int ?? 0
@@ -135,7 +137,9 @@ struct AccountView: View {
                 }
             }
         default:
-            if orders.isEmpty {
+            if orders.isEmpty, let loadError {
+                EmptyState.loadFailed(loadError) { Task { await load() } }.padding(.horizontal, -Theme.gutter)
+            } else if orders.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     IconTile(icon: "bag", size: 44, fill: .white, tint: Theme.accent).padding(.bottom, 4)
                     Text("У Вас пока нет заказов").font(Theme.font(19, .medium))
@@ -154,8 +158,15 @@ struct AccountView: View {
     }
     private func load() async {
         await shop.refreshUser()
-        if let r = try? await API.shared.json("GET", "orders") { orders = r["orders"].array.map(Order.init); orders.forEach { shop.returnExpired($0) } }
-        if let r = try? await API.shared.json("GET", "me") { bonusLog = r["bonusLog"].array }
+        do {
+            orders = try await API.shared.json("GET", "orders")["orders"].array.map(Order.init)
+            orders.forEach { shop.returnExpired($0) }
+            bonusLog = try await API.shared.json("GET", "me")["bonusLog"].array
+            loadError = nil
+        } catch {
+            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
+            if orders.isEmpty { loadError = m } else { Toast.shared.show(m) }   // заказы уже на экране — оставляем их
+        }
     }
 }
 
@@ -308,7 +319,11 @@ struct OrdersView: View {
             if shop.user != nil { orders = try await API.shared.json("GET", "orders")["orders"].array.map(Order.init) }
             else {   // без кабинета — заказы, оформленные на этом телефоне
                 var list: [Order] = []
-                for (id, t) in OrderTokens.all { if let j = try? await API.shared.json("GET", "orders/\(id)", query: ["t": t]) { list.append(Order(j["order"])) } }
+                for (id, t) in OrderTokens.all {
+                    do { list.append(Order(try await API.shared.json("GET", "orders/\(id)", query: ["t": t])["order"])) }
+                    catch let e as APIError where e.status == 404 || e.status == 403 { continue }   // заказ удалён или ссылка больше не действует
+                    // остальные ошибки (нет связи, сбой) — наверх: экран покажет причину, а не «заказов нет» (Q-3, IOS-09)
+                }
                 orders = list.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
             }
             orders.forEach { shop.returnExpired($0) }   // время на оплату вышло — вещи снова в корзине

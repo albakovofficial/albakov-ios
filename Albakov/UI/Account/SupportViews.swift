@@ -378,6 +378,7 @@ struct SupportListView: View {
     @State private var tickets: [JSON] = []
     @State private var topics: [String] = []
     @State private var loading = true
+    @State private var loadError: String?
     @State private var compose = false
     var body: some View {
         let open = tickets.filter { $0["status"].str != "closed" }, done = tickets.filter { $0["status"].str == "closed" }
@@ -399,7 +400,9 @@ struct SupportListView: View {
                     Text("РЕШЁННЫЕ").font(Theme.font(12, .medium)).kerning(0.9).foregroundStyle(Theme.dim).padding(.horizontal, 4).padding(.top, 8)
                     group(done)
                 }
-                if !loading && tickets.isEmpty {
+                if let loadError, tickets.isEmpty {
+                    EmptyState.loadFailed(loadError) { Task { await load() } }.padding(.horizontal, -Theme.gutter).padding(.top, 6)
+                } else if !loading && tickets.isEmpty {
                     Text("Обращений пока нет. Напишите — номер обращения появится сразу, по нему вас быстро найдут.").font(Theme.font(14)).foregroundStyle(Theme.muted).padding(.horizontal, 4).padding(.top, 6)
                 }
             }.padding(Theme.gutter)
@@ -425,8 +428,14 @@ struct SupportListView: View {
         .softCard(22)
     }
     private func load() async {
-        if let r = try? await API.shared.json("GET", "support") { tickets = r["tickets"].array; topics = r["topics"].array.map(\.str) }
-        loading = false
+        defer { loading = false }
+        do {
+            let r = try await API.shared.json("GET", "support")
+            tickets = r["tickets"].array; topics = r["topics"].array.map(\.str); loadError = nil
+        } catch {
+            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
+            if tickets.isEmpty { loadError = m } else { Toast.shared.show(m) }   // список уже есть — оставляем его
+        }
     }
 }
 
@@ -564,11 +573,13 @@ struct TicketView: View {
     @EnvironmentObject private var router: Router
     @StateObject private var att = SupportAttachments(uploadPath: "support/upload")
     @State private var t = JSON(nil)
+    @State private var loadError: String?
     @State private var draft = ""
     @State private var busy = false
     var body: some View {
         let closed = t["status"].str == "closed"
         VStack(spacing: 0) {
+            if let loadError, !t.exists { EmptyState.loadFailed(loadError) { Task { await load() } }.padding(.top, 24) }
             if t["order"].exists {
                 Button { router.push(.order(t["order"]["id"].str), on: .account) } label: { SupportOrderCard(o: t["order"]) }.buttonStyle(.plain)
                     .padding(.horizontal, 12).padding(.top, 10)
@@ -616,8 +627,17 @@ struct TicketView: View {
             .foregroundStyle(Theme.text).padding(.horizontal, 14).frame(height: 36).background(Capsule().fill(.white)).overlay(Capsule().strokeBorder(Theme.lineStrong))
         }.buttonStyle(Pressable())
     }
-    private func load() async { if let r = try? await API.shared.json("GET", "support/\(id)") { t = r["ticket"]; await Shop.shared.refreshUser() } }
-    // Пока переписка открыта, ответы магазина и отметка «прочитано» подгружаются сами
+    private func load() async {
+        do {
+            t = try await API.shared.json("GET", "support/\(id)")["ticket"]; loadError = nil
+            await Shop.shared.refreshUser()
+        } catch {
+            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
+            if t.exists { Toast.shared.show(m) } else { loadError = m }   // переписка уже на экране — оставляем её
+        }
+    }
+    // Пока переписка открыта, ответы магазина и отметка «прочитано» подгружаются сами.
+    // Ошибка фонового обновления не показывается: через 15 секунд будет следующая попытка
     private func poll() async {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 15_000_000_000)
@@ -633,7 +653,8 @@ struct TicketView: View {
         } catch { Toast.shared.show(error.userMessage); Haptic.error() }
     }
     private func close() async {
-        if let r = try? await API.shared.json("POST", "support/\(id)/close") { t = r["ticket"]; Haptic.success(); Toast.shared.show("Рады, что помогли") }
+        do { t = try await API.shared.json("POST", "support/\(id)/close")["ticket"]; Haptic.success(); Toast.shared.show("Рады, что помогли") }
+        catch { Toast.shared.show(error.userMessage); Haptic.error() }
     }
 }
 
@@ -645,6 +666,7 @@ struct AdminSupportView: View {
     @State private var filter = "active"
     @State private var q = ""
     @State private var loading = true
+    @State private var loadError: String?
     private let filters = [("active", "В работе"), ("open", "Ждут ответа"), ("closed", "Решённые"), ("all", "Все")]
     var body: some View {
         let shown = tickets.filter { (q.isEmpty ? match(filter, $0) : true) && Self.search($0, q) }
@@ -666,7 +688,9 @@ struct AdminSupportView: View {
             ForEach(Array(shown.enumerated()), id: \.offset) { _, t in
                 Button { router.push(.adminTicket(t["id"].str), on: .account) } label: { AdminTicketRow(t: t) }
             }
-            if !loading && shown.isEmpty {
+            if let loadError, tickets.isEmpty {
+                EmptyState.loadFailed(loadError) { Task { await load() } }.listRowSeparator(.hidden).listRowInsets(EdgeInsets())
+            } else if !loading && shown.isEmpty {
                 Text(q.isEmpty ? "Здесь пусто." : "Ничего не нашлось. Ищем по номеру обращения, имени, телефону, почте, номеру заказа и тексту.").font(Theme.font(14)).foregroundStyle(Theme.muted)
             }
         }
@@ -694,8 +718,12 @@ struct AdminSupportView: View {
         return d.count >= 4 && t["phone"].str.filter(\.isNumber).contains(d)
     }
     private func load() async {
-        if let r = try? await API.shared.json("GET", "admin/support") { tickets = r["tickets"].array }
-        loading = false
+        defer { loading = false }
+        do { tickets = try await API.shared.json("GET", "admin/support")["tickets"].array; loadError = nil }
+        catch {
+            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
+            if tickets.isEmpty { loadError = m } else { Toast.shared.show(m) }   // список уже есть — оставляем его
+        }
     }
 }
 
@@ -727,7 +755,11 @@ struct AdminTicketView: View {
     @StateObject private var att = SupportAttachments(uploadPath: "admin/support/upload")
     @State private var t = JSON(nil)
     @State private var customer = JSON(nil)
+    @State private var loadError: String?
     @State private var templates: [JSON] = []
+    /// Шаблоны загружены. До этого редактор шаблонов закрыт: открытый с пустым списком, он сохранил бы пустоту
+    /// поверх настоящих шаблонов (Q-3)
+    @State private var templatesLoaded = false
     @State private var draft = ""
     @State private var note = false
     @State private var busy = false
@@ -737,6 +769,7 @@ struct AdminTicketView: View {
         let closed = t["status"].str == "closed"
         let mine = t["assignee"]["id"].str == (Shop.shared.user?.id ?? "")
         VStack(spacing: 0) {
+            if let loadError, !t.exists { EmptyState.loadFailed(loadError) { Task { await load() } }.padding(.top, 24) }
             if t.exists {
                 HStack(spacing: 8) {
                     Text(info).font(Theme.font(12)).foregroundStyle(Theme.dim).lineLimit(2)
@@ -761,7 +794,7 @@ struct AdminTicketView: View {
                         Button(x["title"].str) { draft = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? x["text"].str : draft + "\n\n" + x["text"].str }
                             .font(Theme.font(12.5)).foregroundStyle(Theme.text).padding(.horizontal, 12).frame(height: 32).background(Capsule().fill(.white)).overlay(Capsule().strokeBorder(Theme.line))
                     }
-                    Button("Шаблоны…") { editTemplates = true }.font(Theme.font(12.5)).foregroundStyle(Theme.muted).padding(.horizontal, 12).frame(height: 32)
+                    Button("Шаблоны…") { editTemplates = true }.disabled(!templatesLoaded).font(Theme.font(12.5)).foregroundStyle(Theme.muted).padding(.horizontal, 12).frame(height: 32)
                         .overlay(Capsule().strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                     Toggle(isOn: $note) { Text("Заметка").font(Theme.font(12.5, .medium)) }.toggleStyle(.button).tint(Theme.warn).controlSize(.small)
                 }.padding(.horizontal, 12)
@@ -801,11 +834,18 @@ struct AdminTicketView: View {
         return m < 60 ? "\(m) мин" : m < 1440 ? "\(m / 60) ч" : "\(m / 1440) дн"
     }
     private func load() async {
-        if let r = try? await API.shared.json("GET", "admin/support/\(id)") {
-            t = r["ticket"]; customer = r["customer"]
+        do {
+            let r = try await API.shared.json("GET", "admin/support/\(id)")
+            t = r["ticket"]; customer = r["customer"]; loadError = nil
+            // отметка «прочитано» — попутная: не получилось — отметится при следующем открытии
             if t["unreadShop"].bool { _ = try? await API.shared.raw("PATCH", "admin/support/\(id)", body: ["read": true]) }
+        } catch {
+            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
+            if t.exists { Toast.shared.show(m) } else { loadError = m }   // переписка уже на экране — оставляем её
         }
-        if templates.isEmpty, let r = try? await API.shared.json("GET", "admin/support") { templates = r["templates"].array }
+        guard !templatesLoaded else { return }
+        do { templates = try await API.shared.json("GET", "admin/support")["templates"].array; templatesLoaded = true }
+        catch { if let m = error.userMessage { Toast.shared.show("Шаблоны ответов не загрузились: " + m) } }
     }
     private func poll() async {
         while !Task.isCancelled {

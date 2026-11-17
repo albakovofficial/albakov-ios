@@ -4,6 +4,7 @@ import SwiftUI
 struct BonusView: View {
     @EnvironmentObject private var shop: Shop
     @State private var log: [JSON] = []
+    @State private var logError: String?
     var body: some View {
         List {
             Section {
@@ -15,7 +16,10 @@ struct BonusView: View {
                 }.padding(.vertical, 8)
             }
             Section("История") {
-                if log.isEmpty { Text("Пока нет начислений").font(Theme.font(14)).foregroundStyle(Theme.muted) }
+                if log.isEmpty, let logError {   // история не загрузилась (Q-3) — не «пока нет начислений»
+                    ErrorText(text: "История не загрузилась: " + logError)
+                    Button("Повторить") { Task { await load() } }.font(Theme.font(15, .medium)).foregroundStyle(Theme.text)
+                } else if log.isEmpty { Text("Пока нет начислений").font(Theme.font(14)).foregroundStyle(Theme.muted) }
                 ForEach(Array(log.enumerated()), id: \.offset) { _, e in
                     let a = e["amount"].int ?? 0
                     HStack {
@@ -30,10 +34,13 @@ struct BonusView: View {
             }
         }
         .navigationTitle("Бонусы").navigationBarTitleDisplayMode(.inline)
-        .task {
-            if let r = try? await API.shared.json("GET", "me") { log = r["bonusLog"].array }
-            _ = try? await API.shared.raw("POST", "me/bonus-seen")
-        }
+        .task { await load() }
+    }
+    private func load() async {
+        do { log = try await API.shared.json("GET", "me")["bonusLog"].array; logError = nil }
+        catch { logError = error.userMessage; return }
+        // отметка «новые бонусы просмотрены» — попутная: не получилось — отметится в следующий раз
+        _ = try? await API.shared.raw("POST", "me/bonus-seen")
     }
     static func label(_ e: JSON) -> String {
         let n = e["orderNumber"].str
@@ -156,6 +163,10 @@ struct NotificationsView: View {
     @EnvironmentObject private var shop: Shop
     @ObservedObject private var push = PushManager.shared
     @State private var prefs: [String: Bool] = [:]
+    /// Настройки получены с сервера. До этого переключатели закрыты: сервер сохраняет набор целиком, и переключатель,
+    /// нажатый поверх незагруженного (пустого) набора, выключил бы все остальные уведомления (Q-3)
+    @State private var prefsLoaded = false
+    @State private var prefsError: String?
     private let kinds = [("orders", "Заказы", "В пути, ждёт в пункте выдачи, напоминание забрать"), ("support", "Ответы поддержки", "Когда мы ответили на ваш вопрос"),
                          ("returns", "Обмен и возврат", "Новый размер отправлен, деньги вернулись"), ("stock", "Снова в наличии", "Размер, о котором вы просили сообщить"),
                          ("bonus", "Бонусы", "Начисления на бонусный счёт"), ("promo", "Акции и новинки", "Редко и только о важном — по желанию")]
@@ -165,7 +176,7 @@ struct NotificationsView: View {
                 switch push.status {
                 case .authorized, .provisional, .ephemeral:
                     Label("Включены на этом iPhone", systemImage: "checkmark.circle.fill").font(Theme.font(15)).foregroundStyle(Theme.ok)
-                    Button("Прислать проверочное") { Task { if let e = push.endpoint { _ = try? await API.shared.raw("POST", "push/test", body: ["endpoint": e]); Toast.shared.show("Отправили — придёт через пару секунд") } } }.font(Theme.font(15)).foregroundStyle(Theme.text)
+                    Button("Прислать проверочное") { Task { await sendTest() } }.font(Theme.font(15)).foregroundStyle(Theme.text)
                 case .denied:
                     Text("Уведомления выключены в настройках iPhone").font(Theme.font(15))
                     Button("Открыть настройки") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } }.font(Theme.font(15, .medium)).foregroundStyle(Theme.text)
@@ -174,18 +185,32 @@ struct NotificationsView: View {
                 }
             }
             Section("Что присылать") {
+                if let prefsError, !prefsLoaded {
+                    ErrorText(text: "Настройки не загрузились: " + prefsError)
+                    Button("Повторить") { Task { await loadPrefs() } }.font(Theme.font(15, .medium)).foregroundStyle(Theme.text)
+                }
                 ForEach(kinds.filter { $0.0 != "bonus" || shop.settings.bonusEnabled }, id: \.0) { k in
-                    Toggle(isOn: Binding(get: { prefs[k.0] ?? false }, set: { prefs[k.0] = $0; Task { await save() } })) {
+                    Toggle(isOn: Binding(get: { prefs[k.0] ?? false }, set: { on in prefs[k.0] = on; Task { await save(k.0, was: !on) } })) {
                         VStack(alignment: .leading, spacing: 2) { Text(k.1).font(Theme.font(15)); Text(k.2).font(Theme.font(12.5)).foregroundStyle(Theme.muted) }
-                    }.tint(Theme.ink)
+                    }.tint(Theme.ink).disabled(!prefsLoaded)
                 }
             }
         }
         .navigationTitle("Уведомления").navigationBarTitleDisplayMode(.inline)
-        .task {
-            push.refreshStatus()
-            if let r = try? await API.shared.json("GET", "me/push") { prefs = r["prefs"].dict.mapValues(\.bool) }
-        }
+        .task { push.refreshStatus(); await loadPrefs() }
     }
-    private func save() async { _ = try? await API.shared.raw("PUT", "me/push", body: ["prefs": prefs]) }
+    private func loadPrefs() async {
+        do { prefs = try await API.shared.json("GET", "me/push")["prefs"].dict.mapValues(\.bool); prefsLoaded = true; prefsError = nil }
+        catch { if let m = error.userMessage { prefsError = m } }
+    }
+    /// Не сохранилось — переключатель возвращается как был, причина — сообщением
+    private func save(_ kind: String, was: Bool) async {
+        do { _ = try await API.shared.raw("PUT", "me/push", body: ["prefs": prefs]) }
+        catch { prefs[kind] = was; Toast.shared.show(error.userMessage) }
+    }
+    private func sendTest() async {
+        guard let e = push.endpoint else { return }
+        do { _ = try await API.shared.raw("POST", "push/test", body: ["endpoint": e]); Toast.shared.show("Отправили — придёт через пару секунд") }
+        catch { Toast.shared.show(error.userMessage) }
+    }
 }

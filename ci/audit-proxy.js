@@ -1,7 +1,9 @@
 'use strict';
 /* Посредник для проверки приложения на GitHub (только аудит, в приложение не входит).
    Приложение в симуляторе ходит сюда (порт P), посредник — в копию магазина (порт T).
-   Тесты управляют связью: GET /__ctl/<режим>?scope=orders|all&ms=…
+   Тесты управляют связью: GET /__ctl/<режим>?scope=orders|all|<путь>&ms=…
+     scope: orders — только оформление заказа; all — все запросы; иначе — запросы /api/<путь>… (этап B: support, quote,
+     support/upload — проверка сообщений об ошибках сети на отдельных экранах)
      on — обычная связь; off — обрыв соединения; slow — задержка ms;
      drop-after — запрос доходит до магазина, а ответ теряется (один раз);
      502 — ответ «502 Bad Gateway» как от nginx, когда магазин недоступен (один раз).
@@ -31,7 +33,7 @@ http.createServer((req, res) => {
   const isOrder = req.method === 'POST' && u.pathname === '/api/orders';
   const isSupport = u.pathname.startsWith('/api/') && u.pathname.includes('support');
   const rid = ++seq, t0 = Date.now();
-  const hit = scope === 'all' || isOrder;
+  const hit = scope === 'all' || (scope === 'orders' ? isOrder : u.pathname.startsWith('/api/' + scope));
   const chunks = [];
   req.on('data', (c) => chunks.push(c));
   req.on('end', () => {

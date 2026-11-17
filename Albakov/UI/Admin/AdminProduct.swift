@@ -135,61 +135,95 @@ struct BadgesEditor: View {
     }
 }
 
-/// Цвета: название и оттенок, фото (загрузка, порядок, удаление), размеры с остатками
+/// Цвета: название и оттенок, фото (загрузка, порядок, удаление), размеры с остатками.
+/// Цвета и размеры узнаются по стабильным ключам (Q-2), а не по номеру: после удаления строки поле,
+/// которое было в фокусе, не пишет в соседнюю. Ключи только в приложении — формат товара для сервера прежний
 struct ColorsEditor: View {
     @ObservedObject var doc: Doc
-    @ObservedObject private var admin = Admin.shared
+    @State private var keys = RowKeys()
     private var colors: [[String: Any]] { (doc.v["colors"] as? [[String: Any]]) ?? [] }
-    private func set(_ c: [[String: Any]]) { doc.v["colors"] = c }
     var body: some View {
+        let ids = keys.displayKeys(count: colors.count)
         VStack(alignment: .leading, spacing: 14) {
             Text("Цвета, фото и остатки").font(Theme.font(18, .light))
             Text("Все цвета — в одной карточке товара. У каждого цвета свои фото и остатки по размерам. Покупатель сначала выбирает цвет, потом размер.").font(Theme.font(13)).foregroundStyle(Theme.muted)
-            ForEach(Array(colors.indices), id: \.self) { i in colorCard(i) }
+            ForEach(Array(ids.enumerated()), id: \.element) { i, id in
+                ColorCard(color: colors[i], index: i, first: colors[0], canRemove: colors.count > 1,
+                          update: { change in edit { k, cs in k.update(id, in: &cs, change) } },
+                          moveUp: { edit { k, cs in k.move(id, by: -1, in: &cs) } },
+                          remove: { edit { k, cs in k.remove(id, from: &cs) } })
+            }
             Button {
-                var cs = colors
+                let cs = colors
                 var c: [String: Any] = ["id": uid("col"), "name": "", "hex": "#777777", "images": [String](), "art": ["kind": JSON(cs.first?["art"])["kind"].string ?? "tee", "tone": "#777777"]]
                 c["sizes"] = (cs.first?["sizes"] as? [[String: Any]] ?? []).map { ["size": $0["size"] ?? "", "stock": 0] }
-                cs.append(c); set(cs)
+                edit { k, cs in k.append(c, to: &cs) }
             } label: { Label("Добавить цвет", systemImage: "plus").font(Theme.font(14, .medium)).foregroundStyle(Theme.text).padding(.horizontal, 16).frame(height: 40).background(Capsule().fill(Theme.surface)) }
         }
+        .task(id: colors.count) { keys.match(count: colors.count) }   // первый показ и замена списка целиком
     }
-    @ViewBuilder private func colorCard(_ i: Int) -> some View {
-        let c = JSON(colors[i])
+    /// Цвета и их ключи меняются вместе
+    private func edit(_ change: (inout RowKeys, inout [[String: Any]]) -> Void) {
+        var cs = colors
+        change(&keys, &cs)
+        doc.v["colors"] = cs
+    }
+}
+
+/// Один цвет: оттенок, название, фото и размеры с остатками. Свои ключи размеров (Q-2)
+private struct ColorCard: View {
+    let color: [String: Any]
+    let index: Int
+    let first: [String: Any]
+    let canRemove: Bool
+    /// Изменить этот цвет (по его ключу; цвета уже нет — ничего не меняется)
+    let update: ((inout [String: Any]) -> Void) -> Void
+    let moveUp: () -> Void
+    let remove: () -> Void
+    @State private var sizeKeys = RowKeys()
+    private var sizes: [[String: Any]] { (color["sizes"] as? [[String: Any]]) ?? [] }
+    var body: some View {
+        let c = JSON(color)
+        let ids = sizeKeys.displayKeys(count: sizes.count)
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                ColorPicker("", selection: Binding(get: { Color(hex: c["hex"].string ?? "#777777") }, set: { v in update(i) { $0["hex"] = v.hexString; var a = ($0["art"] as? [String: Any]) ?? ["kind": "tee"]; a["tone"] = v.hexString; $0["art"] = a } }), supportsOpacity: false).labelsHidden()
-                TextField("Название цвета, например «Графит»", text: Binding(get: { c["name"].str }, set: { v in update(i) { $0["name"] = v } }))
+                ColorPicker("", selection: Binding(get: { Color(hex: c["hex"].string ?? "#777777") }, set: { v in update { $0["hex"] = v.hexString; var a = ($0["art"] as? [String: Any]) ?? ["kind": "tee"]; a["tone"] = v.hexString; $0["art"] = a } }), supportsOpacity: false).labelsHidden()
+                TextField("Название цвета, например «Графит»", text: Binding(get: { c["name"].str }, set: { v in update { $0["name"] = v } }))
                     .font(Theme.font(15)).padding(.horizontal, 12).frame(height: 44).background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface))
-                if i > 0 { tool("arrow.up") { var cs = colors; cs.swapAt(i, i - 1); set(cs) } }
-                if colors.count > 1 { tool("xmark") { var cs = colors; cs.remove(at: i); set(cs) } }
+                if index > 0 { tool("arrow.up", moveUp) }
+                if canRemove { tool("xmark", remove) }
             }
-            ColorPhotos(images: Binding(get: { c["images"].array.map(\.str) }, set: { v in update(i) { $0["images"] = v } }))
+            ColorPhotos(images: Binding(get: { c["images"].array.map(\.str) }, set: { v in update { $0["images"] = v } }))
             VStack(spacing: 6) {
-                ForEach(Array(c["sizes"].array.indices), id: \.self) { k in
-                    let z = c["sizes"].array[k]
+                ForEach(Array(ids.enumerated()), id: \.element) { k, id in
+                    let z = JSON(sizes[k])
                     HStack(spacing: 8) {
-                        TextField("Размер", text: Binding(get: { z["size"].str }, set: { v in updSize(i, k) { $0["size"] = v } })).font(Theme.font(15)).padding(.horizontal, 12).frame(height: 42).background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface))
-                        TextField("Остаток", text: Binding(get: { String(z["stock"].int ?? 0) }, set: { v in updSize(i, k) { $0["stock"] = max(0, Int(v.filter(\.isNumber)) ?? 0) } }))
+                        TextField("Размер", text: Binding(get: { z["size"].str }, set: { v in editSizes { $0.update(id, in: &$1) { $0["size"] = v } } })).font(Theme.font(15)).padding(.horizontal, 12).frame(height: 42).background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface))
+                        TextField("Остаток", text: Binding(get: { String(z["stock"].int ?? 0) }, set: { v in editSizes { $0.update(id, in: &$1) { $0["stock"] = max(0, Int(v.filter(\.isNumber)) ?? 0) } } }))
                             .keyboardType(.numberPad).font(Theme.font(15)).padding(.horizontal, 12).frame(width: 96, height: 42).background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface))
                         Text("шт.").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
-                        tool("xmark") { update(i) { var s = ($0["sizes"] as? [[String: Any]]) ?? []; s.remove(at: k); $0["sizes"] = s } }
+                        tool("xmark") { editSizes { $0.remove(id, from: &$1) } }
                     }
                 }
             }
             FlowRow(spacing: 8) {
-                small("+ Размер") { update(i) { var s = ($0["sizes"] as? [[String: Any]]) ?? []; s.append(["size": "", "stock": 0]); $0["sizes"] = s } }
-                if i > 0 { small("Размеры как у «\(JSON(colors[0])["name"].string.flatMap { $0.isEmpty ? nil : $0 } ?? "первого цвета")»") {
-                    let first = (colors[0]["sizes"] as? [[String: Any]]) ?? []
-                    update(i) { var s = ($0["sizes"] as? [[String: Any]]) ?? []; for x in first { let n = x["size"] as? String ?? ""; if !s.contains(where: { ($0["size"] as? String) == n }) { s.append(["size": n, "stock": 0]) } }; $0["sizes"] = s }
+                small("+ Размер") { editSizes { $0.append(["size": "", "stock": 0], to: &$1) } }
+                if index > 0 { small("Размеры как у «\(JSON(first)["name"].string.flatMap { $0.isEmpty ? nil : $0 } ?? "первого цвета")»") {
+                    let names = ((first["sizes"] as? [[String: Any]]) ?? []).map { $0["size"] as? String ?? "" }
+                    editSizes { k, s in for n in names where !s.contains(where: { ($0["size"] as? String) == n }) { k.append(["size": n, "stock": 0], to: &s) } }
                 } }
             }
         }
         .padding(14).background(RoundedRectangle(cornerRadius: 16).fill(.white)).hairline(RoundedRectangle(cornerRadius: 16), 0.1)
+        .task(id: sizes.count) { sizeKeys.match(count: sizes.count) }   // первый показ и замена размеров целиком
     }
-    private func update(_ i: Int, _ f: (inout [String: Any]) -> Void) { var cs = colors; guard cs.indices.contains(i) else { return }; f(&cs[i]); set(cs) }
-    private func updSize(_ i: Int, _ k: Int, _ f: (inout [String: Any]) -> Void) {
-        update(i) { var s = ($0["sizes"] as? [[String: Any]]) ?? []; guard s.indices.contains(k) else { return }; f(&s[k]); $0["sizes"] = s }
+    /// Размеры этого цвета и их ключи меняются вместе
+    private func editSizes(_ change: (inout RowKeys, inout [[String: Any]]) -> Void) {
+        update { c in
+            var s = (c["sizes"] as? [[String: Any]]) ?? []
+            change(&sizeKeys, &s)
+            c["sizes"] = s
+        }
     }
     private func tool(_ i: String, _ a: @escaping () -> Void) -> some View {
         Button { withAnimation { a() } } label: { Image(systemName: i).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.text).frame(width: 30, height: 30).background(Circle().fill(Theme.surface)) }.buttonStyle(.plain)
