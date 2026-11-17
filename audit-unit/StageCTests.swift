@@ -92,12 +92,15 @@ final class SupportTemplatesTests: XCTestCase {
         XCTAssertTrue(r.isEmpty); XCTAssertEqual(k.displayKeys(count: 0), [])
     }
 
-    /// Номер вне списка ничего не удаляет: стереть чужой шаблон хуже, чем не стереть
-    func test07_OutOfRangeOffsetsRemoveNothing() {
+    /// Номер вне списка или ключи, не подстроенные под список, ничего не удаляют: стереть чужой шаблон хуже, чем не стереть
+    func test07_OutOfRangeOrUnmatchedRemoveNothing() {
         var r = rows(2); var k = matched(2); let ids = k.displayKeys(count: 2)
         k.remove(atOffsets: [1, 2], from: &r)
         XCTAssertEqual(titles(r), ["Шаблон 0", "Шаблон 1"])
         XCTAssertEqual(k.displayKeys(count: 2), ids)
+        var other = matched(3)
+        other.remove(atOffsets: [0], from: &r)
+        XCTAssertEqual(titles(r), ["Шаблон 0", "Шаблон 1"])
     }
 }
 
@@ -112,8 +115,9 @@ final class APIBodyTests: XCTestCase {
 
     /// Корректное тело записывается так же, как раньше JSONSerialization.data — сервер получает те же байты
     func test01_ValidBodyUnchanged() throws {
-        XCTAssertEqual(try JSONSerialization.checkedData(order), try JSONSerialization.data(withJSONObject: order))
-        XCTAssertEqual(try JSONSerialization.checkedData(order, options: [.sortedKeys]), try JSONSerialization.data(withJSONObject: order, options: [.sortedKeys]))
+        let small: [String: Any] = ["qty": 2, "name": "Футболка", "ok": true, "price": 1990.5, "none": NSNull(), "tags": ["a"]]
+        XCTAssertEqual(String(decoding: try JSONSerialization.checkedData(small, options: [.sortedKeys]), as: UTF8.self),
+                       #"{"name":"Футболка","none":null,"ok":true,"price":1990.5,"qty":2,"tags":["a"]}"#)
         let req = try API.shared.request("POST", "orders", body: order, query: [:])
         XCTAssertEqual(req.httpMethod, "POST")
         XCTAssertEqual(req.value(forHTTPHeaderField: "Content-Type"), "application/json")
@@ -126,7 +130,7 @@ final class APIBodyTests: XCTestCase {
     func test02_InvalidValuesThrowTypedError() {
         struct Custom {}
         let bad: [(String, Any)] = [("NaN", Double.nan), ("бесконечность", Double.infinity), ("минус бесконечность", -Double.infinity),
-                                    ("дата", Date()), ("адрес", URL(string: "https://example.com")!), ("данные", Data([1, 2])),
+                                    ("дата", Date()), ("адрес", URL(fileURLWithPath: "/tmp")), ("данные", Data([1, 2])),
                                     ("свой тип", Custom()), ("ключ не строка", [1: "x"]), ("вложенный NaN", ["lines": [["qty": Double.nan]]])]
         for (name, v) in bad {
             XCTAssertThrowsError(try JSONSerialization.checkedData(["value": v]), name) { XCTAssertTrue(isInvalidBody($0), "\(name): \($0)") }

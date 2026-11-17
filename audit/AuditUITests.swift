@@ -770,6 +770,7 @@ final class AuditUITests: XCTestCase {
         ctl("on?scope=all")
         tap("Повторить")
         XCTAssertTrue(waitGone(failed, 20), "После «Повторить» ошибка журнала не ушла")
+        XCTAssertTrue(app.cells.firstMatch.waitForExistence(timeout: 10), "После «Повторить» записей журнала нет (вход владельца в нём есть всегда)")
         shot("16а журнал — после «Повторить»")
         // б) состояние ключа ЮKassa: раньше строка состояния молча пропадала (ключ не меняется — запрос без тела)
         ctl("off?scope=admin/payment-secret")
@@ -777,6 +778,7 @@ final class AuditUITests: XCTestCase {
         let keyErr = text("Не удалось узнать, сохранён ли ключ")
         if !keyErr.waitForExistence(timeout: 25) { scrollTo(keyErr, max: 10) }
         XCTAssertTrue(keyErr.exists, "Ошибка состояния ключа не показана")
+        scrollTo(keyErr)
         shot("16б ключ оплаты — нет связи")
         ctl("on?scope=all")
         tap("Повторить")
@@ -797,24 +799,19 @@ final class AuditUITests: XCTestCase {
         tap("Повторить")
         XCTAssertTrue(text("База данных").waitForExistence(timeout: 20), "После «Повторить» состояние магазина не загрузилось")
         shot("16в состояние магазина — после «Повторить»")
-        // г) срок доставки на странице товара: раньше при сбое оставались сроки прежнего города
+        // г) срок доставки на странице товара: раньше при сбое оставались сроки прежнего города.
+        // Блок есть всегда: в копии магазина есть способ «СДЭК, пункт выдачи»
         ctl("off?scope=cdek/estimate")
         launch("/product/p5")
-        let ship = text("Доставка в")
-        scrollTo(ship, max: 12)
-        if ship.exists {
-            let shipErr = text("Срок доставки не загрузился")
-            if !shipErr.waitForExistence(timeout: 20) { scrollTo(shipErr, max: 4) }
-            XCTAssertTrue(shipErr.exists, "Ошибка срока доставки не показана")
-            shot("16г срок доставки — нет связи")
-            ctl("on?scope=all")
-            tap("Повторить")
-            XCTAssertTrue(waitGone(shipErr, 20), "После «Повторить» ошибка срока доставки не ушла")
-            shot("16г срок доставки — после «Повторить»")
-        } else {
-            note("16г: блока «Доставка в…» нет — в копии магазина нет способов доставки СДЭК; проверка срока не выполнялась")
-            shot("16г страница товара без блока доставки")
-        }
+        let shipErr = text("Срок доставки не загрузился")
+        if !shipErr.waitForExistence(timeout: 20) { scrollTo(shipErr, max: 12) }
+        XCTAssertTrue(shipErr.exists, "Ошибка срока доставки не показана")
+        shot("16г срок доставки — нет связи")
+        ctl("on?scope=all")
+        tap("Повторить")
+        XCTAssertTrue(waitGone(shipErr, 20), "После «Повторить» ошибка срока доставки не ушла")
+        XCTAssertTrue(text("пункт выдачи").exists, "После «Повторить» способов доставки нет")
+        shot("16г срок доставки — после «Повторить»")
         ctl("on?scope=all")
     }
 }
