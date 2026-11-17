@@ -239,6 +239,18 @@ final class AuditUITests: XCTestCase {
         let first = XCUIScreen.main.screenshot(); usleep(400_000)
         return [first, XCUIScreen.main.screenshot()]
     }
+    /// Дождаться тоста и сразу снять экран. Рамка — из того же снимка дерева элементов, в котором тост найден (snapshot()):
+    /// на iOS 26 каждый запрос к дереву идёт ~1 с, тост виден ~2,4 с, и отдельный запрос рамки после ожидания приходил,
+    /// когда тост уже ушёл (этап E). nil — тоста не было за timeout
+    func catchToast(_ toast: XCUIElement, _ timeout: TimeInterval) -> (frame: CGRect, shots: [XCUIScreenshot])? {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            // snapshot() бросает ошибку, пока тоста нет: это «ещё не появился», ждём дальше
+            if let s = try? toast.snapshot() { return (s.frame, toastShots()) }
+            usleep(200_000)
+        }
+        return nil
+    }
     /// Тост виден человеку: место тоста на экране, пока он показан, заметно отличается от того же места, когда он ушёл.
     /// Не зависит от цветов и раздела магазина; если тост закрыт листом или клавиатурой, разницы нет
     func assertToastVisible(_ shots: [XCUIScreenshot], _ f: CGRect, _ toast: XCUIElement, _ what: String) {
@@ -769,10 +781,9 @@ final class AuditUITests: XCTestCase {
         guard pickPhotos(1, "15в") else { return }
         let toast = text("Нет соединения")
         // большое фото (≈48 Мп из теста 13) в симуляторе читается и уменьшается до ~40 с — ждём до минуты
-        guard toast.waitForExistence(timeout: 60) else { XCTFail("Сообщение об ошибке отправки фото не показано"); return }
+        guard let caught = catchToast(toast, 60) else { XCTFail("Сообщение об ошибке отправки фото не показано"); return }
         // exists верно и для закрытого другим окном элемента — сравниваем место тоста на экране с ним и без него
-        let shots = toastShots()
-        assertToastVisible(shots, toast.frame, toast, "поверх листа")
+        assertToastVisible(caught.shots, caught.frame, toast, "поверх листа")
         XCTAssertTrue(button("Добавить фото").exists, "Лист обращения закрылся — проверка не поверх листа")
         ctl("on?scope=all")
         tap("Закрыть")
@@ -795,11 +806,10 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(filled.waitForExistence(timeout: 3), "Поле ответа не найдено"); filled.tap()
         let toast2 = text("Нет соединения"), kb = app.keyboards.firstMatch
         XCTAssertTrue(kb.waitForExistence(timeout: 5), "Клавиатура не открылась — проверка не при открытой клавиатуре")
-        XCTAssertTrue(toast2.waitForExistence(timeout: 20), "Сообщение об ошибке отправки ответа не показано")
-        let shots2 = toastShots()
-        let tf = toast2.frame, kf = kb.frame
+        guard let caught2 = catchToast(toast2, 20) else { XCTFail("Сообщение об ошибке отправки ответа не показано"); return }
+        let tf = caught2.frame, kf = kb.frame
         XCTAssertLessThanOrEqual(tf.maxY, kf.minY + 1, "Тост под клавиатурой: \(tf) / \(kf)")
-        assertToastVisible(shots2, tf, toast2, "при открытой клавиатуре")
+        assertToastVisible(caught2.shots, tf, toast2, "при открытой клавиатуре")
         ctl("on?scope=all")
     }
 
