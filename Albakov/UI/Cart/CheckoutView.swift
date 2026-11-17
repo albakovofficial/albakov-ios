@@ -257,8 +257,7 @@ struct CheckoutView: View {
             Divider1()
             HStack(alignment: .firstTextBaseline) { Text("К оплате").font(Theme.font(19)); Spacer(); Text(quote["total"].int.map(Fmt.rub) ?? "—").font(Theme.font(23, .light)) }
             if let quoteError {   // сумму считает сервер; без его ответа честно показываем, что не посчитали
-                ErrorText(text: "Не удалось посчитать сумму: " + quoteError)
-                Button("Посчитать ещё раз") { Task { await recalc() } }.font(Theme.font(14, .medium)).foregroundStyle(Theme.text).frame(maxWidth: .infinity, alignment: .leading)
+                ErrorRetry(text: "Не удалось посчитать сумму: " + quoteError, button: "Посчитать ещё раз") { Task { await recalc() } }
             }
             if quote["delivery"]["pending"].bool { Text("Без доставки — её цену СДЭК посчитает после выбора города и пункта").font(Theme.font(12.5)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .leading) }
             if paidInFull { Text("Заказ полностью оплачен \(giftUsed > 0 && (quote["bonusUsed"].int ?? 0) > 0 ? "сертификатом и бонусами" : giftUsed > 0 ? "подарочным сертификатом" : "бонусами") — платить ничего не нужно.").font(Theme.font(13)).foregroundStyle(Theme.ok).frame(maxWidth: .infinity, alignment: .leading) }
@@ -332,6 +331,12 @@ struct CheckoutView: View {
         guard let m = method else { error = "Выберите способ доставки"; return }
         if (m.isPvz || m.isDoor) && shop.cdekReady && city == nil { error = "Выберите город"; return }
         if m.isPvz && shop.cdekReady && point == nil { error = "Выберите пункт выдачи"; return }
+        // Без посчитанной суммы заказ не отправляем: покупатель должен видеть, сколько платит, а заказ —
+        // уйти с теми скидками и сертификатом, что на экране (ревью этапа B)
+        guard quote["total"].exists else {
+            error = quoteError.map { "Сумма не посчитана: \($0) Нажмите «Посчитать ещё раз»." } ?? "Считаем сумму — нажмите ещё раз через секунду."
+            return
+        }
         guard !busy else { return }
         // Кнопка блокируется сразу, до проверки возраста: двойное нажатие не отправит заказ дважды (1.0.2)
         busy = true; defer { busy = false }

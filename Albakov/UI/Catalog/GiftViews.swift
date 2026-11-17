@@ -180,6 +180,9 @@ struct GiftView: View {
             let id = r["order"]["id"].str
             OrderTokens.save(id, r["token"].str)
             router.reset(.account, to: [.orders, .order(id)])   // 1.0.3: оплата — кнопкой на странице заказа
+        } catch let e as APIError where e.status == 0 {
+            // связь пропала: покупка могла успеть оформиться — повтор с тем же ключом вернёт её же (Q-1)
+            self.error = "Связь прервалась. Нажмите кнопку ещё раз — если сертификат уже оформлен, мы просто откроем его, второго не будет."; Haptic.error()
         } catch { self.error = error.userMessage; Haptic.error() }
     }
     private func check() async {

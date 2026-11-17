@@ -794,7 +794,7 @@ struct AdminTicketView: View {
                         Button(x["title"].str) { draft = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? x["text"].str : draft + "\n\n" + x["text"].str }
                             .font(Theme.font(12.5)).foregroundStyle(Theme.text).padding(.horizontal, 12).frame(height: 32).background(Capsule().fill(.white)).overlay(Capsule().strokeBorder(Theme.line))
                     }
-                    Button("Шаблоны…") { editTemplates = true }.disabled(!templatesLoaded).font(Theme.font(12.5)).foregroundStyle(Theme.muted).padding(.horizontal, 12).frame(height: 32)
+                    Button(templatesLoaded ? "Шаблоны…" : "Загрузить шаблоны") { if templatesLoaded { editTemplates = true } else { Task { await loadTemplates() } } }.font(Theme.font(12.5)).foregroundStyle(Theme.muted).padding(.horizontal, 12).frame(height: 32)
                         .overlay(Capsule().strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                     Toggle(isOn: $note) { Text("Заметка").font(Theme.font(12.5, .medium)) }.toggleStyle(.button).tint(Theme.warn).controlSize(.small)
                 }.padding(.horizontal, 12)
@@ -843,7 +843,9 @@ struct AdminTicketView: View {
             guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
             if t.exists { Toast.shared.show(m) } else { loadError = m }   // переписка уже на экране — оставляем её
         }
-        guard !templatesLoaded else { return }
+        if !templatesLoaded { await loadTemplates() }
+    }
+    private func loadTemplates() async {
         do { templates = try await API.shared.json("GET", "admin/support")["templates"].array; templatesLoaded = true }
         catch { if let m = error.userMessage { Toast.shared.show("Шаблоны ответов не загрузились: " + m) } }
     }

@@ -582,44 +582,54 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(text("Цвета, фото и остатки").waitForExistence(timeout: 25), "Карточка товара не открылась")
         let del = ["Удалить", "Удалить строку", "Закрыть", "Close", "xmark"]
         let sizes = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Размер"))
-        // русская раскладка: только кириллица
-        for (round, typed) in [(1, "ЦА"), (2, "ЦБ")] {
+        func size(_ v: String) -> XCUIElement { app.textFields.matching(NSPredicate(format: "value == %@", v)).firstMatch }
+        // Два новых размера (только кириллица — раскладка русская). Курсор — в нижнем, удаляем верхний.
+        // При строках по номеру поле в фокусе исчезало вместе с последним номером, а соседнее показывало чужие данные (Q-2)
+        for _ in 1...2 {
             let plus = lastButton(["+ Размер"]); scrollTo(plus)
             guard plus.exists else { XCTFail("Нет кнопки «+ Размер»"); return }
             plus.tap(); sleep(1)
-            let f = sizes.element(boundBy: sizes.count - 1); scrollTo(f)
-            f.tap(); f.typeText(typed)
-            shot("14.\(round) поле нового размера в фокусе")
-            guard let x = button(inRowOf: f, del) else { XCTFail("Нет кнопки удаления размера"); return }
-            x.tap(); sleep(1)
-            XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления размера (круг \(round))")
-            XCTAssertFalse(app.textFields.matching(NSPredicate(format: "value == %@", typed)).firstMatch.exists, "Удалённый размер остался на экране")
-            // правка соседнего размера: текст попадает именно в него
-            let g = sizes.element(boundBy: sizes.count - 1); scrollTo(g)
-            let before = append(g, "Ж")
-            shot("14.\(round) после удаления и правки соседнего размера")
-            XCTAssertEqual(g.value as? String, before + "Ж", "Правка ушла не в соседний размер (круг \(round))")
         }
+        let a = sizes.element(boundBy: sizes.count - 2); scrollTo(a)
+        a.tap(); a.typeText("ЦА"); hideKeyboard()
+        let b = sizes.element(boundBy: sizes.count - 1); scrollTo(b)
+        b.tap(); b.typeText("ЦБ")   // клавиатура открыта, курсор в нижнем размере
+        shot("14.1 два новых размера, курсор в нижнем")
+        guard let x = button(inRowOf: size("ЦА"), del) else { XCTFail("Нет кнопки удаления размера"); return }
+        if x.isHittable { x.tap() } else { x.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+        sleep(1)
+        XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления размера")
+        XCTAssertFalse(size("ЦА").exists, "Удалённый размер остался на экране")
+        XCTAssertTrue(size("ЦБ").exists, "Соседний размер пропал или изменился")
+        // нижнее поле осталось в фокусе — ввод продолжается именно в нём
+        size("ЦБ").typeText("Ж")
+        XCTAssertTrue(size("ЦБЖ").exists, "Ввод ушёл не в соседний размер")
+        hideKeyboard()
+        shot("14.1 после удаления верхнего размера и ввода в нижний")
         launch("/admin?s=payment")
         let addPickup = button("+ Самовывоз"); scrollTo(addPickup, max: 30)
         guard addPickup.waitForExistence(timeout: 20) else { XCTFail("Нет кнопки «+ Самовывоз»"); return }
-        addPickup.tap(); sleep(1)
+        addPickup.tap(); sleep(1); scrollTo(addPickup); addPickup.tap(); sleep(1)
         let descs = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Например, 1–2 дня, с примеркой"))
         let names = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Например, Курьер по Москве"))
-        let f = descs.element(boundBy: descs.count - 1); scrollTo(f)
-        f.tap(); f.typeText("ПРОВЕРКА")
-        shot("14.3 поле нового способа доставки в фокусе")
-        let name = names.element(boundBy: names.count - 1)
-        guard let x = button(above: name, del) else { XCTFail("Нет кнопки удаления способа доставки"); return }
-        x.tap()
+        func desc(_ v: String) -> XCUIElement { app.textFields.matching(NSPredicate(format: "value == %@", v)).firstMatch }
+        let up = descs.element(boundBy: descs.count - 2); scrollTo(up)
+        up.tap(); up.typeText("ПЕРВЫЙ"); hideKeyboard()
+        let low = descs.element(boundBy: descs.count - 1); scrollTo(low)
+        low.tap(); low.typeText("ВТОРОЙ")
+        shot("14.2 два новых способа доставки, курсор в нижнем")
+        let upName = names.element(boundBy: names.count - 2); scrollTo(upName)
+        guard let x2 = button(above: upName, del) else { XCTFail("Нет кнопки удаления способа доставки"); return }
+        x2.tap()
         let yes = app.sheets.buttons["Удалить"].exists ? app.sheets.buttons["Удалить"] : app.buttons.matching(NSPredicate(format: "label == 'Удалить'")).firstMatch
         XCTAssertTrue(yes.waitForExistence(timeout: 5), "Нет подтверждения удаления"); yes.tap(); sleep(1)
         XCTAssertEqual(app.state, .runningForeground, "Панель закрылась после удаления способа доставки")
-        XCTAssertFalse(app.textFields.matching(NSPredicate(format: "value == %@", "ПРОВЕРКА")).firstMatch.exists, "Удалённый способ остался на экране")
-        let g = descs.element(boundBy: descs.count - 1); scrollTo(g)
-        let before = append(g, "Ж")
-        shot("14.3 после удаления и правки соседнего способа")
-        XCTAssertEqual(g.value as? String, before + "Ж", "Правка ушла не в соседний способ доставки")
+        XCTAssertFalse(desc("ПЕРВЫЙ").exists, "Удалённый способ остался на экране")
+        XCTAssertTrue(desc("ВТОРОЙ").exists, "Соседний способ доставки пропал или изменился")
+        let g = desc("ВТОРОЙ"); scrollTo(g)
+        append(g, "Ж")
+        shot("14.2 после удаления верхнего способа и правки нижнего")
+        XCTAssertTrue(desc("ВТОРОЙЖ").exists, "Правка ушла не в соседний способ доставки")
         app.terminate()   // выходим без сохранения
     }
 
@@ -670,5 +680,21 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(button("Добавить фото").exists, "Лист обращения закрылся — проверка не поверх листа")
         ctl("on?scope=all")
         tap("Закрыть")
+        // г) тост при открытой клавиатуре: ответ в переписке не отправился — сообщение не прячется под клавиатурой
+        XCTAssertTrue(tap("Написать в поддержку"))
+        let body = app.textViews.firstMatch   // многострочное поле — в XCUITest это textView
+        guard body.waitForExistence(timeout: 10) else { XCTFail("Нет поля сообщения"); return }
+        scrollTo(body); body.tap(); body.typeText("Проверка сообщений"); hideKeyboard()
+        XCTAssertTrue(tap("Отправить"))
+        let composer = app.textViews.firstMatch
+        guard composer.waitForExistence(timeout: 20) else { XCTFail("Переписка не открылась"); return }
+        sleep(2); composer.tap(); composer.typeText("Ещё вопрос")   // клавиатура открыта
+        ctl("off?scope=support")
+        let send = app.buttons.matching(NSPredicate(format: "label == 'Отправить'")).firstMatch
+        XCTAssertTrue(send.waitForExistence(timeout: 5), "Нет кнопки «Отправить»"); send.tap()
+        let toast2 = text("Нет соединения")
+        XCTAssertTrue(toast2.waitForExistence(timeout: 20), "Сообщение об ошибке отправки ответа не показано")
+        shot("15г ошибка при открытой клавиатуре")
+        ctl("on?scope=all")
     }
 }

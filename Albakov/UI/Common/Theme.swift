@@ -473,6 +473,19 @@ struct ErrorText: View {
     }
 }
 
+/// Ошибка загрузки внутри экрана (Q-3): причина и кнопка повтора — вместо пустого места или «0 ₽»
+struct ErrorRetry: View {
+    let text: String
+    var button = "Повторить"
+    let retry: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ErrorText(text: text)
+            Button(button, action: retry).font(Theme.font(14, .medium)).foregroundStyle(Theme.text)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// Пустой экран как на сайте: мягкая карточка, белый кружок со значком, тонкий заголовок, текст и чёрная кнопка
 struct EmptyState: View {
     let icon: String, title: String
@@ -507,15 +520,24 @@ final class Toast: ObservableObject {
     func show(_ t: String?) { if let t, !t.isEmpty { show(t) } }
     func show(_ t: String) {
         task?.cancel(); text = t
-        task = Task { @MainActor in try? await Task.sleep(nanoseconds: 2_400_000_000); if !Task.isCancelled { self.text = nil } }
+        task = Task { @MainActor in
+            ToastWindow.setVisible(true)
+            // отмена сна — это новый тост вместо этого: он сам решит, когда спрятать окно
+            try? await Task.sleep(nanoseconds: 2_400_000_000); guard !Task.isCancelled else { return }
+            self.text = nil
+            try? await Task.sleep(nanoseconds: 500_000_000); guard !Task.isCancelled else { return }   // тост уходит с анимацией
+            ToastWindow.setVisible(false)
+        }
     }
 }
 
 /// Тосты — в отдельном окне поверх всех листов и полноэкранных окон (Q-4). Раньше ToastView был частью корневого
 /// экрана, и открытый лист закрывал сообщение: например, об ошибке отправки фото в обращении. Окно не принимает
-/// касаний — они проходят к приложению под ним. Ограничение размера шрифта — как у всего приложения (AlbakovApp)
+/// касаний — они проходят к приложению под ним. Показывается только пока виден тост (ревью этапа B), чтобы
+/// постоянное верхнее окно не влияло на строку состояния. Ограничение размера шрифта — как у всего приложения
 @MainActor enum ToastWindow {
     private static var window: UIWindow?
+    static func setVisible(_ on: Bool) { window?.isHidden = !on }
     static func install() {
         guard window == nil, let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
         let w = UIWindow(windowScene: scene)
@@ -524,7 +546,7 @@ final class Toast: ObservableObject {
         w.rootViewController = host
         w.windowLevel = .alert + 1
         w.isUserInteractionEnabled = false
-        w.isHidden = false
+        w.isHidden = true
         window = w
     }
 }

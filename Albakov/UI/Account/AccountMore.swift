@@ -17,8 +17,7 @@ struct BonusView: View {
             }
             Section("История") {
                 if log.isEmpty, let logError {   // история не загрузилась (Q-3) — не «пока нет начислений»
-                    ErrorText(text: "История не загрузилась: " + logError)
-                    Button("Повторить") { Task { await load() } }.font(Theme.font(15, .medium)).foregroundStyle(Theme.text)
+                    ErrorRetry(text: "История не загрузилась: " + logError) { Task { await load() } }
                 } else if log.isEmpty { Text("Пока нет начислений").font(Theme.font(14)).foregroundStyle(Theme.muted) }
                 ForEach(Array(log.enumerated()), id: \.offset) { _, e in
                     let a = e["amount"].int ?? 0
@@ -167,6 +166,8 @@ struct NotificationsView: View {
     /// нажатый поверх незагруженного (пустого) набора, выключил бы все остальные уведомления (Q-3)
     @State private var prefsLoaded = false
     @State private var prefsError: String?
+    /// Идёт сохранение: переключатели ждут ответа — два одновременных сохранения целого набора могли бы разойтись с экраном
+    @State private var saving = false
     private let kinds = [("orders", "Заказы", "В пути, ждёт в пункте выдачи, напоминание забрать"), ("support", "Ответы поддержки", "Когда мы ответили на ваш вопрос"),
                          ("returns", "Обмен и возврат", "Новый размер отправлен, деньги вернулись"), ("stock", "Снова в наличии", "Размер, о котором вы просили сообщить"),
                          ("bonus", "Бонусы", "Начисления на бонусный счёт"), ("promo", "Акции и новинки", "Редко и только о важном — по желанию")]
@@ -185,14 +186,11 @@ struct NotificationsView: View {
                 }
             }
             Section("Что присылать") {
-                if let prefsError, !prefsLoaded {
-                    ErrorText(text: "Настройки не загрузились: " + prefsError)
-                    Button("Повторить") { Task { await loadPrefs() } }.font(Theme.font(15, .medium)).foregroundStyle(Theme.text)
-                }
+                if let prefsError, !prefsLoaded { ErrorRetry(text: "Настройки не загрузились: " + prefsError) { Task { await loadPrefs() } } }
                 ForEach(kinds.filter { $0.0 != "bonus" || shop.settings.bonusEnabled }, id: \.0) { k in
                     Toggle(isOn: Binding(get: { prefs[k.0] ?? false }, set: { on in prefs[k.0] = on; Task { await save(k.0, was: !on) } })) {
                         VStack(alignment: .leading, spacing: 2) { Text(k.1).font(Theme.font(15)); Text(k.2).font(Theme.font(12.5)).foregroundStyle(Theme.muted) }
-                    }.tint(Theme.ink).disabled(!prefsLoaded)
+                    }.tint(Theme.ink).disabled(!prefsLoaded || saving)
                 }
             }
         }
@@ -205,6 +203,7 @@ struct NotificationsView: View {
     }
     /// Не сохранилось — переключатель возвращается как был, причина — сообщением
     private func save(_ kind: String, was: Bool) async {
+        saving = true; defer { saving = false }
         do { _ = try await API.shared.raw("PUT", "me/push", body: ["prefs": prefs]) }
         catch { prefs[kind] = was; Toast.shared.show(error.userMessage) }
     }

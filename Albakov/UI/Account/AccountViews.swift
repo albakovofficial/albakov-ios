@@ -7,8 +7,10 @@ struct AccountView: View {
     @State private var tab = "orders"
     @State private var orders: [Order] = []
     @State private var bonusLog: [JSON] = []
-    /// Заказы и история бонусов не загрузились (Q-3): вместо «пока нет заказов» — причина и «Повторить»
-    @State private var loadError: String?
+    /// Заказы или история бонусов не загрузились (Q-3): вместо «пока нет» — причина и «Повторить». Ошибки раздельные:
+    /// сбой одного запроса не должен выдавать себя за пустоту или ошибку другого (ревью этапа B)
+    @State private var ordersError: String?
+    @State private var bonusError: String?
     @State private var confirmLogout = false
     @State private var payURL: URL?
 
@@ -124,7 +126,7 @@ struct AccountView: View {
                 LoyalCard().padding(.vertical, 10)
                 Text("Начисляем \(shop.settings.bonusPercent)% с каждой покупки" + (shop.settings.bonusOnlineExtra > 0 ? " и ещё \(shop.settings.bonusOnlineExtra)% при оплате онлайн" : "") + ". 1 бонус = 1 ₽ — списать можно при оформлении следующего заказа.")
                     .font(Theme.font(14.5)).foregroundStyle(Theme.muted)
-                if bonusLog.isEmpty { if let loadError { ErrorText(text: "История не загрузилась: " + loadError) } else { Text("Пока нет начислений").font(Theme.font(14)).foregroundStyle(Theme.muted) } }
+                if bonusLog.isEmpty { if let bonusError { ErrorRetry(text: "История не загрузилась: " + bonusError) { Task { await load() } } } else { Text("Пока нет начислений").font(Theme.font(14)).foregroundStyle(Theme.muted) } }
                 VStack(spacing: 0) {
                     ForEach(Array(bonusLog.enumerated()), id: \.offset) { _, e in
                         let a = e["amount"].int ?? 0
@@ -137,8 +139,8 @@ struct AccountView: View {
                 }
             }
         default:
-            if orders.isEmpty, let loadError {
-                EmptyState.loadFailed(loadError) { Task { await load() } }.padding(.horizontal, -Theme.gutter)
+            if orders.isEmpty, let ordersError {
+                EmptyState.loadFailed(ordersError) { Task { await load() } }.padding(.horizontal, -Theme.gutter)
             } else if orders.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     IconTile(icon: "bag", size: 44, fill: .white, tint: Theme.accent).padding(.bottom, 4)
@@ -161,12 +163,12 @@ struct AccountView: View {
         do {
             orders = try await API.shared.json("GET", "orders")["orders"].array.map(Order.init)
             orders.forEach { shop.returnExpired($0) }
-            bonusLog = try await API.shared.json("GET", "me")["bonusLog"].array
-            loadError = nil
+            ordersError = nil
         } catch {
-            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
-            if orders.isEmpty { loadError = m } else { Toast.shared.show(m) }   // заказы уже на экране — оставляем их
+            if let m = error.userMessage { if orders.isEmpty { ordersError = m } else { Toast.shared.show(m) } }   // заказы уже на экране — оставляем их
         }
+        do { bonusLog = try await API.shared.json("GET", "me")["bonusLog"].array; bonusError = nil }
+        catch { if let m = error.userMessage, bonusLog.isEmpty { bonusError = m } }   // история уже на экране — оставляем её
     }
 }
 

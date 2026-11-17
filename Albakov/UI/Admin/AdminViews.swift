@@ -340,6 +340,9 @@ struct AdminPushView: View {
     @State private var testing = false
     @State private var testMsg: String?
     @State private var prefs: [String: Bool] = [:]
+    @State private var prefsError: String?
+    /// Идёт сохранение: переключатели ждут ответа — два одновременных сохранения целого набора могли бы разойтись с экраном
+    @State private var saving = false
     @State private var title = ""
     @State private var text = ""
     @State private var link = "/catalog"
@@ -370,10 +373,11 @@ struct AdminPushView: View {
                 if r.exists && !r["apnsReady"].bool { Text("Ключ Apple для уведомлений ещё не добавлен — пока его нет, уведомления в приложение не приходят. Владелец добавляет его на сайте: Панель → Push-уведомления → «Приложение iPhone».").font(Theme.font(12)).foregroundStyle(Theme.danger) }
             }
             Section("Что присылать мне") {
+                if let prefsError, prefs.isEmpty { ErrorRetry(text: "Настройки не загрузились: " + prefsError) { Task { await load() } } }
                 ForEach(prefs.keys.sorted { (names[$0]?.0 ?? $0) < (names[$1]?.0 ?? $1) }, id: \.self) { k in
                     Toggle(isOn: Binding(get: { prefs[k] ?? false }, set: { on in prefs[k] = on; Task { await savePref(k, was: !on) } })) {
                         VStack(alignment: .leading, spacing: 2) { Text(names[k]?.0 ?? k).font(Theme.font(15)); if let s = names[k]?.1, !s.isEmpty { Text(s).font(Theme.font(12)).foregroundStyle(Theme.muted) } }
-                    }.tint(Theme.ink)
+                    }.tint(Theme.ink).disabled(saving)
                 }
             }
             if let aud = r["audience"].int {
@@ -395,12 +399,14 @@ struct AdminPushView: View {
     }
     /// Не сохранилось — переключатель возвращается как был, причина — сообщением (Q-3)
     private func savePref(_ k: String, was: Bool) async {
+        saving = true; defer { saving = false }
         do { _ = try await API.shared.raw("PUT", "admin/push", body: ["prefs": prefs]) }
         catch { prefs[k] = was; Toast.shared.show(error.userMessage) }
     }
     private func load() async {
         push.refreshStatus(); push.resend()
-        if let j = try? await API.shared.json("GET", "admin/push") { r = j; prefs = j["prefs"].dict.mapValues(\.bool) }
+        do { let j = try await API.shared.json("GET", "admin/push"); r = j; prefs = j["prefs"].dict.mapValues(\.bool); prefsError = nil }
+        catch { if let m = error.userMessage { prefsError = m } }
     }
     private var deviceOk: Bool { (push.status == .authorized || push.status == .provisional) && push.endpoint != nil && r["apnsReady"].bool }
     private var deviceTitle: String {

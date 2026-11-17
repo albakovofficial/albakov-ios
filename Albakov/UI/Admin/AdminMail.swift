@@ -7,6 +7,7 @@ struct AdminMail: View {
     @ObservedObject private var admin = Admin.shared
     @State private var tab = "letters"
     @State private var mail = JSON(nil)
+    @State private var mailError: String?
     var body: some View {
         let waiting = admin.data["waitlist"].array.filter { ["waiting", "failed"].contains($0["status"].str) }.count
         List {
@@ -18,7 +19,11 @@ struct AdminMail: View {
             switch tab {
             case "alerts": MailAlerts()
             case "notify": MailNotify(mailReady: mail["ready"].bool)
-            case "smtp": MailSmtp(mail: mail) { Task { await load() } }
+            case "smtp":
+                // форма — только поверх загруженных настроек: иначе «Сохранить» затёр бы имя отправителя и адрес для ответов пустыми (Q-3)
+                if mail.exists { MailSmtp(mail: mail) { Task { await load() } } }
+                else if let mailError { Section { ErrorRetry(text: "Настройки почты не загрузились: " + mailError) { Task { await load() } } } }
+                else { Section { ProgressView().frame(maxWidth: .infinity) } }
             default: MailLetters()
             }
         }
@@ -27,7 +32,10 @@ struct AdminMail: View {
         .task { if !admin.data.exists { await admin.load() }; await load() }
         .refreshable { await admin.load(); await load() }
     }
-    private func load() async { if let r = try? await API.shared.json("GET", "admin/mail") { mail = r["mail"] } }
+    private func load() async {
+        do { mail = try await API.shared.json("GET", "admin/mail")["mail"]; mailError = nil }
+        catch { if let m = error.userMessage { mailError = m } }
+    }
 }
 
 /// Все письма, которые сайт отправляет сам: тема, кому, когда; посмотреть и отправить пример

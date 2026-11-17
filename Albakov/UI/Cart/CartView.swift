@@ -38,8 +38,7 @@ struct CartView: View {
             Divider1()
             HStack { Text("Итого").font(Theme.font(19)); Spacer(); Text(sub.map(Fmt.rub) ?? "—").font(Theme.font(21, .light)) }
             if let quoteError {   // сумму считает сервер; без его ответа честно показываем, что не посчитали
-                ErrorText(text: "Не удалось посчитать сумму: " + quoteError)
-                Button("Посчитать ещё раз") { Task { await recalc() } }.font(Theme.font(14, .medium)).foregroundStyle(Theme.text)
+                ErrorRetry(text: "Не удалось посчитать сумму: " + quoteError, button: "Посчитать ещё раз") { Task { await recalc() } }
             }
             if let b = quote["bonusEarn"].int, b > 0 {
                 HStack(spacing: 8) {
