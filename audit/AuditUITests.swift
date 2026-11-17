@@ -264,6 +264,25 @@ final class AuditUITests: XCTestCase {
         f.typeText(text); hideKeyboard(); sleep(1)
         return before
     }
+    /// Ждать, пока в обращении будет n фото и не останется ни одного индикатора загрузки (фото обработаны и отправлены).
+    /// Возвращает, чем кончилось ожидание, — для заметки и текста ошибки. Каждое новое фото продлевает ожидание;
+    /// без нового фото дольше stall секунд — сбой. Индикаторов нет, а фото меньше n — обработка кончилась без части фото
+    func waitPhotos(_ photos: XCUIElementQuery, _ n: Int, stall: TimeInterval) -> String {
+        let start = Date()
+        var last = Date(), seen = -1, idleSince: Date?
+        while true {
+            let count = photos.count, busy = app.activityIndicators.count > 0, t = Int(Date().timeIntervalSince(start))
+            if count != seen { seen = count; last = Date() }
+            if count == n && !busy { return "все \(n) фото за \(t) с" }
+            if !busy && count < n {
+                // индикатор пропадает и между фото на мгновение — конец обработки засчитываем через 3 с без него
+                if let s = idleSince { if Date().timeIntervalSince(s) > 3 { return "обработка закончилась, а фото \(count) из \(n) (\(t) с)" } }
+                else { idleSince = Date() }
+            } else { idleSince = nil }
+            if Date().timeIntervalSince(last) > stall { return "за \(Int(stall)) с без нового фото: \(count) из \(n), обработка \(busy ? "идёт" : "стоит") (\(t) с)" }
+            usleep(500_000)
+        }
+    }
     /// Отметка времени для замера памяти: audit.yml пишет память приложения раз в полсекунды и считает пик между отметками
     func mark(_ label: String) {
         let s = "MEMMARK \(label) \(Int(Date().timeIntervalSince1970))"
@@ -597,12 +616,14 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 5), "Нет кнопки подтверждения выбора")
         done.tap()
         let removes = app.buttons.matching(NSPredicate(format: "label == 'Убрать фото'"))
-        var t = 0
-        while removes.count < 5 && t < 60 { sleep(1); t += 1 }
-        sleep(10)   // загрузка на сервер
+        // Ждём событие, а не время (этап D): все 5 фото в обращении и ни одного индикатора — обработка и отправка закончились.
+        // Пока фото появляются, ждём дальше; без нового фото дольше 90 с — сбой (на медленном Mac этапа C одно фото шло ~57 с).
+        // Обработка кончилась, а фото меньше 5 — часть потерялась: падаем сразу, с числом
+        let waited = waitPhotos(removes, 5, stall: 90)
+        note("13: \(waited)")
         mark("photos-loaded")
         shot("13 пять фото в обращении")
-        XCTAssertEqual(removes.count, 5, "В обращении не 5 фото")
+        XCTAssertEqual(removes.count, 5, "В обращении не 5 фото: \(waited)")
         XCTAssertEqual(app.state, .runningForeground, "Приложение закрылось при добавлении 5 больших фото")
         // убрать все фото, затем закрыть окно — память должна вернуться
         var k = 0
