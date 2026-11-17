@@ -35,9 +35,11 @@ final class FinanceEngine: ObservableObject {
     }
     func report(_ input: [String: Any], kind: String, shift: Int, from: String, to: String) -> JSON {
         guard let ctx else { return JSON(nil) }
-        // данные панели пришли с сервера в JSON и обратно записываются всегда; иначе — причина вместо пустого отчёта
+        // данные панели пришли с сервера в JSON и обратно записываются всегда; иначе — причина вместо пустого отчёта.
+        // Ошибка относится к последнему расчёту: удачный расчёт её убирает (ошибку модуля ставит exceptionHandler уже после)
         let d: Data
-        do { d = try JSONSerialization.checkedData(input) } catch { self.error = error.localizedDescription; return JSON(nil) }
+        do { d = try JSONSerialization.checkedData(input); error = nil }
+        catch { self.error = "Отчёт не посчитан: данные панели не подготовились. Обновите их — потяните экран вниз."; return JSON(nil) }
         let s = ctx.objectForKeyedSubscript("finReport").call(withArguments: [String(decoding: d, as: UTF8.self), kind, shift, from, to])?.toString() ?? ""
         return JSON(data: Data(s.utf8))
     }

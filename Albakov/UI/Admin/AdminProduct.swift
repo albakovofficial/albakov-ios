@@ -607,14 +607,17 @@ struct ProductsBulkView: View {
             let u = FileManager.default.temporaryDirectory.appendingPathComponent("ostatki.csv"); try d.write(to: u); exportURL = u
         } catch { Toast.shared.show(error.userMessage) }
     }
-    /// Файл, который не открылся (не скачан из iCloud, нет доступа), раньше молча пропускался (аудит Q-B1)
+    /// Файл, который не открылся (не скачан из iCloud, нет доступа), раньше молча пропускался (аудит Q-B1).
+    /// Текст нового файла заменяет прежний только вместе с его проверкой: иначе при сбое проверки на экране
+    /// остался бы список изменений прежнего файла, а «Применить» отправил бы новый, которого никто не видел (ревью этапа C)
     private func importCsv(_ r: Result<URL, Error>) async {
         do {
             let u = try r.get()
             let ok = u.startAccessingSecurityScopedResource(); defer { if ok { u.stopAccessingSecurityScopedResource() } }
             let d = try Data(contentsOf: u)
-            csvText = String(data: d, encoding: .utf8) ?? String(data: d, encoding: .windowsCP1251) ?? ""
-            preview = try await AdminAPI.post("products/stock", ["csv": csvText, "dry": true])
+            let text = String(data: d, encoding: .utf8) ?? String(data: d, encoding: .windowsCP1251) ?? ""
+            preview = try await AdminAPI.post("products/stock", ["csv": text, "dry": true])
+            csvText = text
         } catch { Toast.shared.show(error.userMessage) }
     }
     private func applyCsv() async {

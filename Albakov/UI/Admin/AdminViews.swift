@@ -446,21 +446,20 @@ struct AdminAuditView: View {
     @State private var q = ""
     @State private var loadError: String?
     var body: some View {
-        Group {
-            // Ошибка — вместо списка: иначе на экране остались бы записи прежнего поиска, будто это ответ на новый (аудит Q-B1)
-            if let e = loadError { EmptyState.loadFailed(e) { Task { await load() } } }
+        List {
+            // Ошибка — вместо записей: иначе на экране остались бы записи прежнего поиска, будто это ответ на новый (аудит Q-B1).
+            // Внутри того же List: строка поиска и клавиатура не пересоздаются, если ошибка придёт во время набора
+            if let e = loadError { EmptyState.loadFailed(e) { Task { await load() } }.listRowSeparator(.hidden) }
             else {
-                List {
-                    ForEach(Array(items.enumerated()), id: \.offset) { _, x in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(x["text"].str).font(Theme.font(14))
-                            Text([x["name"].string ?? "Система", x["role"].str, Fmt.date(ISO.date(x["at"].str), time: true)].filter { !$0.isEmpty }.joined(separator: " · ")).font(Theme.font(11.5)).foregroundStyle(Theme.dim)
-                        }.padding(.vertical, 3)
-                    }
+                ForEach(Array(items.enumerated()), id: \.offset) { _, x in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(x["text"].str).font(Theme.font(14))
+                        Text([x["name"].string ?? "Система", x["role"].str, Fmt.date(ISO.date(x["at"].str), time: true)].filter { !$0.isEmpty }.joined(separator: " · ")).font(Theme.font(11.5)).foregroundStyle(Theme.dim)
+                    }.padding(.vertical, 3)
                 }
-                .listStyle(.plain)
             }
         }
+        .listStyle(.plain)
         .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Номер заказа, товар, слово")
         .navigationTitle("Журнал действий").navigationBarTitleDisplayMode(.inline)
         .task(id: q) {

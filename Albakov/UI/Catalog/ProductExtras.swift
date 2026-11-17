@@ -428,7 +428,8 @@ struct ShipEstimate: View {
     }
     private func load() async {
         let c = code   // «Повторить» идёт мимо .task(id:): ответ для прежнего города, пришедший позже, не показываем
-        loading = true; defer { loading = false }
+        loading = true; loadError = nil
+        defer { if c == code { loading = false } }   // запрос для нового города ещё идёт — индикатор его
         do {
             let r = try await API.shared.json("GET", "cdek/estimate", query: ["city": String(c), "pid": product.id])["methods"].array
             guard c == code else { return }
