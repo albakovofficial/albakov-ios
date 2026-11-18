@@ -1,6 +1,5 @@
 import SwiftUI
 import PhotosUI
-import Combine
 
 // Родная панель управления для владельца и сотрудников. Разделы — по правам роли (как на сайте).
 @MainActor
@@ -9,22 +8,6 @@ final class Admin: ObservableObject {
     @Published var data = JSON(nil)
     @Published var loading = false
     @Published var error: String?
-    /// Данные панели принадлежат одному сотруднику (аудит SEC-1). Вышел, вошёл другой, права отозваны или сессия пропала —
-    /// данные стираются, а ответ admin/data, запрошенный в прежнем сеансе, отбрасывается (session сравнивается после ответа).
-    /// Следим за покупателем в Shop отсюда, а не наоборот: ядро не должно знать об экранах панели
-    private var staffId: String?
-    private var session = 0
-    private var staffWatch: AnyCancellable?
-
-    private init() {
-        staffWatch = Shop.shared.$isStaff.combineLatest(Shop.shared.$user.map { $0?.id })
-            .sink { [weak self] staff, id in self?.owner(staff ? id : nil) }
-    }
-    private func owner(_ id: String?) {
-        guard id != staffId else { return }
-        staffId = id; session += 1
-        data = JSON(nil); error = nil; loading = false
-    }
     var perms: [String] { data["perms"].array.map(\.str) }
     var roleName: String { data["roleName"].str }
     func can(_ p: String) -> Bool { perms.contains(p) }
@@ -32,18 +15,9 @@ final class Admin: ObservableObject {
     var products: [JSON] { data["products"].array }
 
     func load() async {
-        let s = session
-        loading = true; defer { if s == session { loading = false } }
-        do {
-            let d = try await API.shared.json("GET", "admin/data")["data"]
-            guard s == session else { return }   // ответ для прежнего сотрудника или после выхода — не показываем
-            data = d; error = nil
-        } catch {
-            guard s == session else { return }
-            // нет входа или прав (401, 403) — прежние данные больше не показываем; при обрыве связи они остаются на экране
-            if let e = error as? APIError, e.status == 401 || e.status == 403 { data = JSON(nil) }
-            self.error = error.userMessage
-        }
+        loading = true; defer { loading = false }
+        do { data = try await API.shared.json("GET", "admin/data")["data"]; error = nil }
+        catch { self.error = error.userMessage }
     }
 }
 
