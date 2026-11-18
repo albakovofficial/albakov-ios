@@ -58,6 +58,9 @@ jobs:
         with:
           repository: albakovofficial/albakov-shop
           ref: 1fe8b8842bc9af0be0ea6b2f5c1afacdd47a5456
+          # albakov-shop закрытый: нужен секрет SHOP_TOKEN (токен только на чтение этого репозитория, вводит владелец).
+          # Без секрета — токен задачи: его хватает, только пока albakov-shop открыт
+          token: ${{ secrets.SHOP_TOKEN || github.token }}
           path: shop
 
       - name: Выбрать Xcode 26
