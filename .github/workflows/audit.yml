@@ -118,6 +118,7 @@ jobs:
           xcrun simctl list devices | grep -E "$SMALL|$STD|$MAX"
 
       - name: Собрать приложение и тесты
+        id: build
         env:
           TSAN: ${{ inputs.tsan }}
         run: |
@@ -246,7 +247,7 @@ jobs:
 
       - name: Снимки экранов (боевые товары, только чтение)
         id: shots
-        if: ${{ !cancelled() && inputs.shots }}
+        if: ${{ !cancelled() && inputs.shots && steps.build.outcome == 'success' }}   # без сборки снимать нечего
         continue-on-error: true
         timeout-minutes: 45
         env:
