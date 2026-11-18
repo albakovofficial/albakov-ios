@@ -211,7 +211,25 @@ struct AppTabBar: View {
 
 struct DestView: View {
     let dest: Dest
+    @EnvironmentObject private var shop: Shop
+    @EnvironmentObject private var router: Router
     var body: some View {
+        if dest.isAdmin && !shop.isStaff { noAccess } else { screen }
+    }
+    /// Панель — только сотрудникам (аудит SEC-1): ссылка, push или старое уведомление после выхода её не открывают.
+    /// Пока витрина не загружена, кто вошёл, ещё неизвестно (запуск из push) — ждём загрузки, а не показываем отказ сотруднику
+    @ViewBuilder private var noAccess: some View {
+        if shop.loaded {
+            ScrollView {
+                EmptyState(icon: "lock", title: "Нет доступа", text: "Панель управления открывается только сотрудникам магазина",
+                           button: shop.user == nil ? "Войти" : nil) { router.reset(.account) }
+                    .padding(.top, 60)
+            }
+        } else {
+            ProgressView().padding(.top, 80)
+        }
+    }
+    @ViewBuilder private var screen: some View {
         switch dest {
         case .product(let id): ProductView(id: id)
         case .catalog(let cat, let tag, let sale): CatalogView(cat: cat, tag: tag, sale: sale)

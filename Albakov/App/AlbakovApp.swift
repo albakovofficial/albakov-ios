@@ -54,6 +54,15 @@ enum Dest: Hashable {
     case adminCustomers
     case adminSection(String)          // раздел панели по ключу, как ?s=… на сайте
     case adminItem(String, String)     // запись коллекции: (categories, id) …
+
+    /// Экраны панели управления — только сотрудникам (аудит SEC-1, проверка в DestView)
+    var isAdmin: Bool {
+        switch self {
+        case .admin, .adminOrders, .adminOrder, .adminSupport, .adminTicket, .adminProducts, .adminProduct,
+             .adminPush, .adminAudit, .adminCustomers, .adminSection, .adminItem: return true
+        default: return false
+        }
+    }
 }
 
 // Ссылки albakovofficial.ru (письма, push, мессенджеры), albakov://… и внутренние ссылки из слайдов
