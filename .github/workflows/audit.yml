@@ -49,10 +49,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      # Копия магазина закреплена на коммите (этап H, T-5): изменение сайта не меняет итог тестов приложения без ведома.
+      # Сейчас — 13.65.6 (main на 16.11.2026), с ним прошли полные прогоны этапов E–G.
+      # Обновлять так: взять новый SHA из albakov-shop (git log -1 main), прогнать здесь все тесты вручную с этим SHA
+      # (поле ref ниже), и только если всё прошло — записать его сюда вместе с версией сайта в комментарии.
       - name: Копия магазина (albakov-shop)
         uses: actions/checkout@v4
         with:
           repository: albakovofficial/albakov-shop
+          ref: 1fe8b8842bc9af0be0ea6b2f5c1afacdd47a5456
           path: shop
 
       - name: Выбрать Xcode 26
@@ -155,9 +160,10 @@ jobs:
           sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP"/big/*.jpg | grep -E "pixel" | head -4
           xcrun simctl addmedia "$SMALL" "$RUNNER_TEMP"/big/*.jpg
 
+      # Шаг падает, если xcodebuild завершился с ошибкой (этап H, T-1). Журналы и снимки при этом сохраняются: следующие шаги
+      # идут при !cancelled(), сохранение — always(). Итог проверяется ещё раз по xcresult последним шагом
       - name: UI-тесты покупки
         if: inputs.tests
-        continue-on-error: true
         timeout-minutes: 80   # 16 UI-тестов с этапа B идут ~45 мин на Intel-Mac — 50 минут впритык
         env:
           ONLY: ${{ inputs.only }}
@@ -170,10 +176,14 @@ jobs:
           ( while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
           # «unit» — все юнит-тесты; иначе имя UI-теста
           SEL=""; for t in $ONLY; do if [ "$t" = unit ]; then SEL="$SEL -only-testing:AlbakovUnit"; else SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; fi; done
-          xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SAN $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed|ThreadSanitizer" || true
+          set +e
+          xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SAN $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed|ThreadSanitizer"
+          code=${PIPESTATUS[0]}
+          echo "xcodebuild test-without-building: код завершения $code"
+          exit $code
 
       - name: Итоги тестов и снимки из них
-        if: inputs.tests
+        if: ${{ !cancelled() && inputs.tests }}
         continue-on-error: true
         run: |
           mkdir -p out/tests
@@ -217,7 +227,7 @@ jobs:
           ls out/tests | head -80
 
       - name: Снимки экранов (боевые товары, только чтение)
-        if: inputs.shots
+        if: ${{ !cancelled() && inputs.shots }}
         continue-on-error: true
         timeout-minutes: 45
         env:
@@ -269,3 +279,36 @@ jobs:
           git init -q && git checkout -q -b audit-shots
           git -c user.name=ci -c user.email=ci@albakovofficial.ru add . && git -c user.name=ci -c user.email=ci@albakovofficial.ru commit -qm "Аудит ${{ github.sha }}" || true
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" audit-shots
+
+      # Последний шаг (этап H, T-1): итог задачи — по xcresult, а не по поиску слов в журнале. Ошибка, если итогов нет
+      # (тесты не запустились или xcodebuild упал раньше), не выполнилось ни одного теста, выполнилось меньше, чем названо
+      # в «only», есть упавшие тесты или общий итог не Passed. Идёт после сохранения в audit-shots — журналы уже сохранены
+      - name: Проверка итогов тестов
+        if: ${{ !cancelled() && inputs.tests }}
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          p = 'out/summary.json'
+          if not os.path.exists(p) or os.path.getsize(p) == 0:
+              print('::error::Нет итогов xcresult — тесты не запускались или прогон оборвался до отчёта'); sys.exit(1)
+          try:
+              j = json.load(open(p))
+          except ValueError as e:
+              print('::error::Итоги xcresult не читаются: %s' % e); sys.exit(1)
+          total, passed, failed = j.get('totalTestCount', 0), j.get('passedTests', 0), j.get('failedTests', 0)
+          skipped, result = j.get('skippedTests', 0), j.get('result', '')
+          print('Итог xcresult: %s; всего %d, прошло %d, упало %d, пропущено %d' % (result, total, passed, failed, skipped))
+          for f in j.get('testFailures', []):
+              print('::error::%s: %s' % (f.get('testName', '?'), (f.get('failureText') or '')[:300]))
+          names = [t for t in os.environ.get('ONLY', '').split() if t != 'unit']
+          problems = []
+          if total == 0: problems.append('не выполнилось ни одного теста')
+          if total < len(names): problems.append('выполнено тестов меньше, чем названо в «only» (%d из %d) — имя теста с ошибкой?' % (total, len(names)))
+          if failed > 0: problems.append('упало тестов: %d' % failed)
+          if result != 'Passed': problems.append('общий итог %r вместо Passed' % result)
+          if problems:
+              for m in problems: print('::error::' + m)
+              sys.exit(1)
+          PY
