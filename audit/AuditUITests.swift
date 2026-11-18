@@ -186,13 +186,17 @@ final class AuditUITests: XCTestCase {
     }
     /// Вход владельцем копии магазина (аккаунт создаёт audit.yml; почта в копии не настроена — вход без кода).
     /// Сеанс хранится между запусками: если уже вошли, формы входа нет.
+    /// Пароль — из секрета SHOP_TEST_PASSWORD (audit.yml передаёт его раннеру), в коде его нет (этап I.1)
     func signInOwner() {
+        guard let password = ProcessInfo.processInfo.environment["SHOP_TEST_PASSWORD"], !password.isEmpty else {
+            return XCTFail("Нет пароля владельца копии магазина: секрет SHOP_TEST_PASSWORD не передан тестам (audit.yml)")
+        }
         launch("/account")
         let pw = app.secureTextFields.firstMatch
         if pw.waitForExistence(timeout: 8) {
             let login = app.textFields.firstMatch
             login.tap(); login.typeText("owner-audit@example.com")
-            // Пароль: поле должно получить фокус, и в нём должно оказаться 10 знаков (секретное поле показывает точки).
+            // Пароль: поле должно получить фокус, и в нём должно оказаться столько знаков, сколько в пароле (секретное поле показывает точки).
             // Пароль из цифр: в секретном поле открывается русская раскладка, латинские буквы XCUITest не набирает —
             // раньше вход молча не удавался, и тесты панели шли без входа (этап A.1, видео теста 11)
             var typed = false
@@ -200,9 +204,9 @@ final class AuditUITests: XCTestCase {
                 pw.tap()
                 guard app.keyboards.firstMatch.waitForExistence(timeout: 5) else { continue }
                 let had = (pw.value as? String)?.count ?? 0
-                if had > 0 && had != 10 { pw.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: had + 2)) }
-                if had != 10 { pw.typeText("5739146280") }
-                typed = (pw.value as? String)?.count == 10
+                if had > 0 && had != password.count { pw.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: had + 2)) }
+                if had != password.count { pw.typeText(password) }
+                typed = (pw.value as? String)?.count == password.count
             }
             note("Пароль введён: \(typed)")
             tap("Войти"); sleep(5)   // у экрана входа нет панели навигации — клавиатуру не прячем, «Войти» ищем прокруткой

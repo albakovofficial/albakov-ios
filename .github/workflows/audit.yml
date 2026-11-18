@@ -5,6 +5,9 @@
 # 2) Снимки экранов с боевыми товарами (только чтение; всё, что меняет данные, в демо-режиме не уходит):
 #    маленький, обычный и большой iPhone, крупный системный шрифт, тёмная тема, запуск без интернета.
 # Результат — ветка audit-shots этого репозитория: снимки, итоги тестов, журналы.
+# Секрет репозитория SHOP_TEST_PASSWORD (этап I.1; вводит владелец, только цифры — в секретном поле симулятора русская
+# раскладка): пароль владельца в копии магазина. Копия создаётся заново в каждом прогоне на этом Mac (127.0.0.1),
+# снаружи недоступна. Без секрета UI-тесты не запускаются — шаг «Копия магазина и посредник» завершается ошибкой.
 name: Аудит (симулятор)
 
 on:
@@ -119,14 +122,23 @@ jobs:
 
       - name: Копия магазина и посредник
         if: inputs.tests
+        env:
+          SHOP_TEST_PASSWORD: ${{ secrets.SHOP_TEST_PASSWORD }}
         run: |
+          # без секрета вход владельцем невозможен — понятная ошибка, а не тесты панели без входа
+          if [ -z "$SHOP_TEST_PASSWORD" ]; then
+            echo "::error::Нет секрета SHOP_TEST_PASSWORD (Settings → Secrets and variables → Actions): пароль владельца копии магазина для UI-тестов"; exit 1
+          fi
+          if ! [[ "$SHOP_TEST_PASSWORD" =~ ^[0-9]{8,64}$ ]]; then
+            echo "::error::Секрет SHOP_TEST_PASSWORD должен состоять только из цифр (8–64): в секретном поле симулятора русская раскладка"; exit 1
+          fi
           start() { (cd shop && PORT=3999 PUBLIC_URL=http://127.0.0.1:3998 OWNER_PHONE=79070009999 nohup node server.js >> ../server.log 2>&1 &); sleep 4; }
           start
           # владелец панели для проверок этапа A (почта в копии не настроена — регистрация и вход без кода);
-          # пароль из цифр: язык симулятора русский, и в секретном поле латинские буквы не набираются (этап A.1)
+          # пароль — из секрета (этап I.1): в журнал и в командную строку не попадает, тело запроса собирает python
           # владелец назначается при запуске магазина, поэтому после регистрации магазин перезапускается
-          curl -s -X POST http://127.0.0.1:3999/api/auth/register -H 'Content-Type: application/json' \
-            -d '{"firstName":"Аудит","lastName":"Владелец","phone":"79070009999","email":"owner-audit@example.com","password":"5739146280","consent":true}' | head -c 120; echo
+          python3 -c 'import json, os; print(json.dumps({"firstName": "Аудит", "lastName": "Владелец", "phone": "79070009999", "email": "owner-audit@example.com", "password": os.environ["SHOP_TEST_PASSWORD"], "consent": True}))' \
+            | curl -s -X POST http://127.0.0.1:3999/api/auth/register -H 'Content-Type: application/json' --data-binary @- | head -c 120; echo
           sleep 2; pkill -f "node server.js" || true; sleep 2
           start
           grep -E "Владелец панели" server.log || true
@@ -153,8 +165,12 @@ jobs:
         env:
           ONLY: ${{ inputs.only }}
           TSAN: ${{ inputs.tsan }}
+          SHOP_TEST_PASSWORD: ${{ secrets.SHOP_TEST_PASSWORD }}
         run: |
           RUN=$(ls build/Build/Products/*.xctestrun | head -1)
+          # пароль владельца копии — тестам через окружение раннера (приставку TEST_RUNNER_ xcodebuild снимает);
+          # XCUITest пишет набор в секретное поле как <redacted>
+          export TEST_RUNNER_SHOP_TEST_PASSWORD="$SHOP_TEST_PASSWORD"
           # Thread Sanitizer: отчёты процессов в симуляторе (приложение под UI-тестами и хост юнит-тестов) — в файлы на этом Mac
           SAN=""; if [ "$TSAN" = true ]; then SAN="-enableThreadSanitizer YES"; mkdir -p "$RUNNER_TEMP/tsan"; export SIMCTL_CHILD_TSAN_OPTIONS="log_path=$RUNNER_TEMP/tsan/report halt_on_error=0"; export TEST_RUNNER_TSAN_OPTIONS="$SIMCTL_CHILD_TSAN_OPTIONS"; fi
           # память приложения (RSS, КБ) раз в полсекунды — пик между отметками MEMMARK из тестов (этап A, IOS-03)
@@ -258,12 +274,32 @@ jobs:
 
       - name: Сохранить в ветку audit-shots
         if: always()
+        env:
+          SHOP_TEST_PASSWORD: ${{ secrets.SHOP_TEST_PASSWORD }}
         run: |
           mkdir -p out && cd out
+          # ветка audit-shots открытая: пароль копии магазина не должен попасть в журналы и итоги — если он всё же
+          # встретился в текстовых файлах, заменяется, а прогон помечается ошибкой (этап I.1)
+          python3 - <<'PY'
+          import os, sys
+          pw = os.environ.get('SHOP_TEST_PASSWORD', '').encode()
+          if not pw: sys.exit(0)
+          found = []
+          for root, _, files in os.walk('.'):
+              for f in files:
+                  p = os.path.join(root, f)
+                  if f.endswith('.png'): continue
+                  d = open(p, 'rb').read()
+                  if pw in d: open(p, 'wb').write(d.replace(pw, b'<hidden>')); found.append(p)
+          if found:
+              print('::error::Пароль копии магазина встретился в файлах (заменён перед сохранением): ' + ', '.join(found))
+              open(os.path.join(os.environ['RUNNER_TEMP'], 'password-found'), 'w').write('\n'.join(found))
+          PY
           find . -name "*.png" -exec sips -Z 1200 {} \; >/dev/null 2>&1 || true
           git init -q && git checkout -q -b audit-shots
           git -c user.name=ci -c user.email=ci@albakovofficial.ru add . && git -c user.name=ci -c user.email=ci@albakovofficial.ru commit -qm "Аудит ${{ github.sha }}" || true
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" audit-shots
+          if [ -f "$RUNNER_TEMP/password-found" ]; then exit 1; fi
 
       # Последний шаг (этап H, T-1): итог задачи — по xcresult, а не по поиску слов в журнале. Ошибка, если итогов нет
       # (сборка или xcodebuild упали до тестов), не выполнилось ни одного теста, есть упавшие или пропущенные тесты

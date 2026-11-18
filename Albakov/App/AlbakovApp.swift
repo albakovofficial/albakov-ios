@@ -147,6 +147,10 @@ final class Router: ObservableObject {
         let comps = URLComponents(string: s)
         let parts = (comps?.path ?? s).split(separator: "/").map(String.init)
         let q = Dictionary((comps?.queryItems ?? []).map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { a, _ in a })
+        // Пустой или из одних пробелов номер заказа или обращения — как отсутствующий (этап I.1): ссылка ведёт туда же,
+        // куда ссылка без номера, а не на экран с пустым номером
+        func given(_ s: String?) -> String? { s.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 } }
+        let id = given(q["id"])
         switch parts.first ?? "" {
         case "product" where parts.count > 1: push(.product(parts[1]), on: tab == .account ? .home : tab)
         case "catalog": reset(.catalog, to: (q["cat"] != nil || q["tag"] != nil) ? [.catalog(cat: q["cat"], tag: q["tag"], sale: false)] : [])
@@ -155,7 +159,7 @@ final class Router: ObservableObject {
         case "menu": menuOpen = true
         case "cart": reset(.cart)
         case "checkout": reset(.cart, to: [.checkout])
-        case "order" where parts.count > 1:
+        case "order" where given(parts.dropFirst().first) != nil:
             // ссылка из письма или push несёт секретный ключ заказа: запоминаем — заказ откроется и без входа (аудит T-1, 16.11)
             if let t = q["t"], t.count >= 16, t.count <= 64, t.allSatisfy(\.isHexDigit) { OrderTokens.save(parts[1], t) }
             reset(.account, to: [.orders, .order(parts[1])])
@@ -165,14 +169,13 @@ final class Router: ObservableObject {
         case "track": push(.track, on: tab == .account ? .account : .home)
         case "account":
             switch q["tab"] ?? "" {
-            case "support": reset(.account, to: q["id"].map { [.support, .ticket($0)] } ?? [.support])
+            case "support": reset(.account, to: id.map { [.support, .ticket($0)] } ?? [.support])
             case "bonus": reset(.account, to: [.bonus])
             case "orders": reset(.account, to: [.orders])
             case "profile": reset(.account, to: [.profile])
             default: reset(.account)
             }
         case "admin":
-            let id = q["id"]
             switch q["s"] ?? "" {
             case "orders": reset(.account, to: [.admin, .adminOrders] + (id.map { [.adminOrder($0)] } ?? []))
             case "support": reset(.account, to: [.admin, .adminSupport] + (id.map { [.adminTicket($0)] } ?? []))
