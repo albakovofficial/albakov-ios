@@ -161,6 +161,16 @@ final class AuditUITests: XCTestCase {
         let offer = button("публичной оферты"); scrollTo(offer); if offer.exists { offer.tap() }
         let consent = button("согласие на обработку"); scrollTo(consent); if consent.exists { consent.tap() }
     }
+    /// Ждёт конца отправки заказа: пока он отправляется, на кнопке индикатор вместо подписи «Подтвердить заказ».
+    /// Перед отправкой приложение спрашивает систему, нужна ли проверка возраста (AgeRangeService, iOS 26.2+);
+    /// на симуляторе iOS 26.5 это занимало от ~2 до ~7 с. Прежние фиксированные паузы (2–5 с) могли кончиться
+    /// до отправки: проверка шла посреди неё, а режим посредника менялся раньше, чем запрос до него доходил.
+    /// Сначала до 3 с ждём, что подпись сменилась индикатором (если отправка была мгновенной — просто пауза), затем — возврата подписи.
+    @discardableResult func waitSendFinished(_ timeout: TimeInterval = 30) -> Bool {
+        let b = app.buttons["Подтвердить заказ"]
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: b)], timeout: 3)
+        return b.waitForExistence(timeout: timeout)
+    }
     func waitOrderOpened(_ timeout: TimeInterval = 25) -> Bool {
         // Только то, чего нет до создания заказа: заголовок экрана заказа «Заказ № …» или тост «…Заказ оформлен…».
         // Раньше подходило любое «оформлен» без учёта регистра — под него попадал заголовок самого экрана «Оформление»,
@@ -394,7 +404,8 @@ final class AuditUITests: XCTestCase {
         fillCheckout(phone: phone)
         let c = button("Подтвердить заказ"); scrollTo(c)
         // а) первый запуск оформления, обрыв связи — заказ не дошёл
-        ctl("off?scope=orders"); c.tap(); sleep(4)
+        ctl("off?scope=orders"); c.tap()
+        XCTAssertTrue(waitSendFinished(), "После обрыва кнопка пропала или зависла")
         shot("00а первое оформление — обрыв связи")
         XCTAssertEqual(ordersFor(phone), 0)
         ctl("on?scope=all")
@@ -407,7 +418,8 @@ final class AuditUITests: XCTestCase {
         tickAgreements()
         // в) заказ создан, а ответ потерян
         let c2 = button("Подтвердить заказ"); scrollTo(c2)
-        ctl("drop-after?scope=orders"); c2.tap(); sleep(5)
+        ctl("drop-after?scope=orders"); c2.tap()
+        XCTAssertTrue(waitSendFinished(), "После потерянного ответа кнопка пропала или зависла")
         shot("00в ответ потерян")
         XCTAssertEqual(ordersFor(phone), 1, "Заказ должен был создаться на сервере")
         ctl("on?scope=all")
@@ -473,9 +485,10 @@ final class AuditUITests: XCTestCase {
         shot("03 оформление — пустая форма")
         let offer = button("публичной оферты"); scrollTo(offer); offer.tap()
         let consent = button("согласие на обработку"); scrollTo(consent); consent.tap()
-        let confirm = button("Подтвердить заказ"); scrollTo(confirm); confirm.tap(); sleep(2)
+        let confirm = button("Подтвердить заказ"); scrollTo(confirm); confirm.tap()
+        let back = waitSendFinished()   // на iOS 26.5 от нажатия до ответа сервера прошло ~6,8 с, прежние «2 с» проверяли середину отправки
         shot("03 пустые поля — ошибка")
-        XCTAssertTrue(app.buttons["Подтвердить заказ"].exists || button("Подтвердить").exists, "Пустая форма ушла дальше оформления")
+        XCTAssertTrue(back || button("Подтвердить").exists, "Пустая форма ушла дальше оформления")
         XCTAssertEqual(ordersFor(phone), 0)
         launch("/checkout")
         fillCheckout(phone: phone)
@@ -498,16 +511,18 @@ final class AuditUITests: XCTestCase {
         fillCheckout(phone: phone)
         let c = button("Подтвердить заказ"); scrollTo(c)
         // а) нет связи
-        ctl("off?scope=orders"); c.tap(); sleep(4)
+        ctl("off?scope=orders"); c.tap()
+        XCTAssertTrue(waitSendFinished(), "После обрыва кнопка пропала или зависла")
         shot("04а нет связи")
-        XCTAssertTrue(app.buttons["Подтвердить заказ"].exists, "После обрыва кнопка пропала или зависла")
         XCTAssertEqual(ordersFor(phone), 0)
         // б) магазин недоступен (502 от nginx)
-        ctl("502?scope=orders"); scrollTo(c); c.tap(); sleep(4)
+        ctl("502?scope=orders"); scrollTo(c); c.tap()
+        XCTAssertTrue(waitSendFinished(), "После ответа 502 кнопка пропала или зависла")
         shot("04б 502 Bad Gateway")
         XCTAssertEqual(ordersFor(phone), 0)
         // в) заказ создан, но ответ потерян — повторное нажатие не должно создать второй
-        ctl("drop-after?scope=orders"); scrollTo(c); c.tap(); sleep(5)
+        ctl("drop-after?scope=orders"); scrollTo(c); c.tap()
+        XCTAssertTrue(waitSendFinished(), "После потерянного ответа кнопка пропала или зависла")
         shot("04в ответ потерян после оформления")
         XCTAssertEqual(ordersFor(phone), 1, "Заказ должен был создаться на сервере")
         ctl("on?scope=all"); scrollTo(c)
