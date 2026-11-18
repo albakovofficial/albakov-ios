@@ -221,14 +221,29 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(yes.waitForExistence(timeout: 5), "Нет подтверждения выхода"); yes.tap(); sleep(3)
         XCTAssertTrue(app.secureTextFields.firstMatch.waitForExistence(timeout: 10), "После выхода не показан вход")
     }
-    /// Ссылка albakov://… в приложение: в запущенное — без перезапуска (как нажатие на ссылку или уведомление),
-    /// в закрытое — холодный запуск с этой ссылкой
+    /// Ссылка albakov://… в приложение — запуск с этой ссылкой, как переход из push или письма
     func openLink(_ link: String) {
         guard let url = URL(string: link) else { return XCTFail("Неверная ссылка \(link)") }
         guard #available(iOS 16.4, *) else { return XCTFail("Открыть ссылку в приложении из теста можно с iOS 16.4") }
+        // XCUIApplication.open перезапускает приложение с его launchArguments — убираем «-screen», иначе отладочный экран
+        // из аргументов перекрыл бы ссылку. Запуск обычный, как из push: окна запуска закрывает waitClosingPrompts
+        app.launchArguments = ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"]
         app.open(url)
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30), "Приложение не открылось по ссылке")
         sleep(3)
+    }
+    /// Ждать условие, закрывая окна обычного запуска («Включите уведомления», «Вышло обновление») — к проверкам не относятся
+    func waitClosingPrompts(_ timeout: TimeInterval, _ ready: () -> Bool) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while !ready() {
+            if Date() > end { return false }
+            for b in ["Не сейчас", "Позже"] {
+                let x = app.buttons.matching(NSPredicate(format: "label == %@", b)).firstMatch
+                if x.exists { x.tap() }
+            }
+            sleep(1)
+        }
+        return true
     }
     /// Спрятать клавиатуру: тап по заголовку экрана, если он есть
     func hideKeyboard() { let nb = app.navigationBars.firstMatch; if nb.exists && nb.isHittable { nb.tap() } }
@@ -1021,17 +1036,19 @@ final class AuditUITests: XCTestCase {
         fillCheckout(phone: "79070000181", name: "Секрет", last: last)
         let c = button("Подтвердить заказ"); scrollTo(c); c.tap()
         XCTAssertTrue(waitOrderOpened(), "Заказ не оформился")
-        // панель в этом же запуске: список заказов загружен, новый заказ с фамилией покупателя виден
+        // панель у сотрудника: список заказов загружен, новый заказ с фамилией покупателя виден.
+        // XCUIApplication.open перезапускает приложение (как переход из push), поэтому прежние данные в памяти здесь
+        // не проверить — это делает юнит-тест AdminOwnerTests; здесь — что ссылка после выхода не открывает панель
         openLink("albakov://admin?s=orders")
-        XCTAssertTrue(app.segmentedControls.buttons["В работе"].waitForExistence(timeout: 20), "Список заказов панели не открылся")
-        XCTAssertTrue(text(last).waitForExistence(timeout: 30), "В списке заказов панели нет нового заказа — проверка после выхода была бы пустой")
+        let list = app.segmentedControls.buttons["В работе"]
+        XCTAssertTrue(waitClosingPrompts(40) { list.exists && text(last).exists }, "В списке заказов панели нет нового заказа — проверка после выхода была бы пустой")
         shot("18а заказы в панели у сотрудника")
-        // выход в том же запуске
         openLink("albakov://account")
+        _ = waitClosingPrompts(10) { false }   // окна запуска появляются в первые секунды — закрыть до прокрутки к «Выйти»
         logoutFromAccount()
         // ссылка в панель после выхода — как старое уведомление сотрудника
         openLink("albakov://admin?s=orders")
-        XCTAssertTrue(text("Нет доступа").waitForExistence(timeout: 15), "После выхода ссылка открыла панель без прав")
+        XCTAssertTrue(waitClosingPrompts(30) { text("Нет доступа").exists }, "После выхода ссылка открыла панель без прав")
         shot("18б ссылка в панель после выхода")
         XCTAssertFalse(text(last).exists, "После выхода видны данные покупателя из панели")
         XCTAssertFalse(app.segmentedControls.buttons["В работе"].exists, "После выхода открылся список заказов панели")
@@ -1051,13 +1068,8 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(waitOrderOpened(), "Заказ не оформился")
         app.terminate()
         openLink("albakov://admin?s=orders")
-        // обычный запуск (без -screen): могут всплыть окна «Включите уведомления» и «Вышло обновление» — к проверке не относятся
         let list = app.segmentedControls.buttons["В работе"]
-        let deadline = Date().addingTimeInterval(60)
-        while !(list.exists && text(last).exists), Date() < deadline {
-            for b in ["Не сейчас", "Позже"] where button(b).exists { button(b).tap() }
-            sleep(1)
-        }
+        _ = waitClosingPrompts(60) { list.exists && text(last).exists }
         XCTAssertTrue(list.exists, "Сотрудник не попал в список заказов панели при запуске по ссылке")
         XCTAssertFalse(text("Нет доступа").exists, "Сотруднику показан отказ в доступе")
         XCTAssertTrue(text(last).exists, "В панели нет заказа сотрудника — данные admin/data не загрузились")
