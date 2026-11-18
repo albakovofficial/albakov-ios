@@ -96,9 +96,6 @@ final class API {
         catch let e as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed].contains(e.code) { throw APIError.offline }
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if let d = (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Date") { ServerClock.sync(d) }
-        // Панель ответила 401 — сеанс сотрудника истёк или доступ к панели отозван (аудит SEC-1): витрина перепроверяет,
-        // кто вошёл; isStaff становится false — Admin стирает данные, DestView закрывает все экраны панели вместе с их состоянием
-        if status == 401, path.hasPrefix("admin/") { Task { @MainActor in await Shop.shared.refreshUser() } }
         if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any], obj["ok"] as? Bool == false || status >= 400 {
             throw APIError(message: obj["error"] as? String ?? "Что-то пошло не так. Попробуйте ещё раз.", status: status)
         }

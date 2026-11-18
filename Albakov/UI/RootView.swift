@@ -212,9 +212,6 @@ struct AppTabBar: View {
 struct DestView: View {
     let dest: Dest
     var body: some View {
-        if dest.isAdmin { AdminGate { screen } } else { screen }
-    }
-    @ViewBuilder private var screen: some View {
         switch dest {
         case .product(let id): ProductView(id: id)
         case .catalog(let cat, let tag, let sale): CatalogView(cat: cat, tag: tag, sale: sale)
@@ -242,29 +239,6 @@ struct DestView: View {
         case .adminCustomers: AdminCustomersView()
         case .adminSection(let k): AdminSections.view(k)
         case .adminItem(let k, let id): AdminSections.item(k, id)
-        }
-    }
-}
-
-/// Панель — только сотрудникам (аудит SEC-1): ссылка, push или старое уведомление после выхода её не открывают,
-/// а потеря прав закрывает уже открытые экраны панели вместе с их состоянием. За Shop следят только экраны панели —
-/// корзина и избранное не перерисовывают остальные. Ожидание до загрузки — запасное: вкладки (а с ними экраны)
-/// появляются только после shop.loaded (RootView), поэтому сотрудник из push попадает в панель, а не в отказ
-private struct AdminGate<Screen: View>: View {
-    @ViewBuilder let screen: () -> Screen
-    @EnvironmentObject private var shop: Shop
-    @EnvironmentObject private var router: Router
-    var body: some View {
-        if shop.isStaff {
-            screen()
-        } else if shop.loaded {
-            ScrollView {
-                EmptyState(icon: "lock", title: "Нет доступа", text: "Панель управления открывается только сотрудникам магазина",
-                           button: shop.user == nil ? "Войти" : nil) { router.reset(.account) }
-                    .padding(.top, 60)
-            }
-        } else {
-            ProgressView().padding(.top, 80)
         }
     }
 }
