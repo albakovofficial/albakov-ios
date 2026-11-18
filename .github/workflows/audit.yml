@@ -62,8 +62,9 @@ jobs:
           ONLY: ${{ inputs.only }}
           SHOP_TEST_PASSWORD: ${{ secrets.SHOP_TEST_PASSWORD }}
         run: |
-          ui=yes
-          if [ -n "$ONLY" ]; then ui=no; for t in $ONLY; do [ "$t" = unit ] || ui=yes; done; fi
+          # без UI-тестов — только если в «only» есть слова и все они «unit» (одни пробелы — полный набор)
+          ui=yes; set -- $ONLY
+          if [ $# -gt 0 ]; then ui=no; for t in "$@"; do [ "$t" = unit ] || ui=yes; done; fi
           if [ "$ui" = no ]; then echo "Только юнит-тесты — пароль копии магазина не нужен"; exit 0; fi
           if [ -z "$SHOP_TEST_PASSWORD" ]; then
             echo "::error::Нет секрета SHOP_TEST_PASSWORD (Settings → Secrets and variables → Actions): пароль владельца копии магазина для UI-тестов"; exit 1
@@ -192,7 +193,7 @@ jobs:
           # Thread Sanitizer: отчёты процессов в симуляторе (приложение под UI-тестами и хост юнит-тестов) — в файлы на этом Mac
           SAN=""; if [ "$TSAN" = true ]; then SAN="-enableThreadSanitizer YES"; mkdir -p "$RUNNER_TEMP/tsan"; export SIMCTL_CHILD_TSAN_OPTIONS="log_path=$RUNNER_TEMP/tsan/report halt_on_error=0"; export TEST_RUNNER_TSAN_OPTIONS="$SIMCTL_CHILD_TSAN_OPTIONS"; fi
           # память приложения (RSS, КБ) раз в полсекунды — пик между отметками MEMMARK из тестов (этап A, IOS-03)
-          ( while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
+          ( unset SHOP_TEST_PASSWORD TEST_RUNNER_SHOP_TEST_PASSWORD; while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
           # «unit» — все юнит-тесты; иначе имя UI-теста
           SEL=""; for t in $ONLY; do if [ "$t" = unit ]; then SEL="$SEL -only-testing:AlbakovUnit"; else SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; fi; done
           set +e
