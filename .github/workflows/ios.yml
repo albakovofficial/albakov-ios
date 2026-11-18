@@ -147,7 +147,7 @@ jobs:
           echo "== Размер"; du -sh "$APP"
           echo "== dSYM"; ls "$A/dSYMs"
           echo "== Строки отладки и тестов в исполняемом файле Release (должно быть: не найдено)"
-          strings -a "$APP/Albakov" | grep -nE "demo=staff|demo=buyer|update=1|sizes=1|Не разобран ответ|__ctl|127\.0\.0\.1|localhost|owner-audit|5739146280|AlbakovAudit|XCTest" || echo "не найдено"
+          strings -a "$APP/Albakov" | grep -nE "demo=staff|demo=buyer|update=1|sizes=1|FIRSTCAT|Не разобран ответ|__ctl|127\.0\.0\.1|localhost|owner-audit|5739146280|AlbakovAudit|XCTest" || echo "не найдено"
           echo "== Контроль поиска: адрес магазина в исполняемом файле (должно быть больше 0)"; strings -a "$APP/Albakov" | grep -c "albakovofficial.ru" || true
           } | tee release-contents.txt
       - name: Журналы

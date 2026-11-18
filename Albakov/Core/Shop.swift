@@ -95,13 +95,25 @@ final class Shop: ObservableObject {
         return out
     }
 
-    func product(_ id: String) -> Product? { id == "FIRST" ? visibleProducts.first { $0.available } ?? products.first : products.first { $0.id == id || $0.slug == id } }
-    func category(_ id: String) -> Category? { id == "FIRSTCAT" ? visibleCategories.first : categories.first { $0.id == id || $0.slug == id } }
-    /// Для снимков экрана на GitHub: положить в корзину первый товар в наличии
+    func product(_ id: String) -> Product? {
+        #if DEBUG
+        if id == "FIRST" { return visibleProducts.first { $0.available } ?? products.first }   // снимки экрана на GitHub (только Debug, аудит F-2)
+        #endif
+        return products.first { $0.id == id || $0.slug == id }
+    }
+    func category(_ id: String) -> Category? {
+        #if DEBUG
+        if id == "FIRSTCAT" { return visibleCategories.first }   // снимки экрана на GitHub (только Debug, аудит F-2)
+        #endif
+        return categories.first { $0.id == id || $0.slug == id }
+    }
+    #if DEBUG
+    /// Для снимков экрана на GitHub: положить в корзину первый товар в наличии (вызывается только из Debug-кода RootView)
     func demoCart() {
         guard cart.isEmpty, let p = products.first(where: { $0.stock > 0 }), let c = p.colors.first(where: { $0.stock > 0 }), let sz = c.sizes.first(where: { $0.stock > 0 }) else { return }
         add(p, color: c.id, size: sz.size)
     }
+    #endif
     /// Раздел закрыт в панели («скоро появится»): его товары не показываются, на главной — страница «скоро»
     func closed(_ g: String?) -> Bool { g.map { settings.gendersOpen[$0] == false } ?? false }
     var visibleProducts: [Product] { products.filter { $0.forGender(gender) && !closed($0.gender) } }
