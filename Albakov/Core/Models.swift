@@ -58,7 +58,10 @@ struct Product: Identifiable, Hashable {
         badgeText = j["badgeText"].dict.compactMapValues { $0.string }
         badgeOff = j["badgeOff"].array.compactMap { $0.string }
     }
-    static func == (a: Product, b: Product) -> Bool { a.id == b.id }
+    /// Равны — тот же товар с теми же данными с сервера (DEF-3, этап I). Раньше — по одному id: экраны, получившие товар
+    /// свойством (ProductCard и др.), SwiftUI считал неизменными и после обновления витрины показывал прежние цену и остатки.
+    /// Все поля товара — из raw, поэтому сравнивается он. Хеш — по id: равные товары по-прежнему с одинаковым хешем
+    static func == (a: Product, b: Product) -> Bool { a.id == b.id && (a.raw.raw as? NSDictionary)?.isEqual(b.raw.raw) ?? (b.raw.raw == nil) }
     func hash(into h: inout Hasher) { h.combine(id) }
 
     var image: String { colors.first(where: { !$0.images.isEmpty })?.images.first ?? "" }

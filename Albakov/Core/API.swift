@@ -72,8 +72,14 @@ final class API {
     }
 
     /// Ответ как свободный JSON — для разделов панели, где поля меняются от настроек.
+    /// Не JSON (страница вместо ответа магазина, пустой ответ) — ошибка, а не пустые данные (DEF-I1, этап I): иначе
+    /// Shop.load принимал её за пустой каталог и выход покупателя. Файлы (CSV, PDF) берутся через raw
     func json(_ method: String = "GET", _ path: String, body: [String: Any]? = nil, query: [String: String] = [:]) async throws -> JSON {
-        JSON(data: try await raw(method, path, body: body, query: query))
+        let data = try await raw(method, path, body: body, query: query)
+        guard let value = try? JSONSerialization.jsonObject(with: data) else {
+            throw APIError(message: "Не удалось прочитать ответ магазина. Обновите приложение или попробуйте позже.", status: -1)
+        }
+        return JSON(value)
     }
 
     func raw(_ method: String, _ path: String, body: [String: Any]? = nil, query: [String: String] = [:]) async throws -> Data {
