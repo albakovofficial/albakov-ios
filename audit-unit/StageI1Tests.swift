@@ -32,12 +32,17 @@ final class RouterEmptyIdTests: XCTestCase {
         XCTAssertEqual(opened("/account?tab=support&id=%20t1").account, [.support, .ticket(" t1")], "Непустой номер передаётся как есть")
     }
 
-    /// Заказ покупателя (/order/<номер>): номер из пробелов — как неполная ссылка «/order» (главная), верный — заказ
+    /// Заказ покупателя (/order/<номер>): номер из пробелов — как неполная ссылка «/order» (главная), верный — заказ.
+    /// Ключ из ссылки с пустым номером не сохраняется
     func test02_OrderLink() {
+        let before = UserDefaults.standard.object(forKey: "orderTokens")
+        defer { UserDefaults.standard.set(before, forKey: "orderTokens") }
+        OrderTokens.clear()
         for link in ["/order", "/order/", "/order/%20", "/order/%20%20?t=" + String(repeating: "ab", count: 16), "albakov://order/%20"] {
             let r = opened(link)
             XCTAssertEqual(r.tab, .home, link); XCTAssertEqual(r.home, [], link); XCTAssertEqual(r.account, [], link)
         }
+        XCTAssertTrue(OrderTokens.all.isEmpty, "Ключ сохранён для пустого номера заказа")
         let r = opened("/order/o1")
         XCTAssertEqual(r.tab, .account); XCTAssertEqual(r.account, [.orders, .order("o1")])
         XCTAssertEqual(opened("albakov://order/42").account, [.orders, .order("42")])

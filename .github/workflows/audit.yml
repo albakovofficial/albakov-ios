@@ -7,7 +7,9 @@
 # Результат — ветка audit-shots этого репозитория: снимки, итоги тестов, журналы.
 # Секрет репозитория SHOP_TEST_PASSWORD (этап I.1; вводит владелец, только цифры — в секретном поле симулятора русская
 # раскладка): пароль владельца в копии магазина. Копия создаётся заново в каждом прогоне на этом Mac (127.0.0.1),
-# снаружи недоступна. Без секрета UI-тесты не запускаются — шаг «Копия магазина и посредник» завершается ошибкой.
+# снаружи недоступна. Без секрета UI-тесты не запускаются — первый шаг «Секрет копии магазина» завершается ошибкой.
+# Прежний пароль был в коде и остаётся в истории открытого репозитория: в секрет записывается НОВОЕ значение,
+# прежнее нигде не используется (ни здесь, ни на боевом сайте). Юнит-тестам (only=unit) секрет не нужен.
 name: Аудит (симулятор)
 
 on:
@@ -52,6 +54,23 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
+      # первым шагом, до сборки: без секрета прогон с UI-тестами сразу завершается понятной ошибкой (этап I.1)
+      - name: Секрет копии магазина
+        if: inputs.tests
+        env:
+          ONLY: ${{ inputs.only }}
+          SHOP_TEST_PASSWORD: ${{ secrets.SHOP_TEST_PASSWORD }}
+        run: |
+          ui=yes
+          if [ -n "$ONLY" ]; then ui=no; for t in $ONLY; do [ "$t" = unit ] || ui=yes; done; fi
+          if [ "$ui" = no ]; then echo "Только юнит-тесты — пароль копии магазина не нужен"; exit 0; fi
+          if [ -z "$SHOP_TEST_PASSWORD" ]; then
+            echo "::error::Нет секрета SHOP_TEST_PASSWORD (Settings → Secrets and variables → Actions): пароль владельца копии магазина для UI-тестов"; exit 1
+          fi
+          if ! [[ "$SHOP_TEST_PASSWORD" =~ ^[0-9]{8,64}$ ]]; then
+            echo "::error::Секрет SHOP_TEST_PASSWORD — только цифры, 8–64, без пробелов и переводов строки: в секретном поле симулятора русская раскладка"; exit 1
+          fi
       # Копия магазина закреплена на коммите (этап H, T-5): изменение сайта не меняет итог тестов приложения без ведома.
       # Сейчас — 13.65.6 (main на 16.11.2026), с ним прошли полные прогоны этапов E–G.
       # Обновлять так: взять новый SHA из albakov-shop (git log -1 main), прогнать здесь все тесты вручную с этим SHA
@@ -125,24 +144,21 @@ jobs:
         env:
           SHOP_TEST_PASSWORD: ${{ secrets.SHOP_TEST_PASSWORD }}
         run: |
-          # без секрета вход владельцем невозможен — понятная ошибка, а не тесты панели без входа
-          if [ -z "$SHOP_TEST_PASSWORD" ]; then
-            echo "::error::Нет секрета SHOP_TEST_PASSWORD (Settings → Secrets and variables → Actions): пароль владельца копии магазина для UI-тестов"; exit 1
-          fi
-          if ! [[ "$SHOP_TEST_PASSWORD" =~ ^[0-9]{8,64}$ ]]; then
-            echo "::error::Секрет SHOP_TEST_PASSWORD должен состоять только из цифр (8–64): в секретном поле симулятора русская раскладка"; exit 1
-          fi
-          start() { (cd shop && PORT=3999 PUBLIC_URL=http://127.0.0.1:3998 OWNER_PHONE=79070009999 nohup node server.js >> ../server.log 2>&1 &); sleep 4; }
+          # фоновым процессам (магазин, посредник) пароль не передаётся — env -u
+          start() { (cd shop && PORT=3999 PUBLIC_URL=http://127.0.0.1:3998 OWNER_PHONE=79070009999 env -u SHOP_TEST_PASSWORD nohup node server.js >> ../server.log 2>&1 &); sleep 4; }
           start
           # владелец панели для проверок этапа A (почта в копии не настроена — регистрация и вход без кода);
           # пароль — из секрета (этап I.1): в журнал и в командную строку не попадает, тело запроса собирает python
           # владелец назначается при запуске магазина, поэтому после регистрации магазин перезапускается
-          python3 -c 'import json, os; print(json.dumps({"firstName": "Аудит", "lastName": "Владелец", "phone": "79070009999", "email": "owner-audit@example.com", "password": os.environ["SHOP_TEST_PASSWORD"], "consent": True}))' \
-            | curl -s -X POST http://127.0.0.1:3999/api/auth/register -H 'Content-Type: application/json' --data-binary @- | head -c 120; echo
+          # без секрета (только юнит-тесты, проверено первым шагом) владелец не регистрируется
+          if [ -n "$SHOP_TEST_PASSWORD" ]; then
+            python3 -c 'import json, os; print(json.dumps({"firstName": "Аудит", "lastName": "Владелец", "phone": "79070009999", "email": "owner-audit@example.com", "password": os.environ["SHOP_TEST_PASSWORD"], "consent": True}))' \
+              | curl -s -X POST http://127.0.0.1:3999/api/auth/register -H 'Content-Type: application/json' --data-binary @- | head -c 120; echo
+          fi
           sleep 2; pkill -f "node server.js" || true; sleep 2
           start
           grep -E "Владелец панели" server.log || true
-          (nohup node ci/audit-proxy.js 3998 3999 > proxy.log 2>&1 &)
+          (env -u SHOP_TEST_PASSWORD nohup node ci/audit-proxy.js 3998 3999 > proxy.log 2>&1 &)
           sleep 2
           curl -s http://127.0.0.1:3998/api/state | head -c 160; echo
 
@@ -160,6 +176,7 @@ jobs:
       # Шаг падает, если xcodebuild завершился с ошибкой (этап H, T-1). Журналы и снимки при этом сохраняются: следующие шаги
       # идут при !cancelled(), сохранение — always(). Итог проверяется ещё раз по xcresult последним шагом
       - name: UI-тесты покупки
+        id: uitests
         if: inputs.tests
         timeout-minutes: 80   # 16 UI-тестов с этапа B идут ~45 мин на Intel-Mac — 50 минут впритык
         env:
@@ -228,6 +245,7 @@ jobs:
           ls out/tests | head -80
 
       - name: Снимки экранов (боевые товары, только чтение)
+        id: shots
         if: ${{ !cancelled() && inputs.shots }}
         continue-on-error: true
         timeout-minutes: 45
@@ -272,8 +290,10 @@ jobs:
           ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i albakov > out/crashes.txt || echo "сбоев приложения нет" > out/crashes.txt
           cat out/crashes.txt
 
+      # только если тесты или снимки действительно шли: прогон, упавший на настройке (нет секрета, сборка), не стирает
+      # в audit-shots итоги прошлого прогона (ревью этапа I.1)
       - name: Сохранить в ветку audit-shots
-        if: always()
+        if: ${{ always() && (contains(fromJSON('["success","failure"]'), steps.uitests.outcome) || contains(fromJSON('["success","failure"]'), steps.shots.outcome)) }}
         env:
           SHOP_TEST_PASSWORD: ${{ secrets.SHOP_TEST_PASSWORD }}
         run: |

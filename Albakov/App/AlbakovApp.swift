@@ -147,8 +147,9 @@ final class Router: ObservableObject {
         let comps = URLComponents(string: s)
         let parts = (comps?.path ?? s).split(separator: "/").map(String.init)
         let q = Dictionary((comps?.queryItems ?? []).map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { a, _ in a })
-        // Пустой или из одних пробелов номер заказа или обращения — как отсутствующий (этап I.1): ссылка ведёт туда же,
-        // куда ссылка без номера, а не на экран с пустым номером
+        // Пустой или из одних пробелов номер — как отсутствующий (этап I.1): ссылка ведёт туда же, куда ссылка без номера,
+        // а не на экран с пустым номером. Касается заказа (/order/…) и параметра id: обращение покупателя, а в панели —
+        // заказ, обращение, товар и запись раздела (раньше /admin?s=products&id= открывал пустую несуществующую запись)
         func given(_ s: String?) -> String? { s.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 } }
         let id = given(q["id"])
         switch parts.first ?? "" {
