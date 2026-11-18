@@ -931,4 +931,47 @@ final class AuditUITests: XCTestCase {
         shot("16г срок доставки — после «Повторить»")
         ctl("on?scope=all")
     }
+
+    // MARK: - 17. Выход из кабинета: данные покупателя не остаются на телефоне (этап F, F-1)
+
+    /// Раньше после выхода корзина, избранное и черновик оформления (имя, телефон, почта, адрес) оставались:
+    /// следующий, кто входил на этом iPhone, получал их в свой аккаунт и видел чужие данные в оформлении.
+    /// Корзина в аккаунте при этом должна сохраниться — очищается только телефон, как на сайте
+    func test17_LogoutClearsPersonalData() {
+        let phone = "79070000171"
+        signInOwner()
+        startClean()                                   // корзина владельца пуста и на телефоне, и в аккаунте
+        addToCart(product: "p2", size: "M"); sleep(2)  // уходит в корзину аккаунта (сохранение — через 0,8 с)
+        launch("/checkout")
+        fillCheckout(phone: phone)
+        shot("17а оформление владельца заполнено")
+        // выход
+        launch("/account")
+        let out = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Выйти'")).firstMatch
+        scrollTo(out)
+        XCTAssertTrue(out.exists, "Нет строки «Выйти» в кабинете"); out.tap()
+        let yes = app.sheets.buttons["Выйти"].exists ? app.sheets.buttons["Выйти"] : lastButton(["Выйти"])
+        XCTAssertTrue(yes.waitForExistence(timeout: 5), "Нет подтверждения выхода"); yes.tap(); sleep(3)
+        XCTAssertTrue(app.secureTextFields.firstMatch.waitForExistence(timeout: 10), "После выхода не показан вход")
+        // после выхода (и перезапуска) корзина пуста, а в оформлении гостя нет данных владельца
+        launch("/cart")
+        XCTAssertTrue(text("В корзине пока пусто").waitForExistence(timeout: 10), "После выхода в корзине остались вещи аккаунта")
+        shot("17б корзина после выхода")
+        addToCart(product: "p4", size: "S")
+        launch("/checkout")
+        _ = text("Оформление").waitForExistence(timeout: 15)
+        shot("17в оформление гостя после выхода")
+        for p in Self.customerFields {
+            let v = field(p).value as? String ?? ""
+            XCTAssertTrue(v.isEmpty || v == p, "После выхода в поле «\(p)» остались данные прежнего покупателя: \(v)")
+        }
+        // снова вход: корзина аккаунта на месте (p2) и объединилась с корзиной гостя (p4) — две строки
+        signInOwner()
+        launch("/cart")
+        let lines = app.buttons.matching(NSPredicate(format: "label == 'Удалить' AND NOT (identifier IN {'minus', 'plus'})"))
+        _ = lines.firstMatch.waitForExistence(timeout: 10)
+        shot("17г корзина после повторного входа")
+        XCTAssertEqual(lines.count, 2, "Корзина аккаунта не сохранилась на сервере или не объединилась с корзиной гостя")
+        startClean()
+    }
 }
