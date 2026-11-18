@@ -162,7 +162,10 @@ final class AuditUITests: XCTestCase {
         let consent = button("согласие на обработку"); scrollTo(consent); if consent.exists { consent.tap() }
     }
     func waitOrderOpened(_ timeout: TimeInterval = 25) -> Bool {
-        let p = NSPredicate(format: "label CONTAINS[c] 'Заказ №' OR label CONTAINS[c] 'Спасибо' OR label CONTAINS[c] 'оформлен'")
+        // Только то, чего нет до создания заказа: заголовок экрана заказа «Заказ № …» или подсказка «…Заказ оформлен…».
+        // Раньше подходило любое «оформлен» без учёта регистра — под него попадал заголовок самого экрана «Оформление»,
+        // и ожидание заканчивалось сразу, ещё до ответа сервера (test05 на iOS 26.5: заказа ещё не было).
+        let p = NSPredicate(format: "label BEGINSWITH 'Заказ № ' OR label CONTAINS 'Заказ оформлен'")
         return app.staticTexts.matching(p).firstMatch.waitForExistence(timeout: timeout)
     }
     /// Галочки оферты и согласия (они не сохраняются в черновике — их ставят заново на каждом экране оформления)
