@@ -32,6 +32,9 @@ final class Shop: ObservableObject {
     /// «Купить сейчас»: оформляется только эта вещь, корзина не меняется
     @Published var buyNow: [CartLine]? = nil
 
+    /// Сервер магазина. Приложение его не меняет; юнит-тесты (этап I) подставляют API с подменой ответов —
+    /// так проверяются вход, выход и запоздавшие ответы без обращения к сайту
+    var api = API.shared
     private var cartSync: Task<Void, Never>?
     private var favSync: Task<Void, Never>?
     /// Номер «сеанса покупателя на телефоне»: растёт при выходе и удалении аккаунта (forgetUser). Ответ GET state,
@@ -49,7 +52,7 @@ final class Shop: ObservableObject {
     func load() async {
         let epoch = userEpoch
         do {
-            let j = try await API.shared.json("GET", "state")
+            let j = try await api.json("GET", "state")
             apply(j["data"])
             if epoch == userEpoch { setUser(User(j["user"]), staff: j["isAdmin"].bool, merge: true) }
             loaded = true; loadError = nil; loadedAt = Date()
@@ -188,8 +191,8 @@ final class Shop: ObservableObject {
         if let d = try? JSONEncoder().encode(cart) { UserDefaults.standard.set(d, forKey: "cart") }
         guard user != nil else { return }
         cartSync?.cancel()
-        let lines = cart.map(\.dict)
-        cartSync = Task { try? await Task.sleep(nanoseconds: 800_000_000); guard !Task.isCancelled else { return }; _ = try? await API.shared.raw("PUT", "me/cart", body: ["lines": lines]) }
+        let lines = cart.map(\.dict), api = self.api
+        cartSync = Task { try? await Task.sleep(nanoseconds: 800_000_000); guard !Task.isCancelled else { return }; _ = try? await api.raw("PUT", "me/cart", body: ["lines": lines]) }
     }
 
     // MARK: Избранное
@@ -202,8 +205,8 @@ final class Shop: ObservableObject {
         UserDefaults.standard.set(favorites, forKey: "favorites")
         guard user != nil else { return }
         favSync?.cancel()
-        let list = favorites
-        favSync = Task { try? await Task.sleep(nanoseconds: 600_000_000); guard !Task.isCancelled else { return }; _ = try? await API.shared.raw("PUT", "me/favorites", body: ["list": list]) }
+        let list = favorites, api = self.api
+        favSync = Task { try? await Task.sleep(nanoseconds: 600_000_000); guard !Task.isCancelled else { return }; _ = try? await api.raw("PUT", "me/favorites", body: ["list": list]) }
     }
 
     // MARK: Покупатель
@@ -224,7 +227,7 @@ final class Shop: ObservableObject {
     /// не стираются, а витрина ещё раз обновится при возврате в приложение (Shop.load через 10 минут) или потягиванием вниз
     func refreshUser() async {
         let epoch = userEpoch
-        if let j = try? await API.shared.json("GET", "state") { apply(j["data"]); if epoch == userEpoch { setUser(User(j["user"]), staff: j["isAdmin"].bool) } }
+        if let j = try? await api.json("GET", "state") { apply(j["data"]); if epoch == userEpoch { setUser(User(j["user"]), staff: j["isAdmin"].bool) } }
     }
     func signedIn(_ j: JSON) {
         // ответ state, запрошенный до входа (без куки), не должен «разлогинить» только что вошедшего (ревью этапа H)
@@ -234,14 +237,14 @@ final class Shop: ObservableObject {
     }
     /// Удаление аккаунта (1.0.0, правило App Store 5.1.1(v)): по паролю; после — как после выхода, избранное и корзина очищаются
     func deleteAccount(password: String) async throws {
-        _ = try await API.shared.raw("POST", "me/delete", body: ["password": password])
-        API.shared.clearSession()
+        _ = try await api.raw("POST", "me/delete", body: ["password": password])
+        api.clearSession()
         forgetUser()
         PushManager.shared.resend()
     }
     func logout() async {
-        _ = try? await API.shared.raw("POST", "auth/logout")
-        API.shared.clearSession()
+        _ = try? await api.raw("POST", "auth/logout")
+        api.clearSession()
         forgetUser()
         PushManager.shared.resend()
     }

@@ -1,7 +1,7 @@
 import XCTest
 @testable import Albakov
 
-/// Юнит-тесты этапа H (SEC-1). Только проверка, в приложение не входят. Собираются целью AlbakovUnit (audit.yml).
+/// Юнит-тесты этапа H (SEC-1). Только проверка, в приложение не входят. Собираются целью AlbakovUnit (audit.yml, ios.yml).
 /// Данные панели (Admin) принадлежат одному сотруднику: смена покупателя, выход и потеря прав их стирают,
 /// обновление того же сотрудника — нет (иначе панель мигала бы пустой при каждом обновлении витрины)
 @MainActor
@@ -13,10 +13,15 @@ final class AdminOwnerTests: XCTestCase {
         XCTAssertNil(admin.error, "Ошибка прежнего сотрудника осталась: \(why)")
     }
 
-    func test01_DataClearedOnOwnerChange() {
+    func test01_DataClearedOnOwnerChange() async throws {
         let shop = Shop.shared, admin = Admin.shared
-        let was = (shop.user, shop.isStaff)
-        defer { shop.setUser(was.0, staff: was.1) }
+        // первая загрузка хоста не должна вмешаться посреди теста; корзина при смене покупателя уходит в NetStub,
+        // а не в аккаунт копии магазина (ревью этапа H)
+        let hostReady = try await until(30) { shop.loaded || shop.loadError != nil }
+        XCTAssertTrue(hostReady)
+        let was = (shop.user, shop.isStaff, shop.api)
+        shop.api = NetStub.api()
+        defer { shop.setUser(was.0, staff: was.1); shop.api = was.2 }
 
         shop.setUser(user("audit-staff-a"), staff: true)
         fill(admin)

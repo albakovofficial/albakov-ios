@@ -29,9 +29,17 @@ final class API {
     private let session: URLSession
     private let decoder = JSONDecoder()
 
-    private init() {
+    private convenience init() {
         let raw = Bundle.main.object(forInfoDictionaryKey: "AlbakovBaseURL") as? String ?? "https://albakovofficial.ru"
-        base = URL(string: raw) ?? URL(string: "https://albakovofficial.ru")!
+        self.init(base: URL(string: raw) ?? URL(string: "https://albakovofficial.ru")!, configuration: API.configuration())
+    }
+    /// Приложение пользуется только API.shared. Отдельный экземпляр — для юнит-тестов (этап I): та же настройка
+    /// из configuration() и подмена ответов сервера через protocolClasses, как у ImageCache.init(configuration:)
+    init(base: URL, configuration: URLSessionConfiguration) {
+        self.base = base
+        session = URLSession(configuration: configuration)
+    }
+    static func configuration() -> URLSessionConfiguration {
         let config = URLSessionConfiguration.default
         config.httpCookieStorage = .shared
         config.httpCookieAcceptPolicy = .always
@@ -39,7 +47,7 @@ final class API {
         config.timeoutIntervalForRequest = 25
         config.requestCachePolicy = .reloadIgnoringLocalCacheData   // цены и остатки — всегда свежие
         config.httpAdditionalHeaders = ["Accept": "application/json", "X-Albakov-App": "ios"]
-        session = URLSession(configuration: config)
+        return config
     }
 
     /// Адрес картинки или страницы сайта: «uploads/…», «/img/…» или полный адрес.

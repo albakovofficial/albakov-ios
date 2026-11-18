@@ -1,5 +1,5 @@
 # Сборка приложения ALBAKOV для iPhone на GitHub (Mac не нужен).
-# 1) Каждый push в main и каждый pull request — проверочная сборка под симулятор, без подписи.
+# 1) Каждый push в main и каждый pull request — проверочная сборка под симулятор, без подписи, и юнит-тесты (этап I).
 # 2) Тег V1.0.1 (или v1.0.1) либо ручной запуск с галочкой «TestFlight» — подписанная сборка и выгрузка в App Store Connect.
 #    Нужны секреты репозитория: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (см. README.md).
 name: iOS
@@ -60,7 +60,7 @@ jobs:
     # Для выгрузки в TestFlight отдельная проверочная сборка не нужна: архив и так всё собирает (и Mac на GitHub бывает в дефиците).
     if: ${{ !startsWith(github.ref, 'refs/tags/') && !(github.event_name == 'workflow_dispatch' && (inputs.testflight || inputs.screens || inputs.store)) }}
     runs-on: ${{ inputs.runner || 'macos-15-intel' }}
-    timeout-minutes: 30
+    timeout-minutes: 50   # сборка ~10 мин и юнит-тесты (сборка с целями тестов ~10 мин) на Intel-Mac
     steps:
       - uses: actions/checkout@v4
 
@@ -96,6 +96,41 @@ jobs:
         with:
           name: build-log
           path: build.log
+
+      # Юнит-тесты (этап I, I-1) — те же цели и та же проверка итогов, что в audit.yml (ci/test-targets.rb, ci/check-tests.py);
+      # project.yml не меняется. UI-тесты остаются в audit.yml: им нужна копия магазина и они идут 40+ минут.
+      # Хост юнит-тестов — само приложение: адрес магазина ведёт в закрытый порт, чтобы тесты не обращались к боевому сайту
+      # (тесты сети и витрины работают через подмену ответов в самих тестах)
+      - name: Юнит-тесты
+        id: unit
+        if: ${{ (inputs.swift_check || 'none') == 'none' }}
+        run: |
+          set -o pipefail
+          ruby ci/test-targets.rb
+          xcodegen generate --spec audit-project.yml
+          plutil -replace AlbakovBaseURL -string "https://127.0.0.1:9" Albakov/Resources/Info.plist
+          SIM=$(xcrun simctl list devices available | grep -E "^ +iPhone" | head -1 | grep -oE "[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}")
+          echo "Симулятор: $SIM"
+          xcodebuild test -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -only-testing:AlbakovUnit \
+            -destination "id=$SIM" -derivedDataPath unit-build -resultBundlePath unit.xcresult \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            2>&1 | tee unit.log | grep -E "Test Case.*(passed|failed)|error:|Executed|TEST (SUCCEEDED|FAILED)"
+
+      # Итог — по xcresult и тогда, когда xcodebuild завершился успешно: 0 выполненных тестов — тоже ошибка
+      - name: Итоги юнит-тестов
+        if: ${{ !cancelled() && (inputs.swift_check || 'none') == 'none' && steps.unit.conclusion != 'skipped' }}
+        run: |
+          mkdir -p unit-out; cp unit.log unit-out/ 2>/dev/null || true
+          xcrun xcresulttool get test-results summary --path unit.xcresult > unit-out/summary.json || true
+          xcrun xcresulttool get test-results tests --path unit.xcresult > unit-out/tests.json || true
+          python3 ci/check-tests.py unit-out/summary.json unit-out/tests.json
+
+      - name: Журнал и итоги юнит-тестов
+        if: ${{ !cancelled() && (inputs.swift_check || 'none') == 'none' && steps.unit.conclusion != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-tests
+          path: unit-out
 
   release:
     # Проверка релизной сборки (этап F): Release для iPhone и архив Xcode — подпись «для себя» (ad-hoc, как в шаге

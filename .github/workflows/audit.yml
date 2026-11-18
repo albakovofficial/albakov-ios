@@ -72,25 +72,7 @@ jobs:
       - name: Проект с целью аудита (project.yml не меняется)
         run: |
           brew install xcodegen
-          ruby -ryaml -e '
-            s = YAML.load_file("project.yml")
-            s["targets"]["AlbakovAudit"] = {
-              "type" => "bundle.ui-testing", "platform" => "iOS",
-              "sources" => [{ "path" => "audit" }],
-              "dependencies" => [{ "target" => "Albakov" }],
-              "settings" => { "base" => { "PRODUCT_BUNDLE_IDENTIFIER" => "ru.albakovofficial.audit", "GENERATE_INFOPLIST_FILE" => "YES",
-                                          "TEST_TARGET_NAME" => "Albakov", "SWIFT_VERSION" => "5.0" } } }
-            # юнит-тесты этапа A (audit-unit/): ключ повтора заказа, ключи строк панели, фото поддержки
-            s["targets"]["AlbakovUnit"] = {
-              "type" => "bundle.unit-test", "platform" => "iOS",
-              "sources" => [{ "path" => "audit-unit" }],
-              "dependencies" => [{ "target" => "Albakov" }],
-              "settings" => { "base" => { "PRODUCT_BUNDLE_IDENTIFIER" => "ru.albakovofficial.unit", "GENERATE_INFOPLIST_FILE" => "YES",
-                                          "TEST_HOST" => "$(BUILT_PRODUCTS_DIR)/Albakov.app/Albakov", "BUNDLE_LOADER" => "$(TEST_HOST)",
-                                          "SWIFT_VERSION" => "5.0" } } }
-            s["schemes"] = { "AlbakovAudit" => { "build" => { "targets" => { "Albakov" => "all", "AlbakovAudit" => ["test"], "AlbakovUnit" => ["test"] } },
-                                                  "test" => { "config" => "Debug", "targets" => ["AlbakovUnit", "AlbakovAudit"] } } }
-            File.write("audit-project.yml", s.to_yaml)'
+          ruby ci/test-targets.rb   # цели AlbakovAudit и AlbakovUnit — общие с ios.yml
           xcodegen generate --spec audit-project.yml
 
       - name: Симуляторы
@@ -291,39 +273,4 @@ jobs:
         if: ${{ !cancelled() && inputs.tests }}
         env:
           ONLY: ${{ inputs.only }}
-        run: |
-          python3 - <<'PY'
-          import json, os, sys
-          p = 'out/summary.json'
-          if not os.path.exists(p) or os.path.getsize(p) == 0:
-              print('::error::Нет итогов xcresult — тесты не запускались: сборка или xcodebuild упали раньше (см. шаги выше)'); sys.exit(1)
-          try:
-              j = json.load(open(p))
-          except ValueError as e:
-              print('::error::Итоги xcresult не читаются: %s' % e); sys.exit(1)
-          total, passed, failed = j.get('totalTestCount', 0), j.get('passedTests', 0), j.get('failedTests', 0)
-          skipped, result = j.get('skippedTests', 0), j.get('result', '')
-          print('Итог xcresult: %s; всего %d, прошло %d, упало %d, пропущено %d' % (result, total, passed, failed, skipped))
-          for f in j.get('testFailures', []):
-              print('::error::%s: %s' % (f.get('testName', '?'), (f.get('failureText') or '')[:300]))
-          # прошедшие UI-тесты по имени — из дерева tests.json
-          ran = set()
-          def walk(n):
-              if n.get('nodeType') == 'Test Case' and n.get('result') == 'Passed': ran.add(n.get('name', '').split('(')[0])
-              for c in n.get('children', []): walk(c)
-          try:
-              for n in json.load(open('out/tests.json')).get('testNodes', []): walk(n)
-          except (OSError, ValueError) as e:
-              print('::warning::Дерево тестов не читается: %s' % e)
-          names = [t for t in os.environ.get('ONLY', '').split() if t != 'unit']
-          problems = []
-          if total == 0: problems.append('не выполнилось ни одного теста')
-          if failed > 0: problems.append('упало тестов: %d' % failed)
-          if skipped > 0: problems.append('пропущено тестов: %d' % skipped)
-          if result != 'Passed': problems.append('общий итог %r вместо Passed' % result)
-          for t in names:
-              if t not in ran: problems.append('тест %s из «only» не выполнен или не прошёл — имя с ошибкой?' % t)
-          if problems:
-              for m in problems: print('::error::' + m)
-              sys.exit(1)
-          PY
+        run: python3 ci/check-tests.py out/summary.json out/tests.json   # общая с ios.yml
