@@ -495,6 +495,7 @@ final class AuditUITests: XCTestCase {
     // MARK: - 2. Корзина: одинаковые товары, разные размеры, удаление
 
     func test02_Cart() {
+        XCTFail("Контроль этапа H (T-1): намеренное падение, только в проверочной ветке")
         startClean()
         addToCart(product: "p6", size: "M")
         addToCart(product: "p6", size: "M")   // тот же товар и размер ещё раз — должна вырасти строка, а не появиться вторая
