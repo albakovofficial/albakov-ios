@@ -210,6 +210,26 @@ final class AuditUITests: XCTestCase {
         shot("вход владельца")
         XCTAssertFalse(app.secureTextFields.firstMatch.exists, "Вход владельцем не удался — проверка панели без входа недостоверна")
     }
+    /// Выход на открытом экране кабинета — без перезапуска приложения (данные в памяти остаются, как у человека)
+    func logoutFromAccount() {
+        let out = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Выйти'")).firstMatch
+        scrollTo(out)
+        XCTAssertTrue(out.exists, "Нет строки «Выйти» в кабинете"); out.tap()
+        // сначала дождаться окна подтверждения: иначе lastButton мог бы выбрать саму строку «Выйти» (ревью этапа F)
+        _ = app.staticTexts.matching(NSPredicate(format: "label == 'Выйти из кабинета?'")).firstMatch.waitForExistence(timeout: 5)
+        let yes = app.sheets.buttons["Выйти"].exists ? app.sheets.buttons["Выйти"] : lastButton(["Выйти"])
+        XCTAssertTrue(yes.waitForExistence(timeout: 5), "Нет подтверждения выхода"); yes.tap(); sleep(3)
+        XCTAssertTrue(app.secureTextFields.firstMatch.waitForExistence(timeout: 10), "После выхода не показан вход")
+    }
+    /// Ссылка albakov://… в приложение: в запущенное — без перезапуска (как нажатие на ссылку или уведомление),
+    /// в закрытое — холодный запуск с этой ссылкой
+    func openLink(_ link: String) {
+        guard let url = URL(string: link) else { return XCTFail("Неверная ссылка \(link)") }
+        guard #available(iOS 16.4, *) else { return XCTFail("Открыть ссылку в приложении из теста можно с iOS 16.4") }
+        app.open(url)
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30), "Приложение не открылось по ссылке")
+        sleep(3)
+    }
     /// Спрятать клавиатуру: тап по заголовку экрана, если он есть
     func hideKeyboard() { let nb = app.navigationBars.firstMatch; if nb.exists && nb.isHittable { nb.tap() } }
     /// Последняя кнопка из подходящих по подписи (нижняя строка списка)
@@ -462,15 +482,25 @@ final class AuditUITests: XCTestCase {
     func test02_Cart() {
         startClean()
         addToCart(product: "p6", size: "M")
-        addToCart(product: "p6", size: "M")   // тот же товар ещё раз — должна вырасти строка, а не появиться вторая
-        addToCart(product: "p6", size: "L")
+        addToCart(product: "p6", size: "M")   // тот же товар и размер ещё раз — должна вырасти строка, а не появиться вторая
         launch("/cart")
-        shot("02 корзина: футболка M ×2 и L ×1")
-        let mLines = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Размер: M' OR label CONTAINS '· M'")).count
-        note("Строк с размером M: \(mLines)")
-        let del = button("Удалить")
-        if del.waitForExistence(timeout: 5) { del.tap(); sleep(1); shot("02 после удаления строки") }
-        if button("Удалить").exists { button("Удалить").tap(); sleep(1) }
+        // одна строка: одна кнопка «Удалить» и одна подпись «Размер: M»; в ней количество 2 (рядом с «−» у этой строки),
+        // и сумму сервер считает за 2 вещи (этап H, T-2: раньше тест проверял только, что нажатия прошли)
+        let lines = app.buttons.matching(NSPredicate(format: "label == 'Удалить' AND NOT (identifier IN {'minus', 'plus'})"))
+        XCTAssertTrue(lines.firstMatch.waitForExistence(timeout: 10), "Корзина пуста после двух добавлений")
+        XCTAssertEqual(lines.count, 1, "Тот же товар и размер добавился второй строкой")
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Размер: M'")).count, 1, "Строк с размером M не одна")
+        let minus = app.buttons["Уменьшить количество"]
+        XCTAssertTrue(minus.waitForExistence(timeout: 5), "У строки нет «−» для количества больше 1 — количество не выросло")
+        let qty = app.staticTexts.matching(NSPredicate(format: "label == '2'")).allElementsBoundByIndex.first { abs($0.frame.midY - minus.frame.midY) < 12 }
+        XCTAssertNotNil(qty, "В строке корзины количество не 2")
+        XCTAssertTrue(text("2 товара").waitForExistence(timeout: 15), "Итог корзины посчитан не за 2 вещи")
+        shot("02 корзина: одна строка M × 2")
+        // удаление строки: строка исчезла, корзина пустая
+        lines.firstMatch.tap(); sleep(1)
+        XCTAssertTrue(text("В корзине пока пусто").waitForExistence(timeout: 10), "После удаления корзина не пустая")
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Размер: M'")).count, 0, "Удалённая строка осталась на экране")
+        XCTAssertEqual(lines.count, 0, "После удаления осталась кнопка «Удалить»")
         shot("02 пустая корзина")
     }
 
@@ -951,14 +981,7 @@ final class AuditUITests: XCTestCase {
         addToCart(product: "p2", size: "M"); sleep(2)  // корзина аккаунта (сохранение на сервер — через 0,8 с)
         // выход
         launch("/account")
-        let out = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Выйти'")).firstMatch
-        scrollTo(out)
-        XCTAssertTrue(out.exists, "Нет строки «Выйти» в кабинете"); out.tap()
-        // сначала дождаться окна подтверждения: иначе lastButton мог бы выбрать саму строку «Выйти» (ревью этапа F)
-        _ = app.staticTexts.matching(NSPredicate(format: "label == 'Выйти из кабинета?'")).firstMatch.waitForExistence(timeout: 5)
-        let yes = app.sheets.buttons["Выйти"].exists ? app.sheets.buttons["Выйти"] : lastButton(["Выйти"])
-        XCTAssertTrue(yes.waitForExistence(timeout: 5), "Нет подтверждения выхода"); yes.tap(); sleep(3)
-        XCTAssertTrue(app.secureTextFields.firstMatch.waitForExistence(timeout: 10), "После выхода не показан вход")
+        logoutFromAccount()
         // после выхода (и перезапуска) корзина пуста, а в оформлении гостя нет данных владельца
         launch("/cart")
         XCTAssertTrue(text("В корзине пока пусто").waitForExistence(timeout: 10), "После выхода в корзине остались вещи аккаунта")
@@ -983,5 +1006,51 @@ final class AuditUITests: XCTestCase {
         shot("17г корзина после повторного входа")
         XCTAssertEqual(lines.count, 2, "Корзина аккаунта не сохранилась на сервере или не объединилась с корзиной гостя")
         startClean()
+    }
+
+    // MARK: - 18–19. Панель после выхода сотрудника и при запуске по ссылке (этап H, SEC-1)
+
+    /// Раньше данные панели оставались в памяти после выхода: ссылка или старое уведомление сотрудника показывали
+    /// заказы и покупателей. Выход и ссылка — в том же запуске приложения, без перезапуска (иначе память и так пуста)
+    func test18_StaffLogoutAdminLinkShowsNoData() {
+        let last = "Покупатель-Восемнадцать"
+        signInOwner()
+        startClean()
+        addToCart(product: "p6", size: "M")
+        launch("/checkout")
+        fillCheckout(phone: "79070000181", name: "Секрет", last: last)
+        let c = button("Подтвердить заказ"); scrollTo(c); c.tap()
+        XCTAssertTrue(waitOrderOpened(), "Заказ не оформился")
+        // панель в этом же запуске: список заказов загружен, новый заказ с фамилией покупателя виден
+        openLink("albakov://admin?s=orders")
+        XCTAssertTrue(app.segmentedControls.buttons["В работе"].waitForExistence(timeout: 20), "Список заказов панели не открылся")
+        XCTAssertTrue(text(last).waitForExistence(timeout: 30), "В списке заказов панели нет нового заказа — проверка после выхода была бы пустой")
+        shot("18а заказы в панели у сотрудника")
+        // выход в том же запуске
+        openLink("albakov://account")
+        logoutFromAccount()
+        // ссылка в панель после выхода — как старое уведомление сотрудника
+        openLink("albakov://admin?s=orders")
+        XCTAssertTrue(text("Нет доступа").waitForExistence(timeout: 15), "После выхода ссылка открыла панель без прав")
+        shot("18б ссылка в панель после выхода")
+        XCTAssertFalse(text(last).exists, "После выхода видны данные покупателя из панели")
+        XCTAssertFalse(app.segmentedControls.buttons["В работе"].exists, "После выхода открылся список заказов панели")
+    }
+
+    /// Холодный запуск ссылкой в панель: ссылка приходит раньше, чем загружена витрина и известно, что вошёл сотрудник.
+    /// Сотрудник должен попасть в панель, а не получить отказ (нажатие на push идёт тем же путём — Router.open)
+    func test19_StaffColdStartAdminLink() {
+        signInOwner()
+        app.terminate()
+        openLink("albakov://admin?s=orders")
+        // обычный запуск (без -screen): через 1,6 с после загрузки может всплыть окно «Включите уведомления» — к проверке не относится
+        let later = button("Не сейчас"); if later.waitForExistence(timeout: 8) { later.tap(); sleep(1) }
+        XCTAssertTrue(app.segmentedControls.buttons["В работе"].waitForExistence(timeout: 40), "Сотрудник не попал в список заказов панели при запуске по ссылке")
+        XCTAssertFalse(text("Нет доступа").exists, "Сотруднику показан отказ в доступе")
+        // данные панели пришли с сервера: строки заказов или «Заказов нет», а не ошибка входа
+        let rows = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '№ '"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 20) || text("Заказов нет").exists, "Список заказов панели не загрузился")
+        XCTAssertFalse(text("Войдите в личный кабинет").exists, "Сервер не признал сотрудника")
+        shot("19 запуск по ссылке — заказы панели")
     }
 }
