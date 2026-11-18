@@ -227,6 +227,8 @@ final class Shop: ObservableObject {
         if let j = try? await API.shared.json("GET", "state") { apply(j["data"]); if epoch == userEpoch { setUser(User(j["user"]), staff: j["isAdmin"].bool) } }
     }
     func signedIn(_ j: JSON) {
+        // ответ state, запрошенный до входа (без куки), не должен «разлогинить» только что вошедшего (ревью этапа H)
+        userEpoch += 1
         setUser(User(j["user"]), staff: j["isAdmin"].bool, merge: true)
         Task { await refreshUser() }
     }
