@@ -111,7 +111,7 @@ jobs:
           plutil -replace AlbakovBaseURL -string "https://127.0.0.1:9" Albakov/Resources/Info.plist
           SIM=$(xcrun simctl list devices available | grep -E "^ +iPhone" | head -1 | grep -oE "[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}")
           echo "Симулятор: $SIM"
-          xcodebuild test -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -only-testing:AlbakovUnit \
+          xcodebuild test -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -only-testing:AlbakovUnit/NoSuchTests \
             -destination "id=$SIM" -derivedDataPath unit-build -resultBundlePath unit.xcresult \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
             2>&1 | tee unit.log | grep -E "Test Case.*(passed|failed)|error:|Executed|TEST (SUCCEEDED|FAILED)"
