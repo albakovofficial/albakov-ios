@@ -217,14 +217,24 @@ final class Shop: ObservableObject {
     func deleteAccount(password: String) async throws {
         _ = try await API.shared.raw("POST", "me/delete", body: ["password": password])
         API.shared.clearSession()
-        user = nil; isStaff = false; favorites = []; clearCart()
+        forgetUser()
         PushManager.shared.resend()
     }
     func logout() async {
         _ = try? await API.shared.raw("POST", "auth/logout")
         API.shared.clearSession()
-        user = nil; isStaff = false
+        forgetUser()
         PushManager.shared.resend()
+    }
+    /// После выхода и удаления аккаунта данные покупателя на телефоне не остаются (аудит F-1). Раньше при выходе
+    /// корзина, избранное и черновик оформления (имя, телефон, почта, адрес) оставались: следующий, кто входил на этом
+    /// iPhone, получал их в свой аккаунт (setUser объединяет корзину и избранное) и видел чужие данные в оформлении.
+    /// Как на сайте (store.js, logout: Cart.set([], true), Fav.set([], true)) — очищается только телефон: user уже nil,
+    /// поэтому пустые корзина и избранное на сервер не уходят и в аккаунте остаются
+    private func forgetUser() {
+        user = nil; isStaff = false
+        favorites = []; clearCart(); buyNow = nil
+        UserDefaults.standard.removeObject(forKey: CheckoutView.draftStore)
     }
 }
 

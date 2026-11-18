@@ -285,7 +285,7 @@ struct CheckoutView: View {
         if !onlineOk { payment = "cod" }
     }
     // MARK: Черновик оформления (1.0.3): покупатель, доставка, город, пункт, адрес и комментарий
-    private static let draftStore = "checkoutDraft"
+    static let draftStore = "checkoutDraft"   // стирается при выходе и удалении аккаунта (Shop.forgetUser)
     private var draftKey: String { [firstName, lastName, phone, email, deliveryId, String(city?.code ?? 0), point?.code ?? "", cityText, address, comment, payment].joined(separator: "\u{1}") }
     private func saveDraft() {
         var d: [String: Any] = ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email, "deliveryId": deliveryId,
