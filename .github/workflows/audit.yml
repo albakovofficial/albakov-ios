@@ -281,8 +281,9 @@ jobs:
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" audit-shots
 
       # Последний шаг (этап H, T-1): итог задачи — по xcresult, а не по поиску слов в журнале. Ошибка, если итогов нет
-      # (тесты не запустились или xcodebuild упал раньше), не выполнилось ни одного теста, выполнилось меньше, чем названо
-      # в «only», есть упавшие тесты или общий итог не Passed. Идёт после сохранения в audit-shots — журналы уже сохранены
+      # (сборка или xcodebuild упали до тестов), не выполнилось ни одного теста, есть упавшие или пропущенные тесты
+      # (XCTSkip в тестах нет — пропуск всегда неожиданный), общий итог не Passed или тест, названный в «only»,
+      # не выполнен и не прошёл (опечатка в имени). Идёт после сохранения в audit-shots — журналы уже сохранены
       - name: Проверка итогов тестов
         if: ${{ !cancelled() && inputs.tests }}
         env:
@@ -292,7 +293,7 @@ jobs:
           import json, os, sys
           p = 'out/summary.json'
           if not os.path.exists(p) or os.path.getsize(p) == 0:
-              print('::error::Нет итогов xcresult — тесты не запускались или прогон оборвался до отчёта'); sys.exit(1)
+              print('::error::Нет итогов xcresult — тесты не запускались: сборка или xcodebuild упали раньше (см. шаги выше)'); sys.exit(1)
           try:
               j = json.load(open(p))
           except ValueError as e:
@@ -302,12 +303,23 @@ jobs:
           print('Итог xcresult: %s; всего %d, прошло %d, упало %d, пропущено %d' % (result, total, passed, failed, skipped))
           for f in j.get('testFailures', []):
               print('::error::%s: %s' % (f.get('testName', '?'), (f.get('failureText') or '')[:300]))
+          # прошедшие UI-тесты по имени — из дерева tests.json
+          ran = set()
+          def walk(n):
+              if n.get('nodeType') == 'Test Case' and n.get('result') == 'Passed': ran.add(n.get('name', '').split('(')[0])
+              for c in n.get('children', []): walk(c)
+          try:
+              for n in json.load(open('out/tests.json')).get('testNodes', []): walk(n)
+          except (OSError, ValueError) as e:
+              print('::warning::Дерево тестов не читается: %s' % e)
           names = [t for t in os.environ.get('ONLY', '').split() if t != 'unit']
           problems = []
           if total == 0: problems.append('не выполнилось ни одного теста')
-          if total < len(names): problems.append('выполнено тестов меньше, чем названо в «only» (%d из %d) — имя теста с ошибкой?' % (total, len(names)))
           if failed > 0: problems.append('упало тестов: %d' % failed)
+          if skipped > 0: problems.append('пропущено тестов: %d' % skipped)
           if result != 'Passed': problems.append('общий итог %r вместо Passed' % result)
+          for t in names:
+              if t not in ran: problems.append('тест %s из «only» не выполнен или не прошёл — имя с ошибкой?' % t)
           if problems:
               for m in problems: print('::error::' + m)
               sys.exit(1)

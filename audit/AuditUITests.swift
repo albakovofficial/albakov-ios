@@ -485,7 +485,7 @@ final class AuditUITests: XCTestCase {
         addToCart(product: "p6", size: "M")   // тот же товар и размер ещё раз — должна вырасти строка, а не появиться вторая
         launch("/cart")
         // одна строка: одна кнопка «Удалить» и одна подпись «Размер: M»; в ней количество 2 (рядом с «−» у этой строки),
-        // и сумму сервер считает за 2 вещи (этап H, T-2: раньше тест проверял только, что нажатия прошли)
+        // и итог корзины — за 2 вещи (этап H, T-2: раньше тест проверял только, что нажатия прошли)
         let lines = app.buttons.matching(NSPredicate(format: "label == 'Удалить' AND NOT (identifier IN {'minus', 'plus'})"))
         XCTAssertTrue(lines.firstMatch.waitForExistence(timeout: 10), "Корзина пуста после двух добавлений")
         XCTAssertEqual(lines.count, 1, "Тот же товар и размер добавился второй строкой")
@@ -1040,17 +1040,27 @@ final class AuditUITests: XCTestCase {
     /// Холодный запуск ссылкой в панель: ссылка приходит раньше, чем загружена витрина и известно, что вошёл сотрудник.
     /// Сотрудник должен попасть в панель, а не получить отказ (нажатие на push идёт тем же путём — Router.open)
     func test19_StaffColdStartAdminLink() {
+        // заказ с фамилией, которую покажет только ответ admin/data: «Заказов нет» или пустой список тест не примет
+        let last = "Покупатель-Девятнадцать"
         signInOwner()
+        startClean()
+        addToCart(product: "p6", size: "M")
+        launch("/checkout")
+        fillCheckout(phone: "79070000191", name: "Холодный", last: last)
+        let c = button("Подтвердить заказ"); scrollTo(c); c.tap()
+        XCTAssertTrue(waitOrderOpened(), "Заказ не оформился")
         app.terminate()
         openLink("albakov://admin?s=orders")
-        // обычный запуск (без -screen): через 1,6 с после загрузки может всплыть окно «Включите уведомления» — к проверке не относится
-        let later = button("Не сейчас"); if later.waitForExistence(timeout: 8) { later.tap(); sleep(1) }
-        XCTAssertTrue(app.segmentedControls.buttons["В работе"].waitForExistence(timeout: 40), "Сотрудник не попал в список заказов панели при запуске по ссылке")
+        // обычный запуск (без -screen): могут всплыть окна «Включите уведомления» и «Вышло обновление» — к проверке не относятся
+        let list = app.segmentedControls.buttons["В работе"]
+        let deadline = Date().addingTimeInterval(60)
+        while !(list.exists && text(last).exists), Date() < deadline {
+            for b in ["Не сейчас", "Позже"] where button(b).exists { button(b).tap() }
+            sleep(1)
+        }
+        XCTAssertTrue(list.exists, "Сотрудник не попал в список заказов панели при запуске по ссылке")
         XCTAssertFalse(text("Нет доступа").exists, "Сотруднику показан отказ в доступе")
-        // данные панели пришли с сервера: строки заказов или «Заказов нет», а не ошибка входа
-        let rows = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '№ '"))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 20) || text("Заказов нет").exists, "Список заказов панели не загрузился")
-        XCTAssertFalse(text("Войдите в личный кабинет").exists, "Сервер не признал сотрудника")
+        XCTAssertTrue(text(last).exists, "В панели нет заказа сотрудника — данные admin/data не загрузились")
         shot("19 запуск по ссылке — заказы панели")
     }
 }

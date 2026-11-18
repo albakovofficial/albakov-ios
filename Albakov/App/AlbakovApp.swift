@@ -60,7 +60,9 @@ enum Dest: Hashable {
         switch self {
         case .admin, .adminOrders, .adminOrder, .adminSupport, .adminTicket, .adminProducts, .adminProduct,
              .adminPush, .adminAudit, .adminCustomers, .adminSection, .adminItem: return true
-        default: return false
+        // без default: новый экран не станет доступен всем молча — компилятор потребует решить, панель ли это
+        case .product, .catalog, .search, .page, .gift, .track, .checkout, .orders, .order, .support, .ticket,
+             .bonus, .profile, .notifications: return false
         }
     }
 }
