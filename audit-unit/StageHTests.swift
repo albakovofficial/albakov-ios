@@ -21,6 +21,7 @@ final class AdminOwnerTests: XCTestCase {
         XCTAssertTrue(hostReady)
         let was = (shop.user, shop.isStaff, shop.api)
         shop.api = NetStub.api()
+        NetStub.reset { _, _ in .json(["ok": true]) }   // без придержанных ответов прежних тестов
         defer { shop.setUser(was.0, staff: was.1); shop.api = was.2 }
 
         shop.setUser(user("audit-staff-a"), staff: true)

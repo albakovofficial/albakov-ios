@@ -57,18 +57,27 @@ final class NetStub: URLProtocol {
         let h = NetStub.handler
         NetStub.lock.unlock()
         let reply = h(method, path)
+        // Ответ отдаётся в потоке клиента (URLSession), как требует URLProtocol: там же вызывается stopLoading,
+        // поэтому проверка «запрос отменён» и ответ не разойдутся
+        let thread = Thread.current
+        var modes = [RunLoop.Mode.default.rawValue]
+        if let m = RunLoop.current.currentMode, m != .default { modes.append(m.rawValue) }
         DispatchQueue.global().async {
             reply.hold?.wait()
-            NetStub.lock.lock(); let stop = self.stopped; NetStub.lock.unlock()
-            guard !stop, let client = self.client else { return }
-            if let e = reply.error { client.urlProtocol(self, didFailWithError: e); return }
-            guard let url = req.url, let resp = HTTPURLResponse(url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: nil) else {
-                client.urlProtocol(self, didFailWithError: URLError(.badURL)); return
-            }
-            client.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
-            client.urlProtocol(self, didLoad: reply.body)
-            client.urlProtocolDidFinishLoading(self)
+            self.perform(#selector(self.deliver(_:)), on: thread, with: Box(reply), waitUntilDone: false, modes: modes)
         }
+    }
+    private final class Box: NSObject { let reply: Reply; init(_ r: Reply) { reply = r } }
+    @objc private func deliver(_ object: NSObject) {
+        NetStub.lock.lock(); let stop = stopped; NetStub.lock.unlock()
+        guard !stop, let client = self.client, let reply = (object as? Box)?.reply else { return }
+        if let e = reply.error { client.urlProtocol(self, didFailWithError: e); return }
+        guard let url = request.url, let resp = HTTPURLResponse(url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: nil) else {
+            client.urlProtocol(self, didFailWithError: URLError(.badURL)); return
+        }
+        client.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
+        client.urlProtocol(self, didLoad: reply.body)
+        client.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() { NetStub.lock.lock(); stopped = true; NetStub.lock.unlock() }
 
@@ -305,7 +314,7 @@ final class ModelParsingTests: XCTestCase {
     }
 
     /// DEF-3: товар с той же id, но другими ценой или остатком не равен прежнему — иначе SwiftUI не обновит экран
-    /// (см. ShopStateTests.test12). Хеш — по id, как раньше: равные товары по-прежнему с одинаковым хешем
+    /// (см. ShopStateTests.test11). Хеш — по id, как раньше: равные товары по-прежнему с одинаковым хешем
     func test07_ProductEqualityFollowsData() {
         let a = Product(JSON(productJSON("p1", 1000)))
         XCTAssertEqual(a, Product(JSON(productJSON("p1", 1000))))
@@ -544,7 +553,9 @@ final class ShopStateTests: XCTestCase {
             NetStub.clearSeen()
             shop.add(p, color: "c1", size: "M"); shop.add(p, color: "c1", size: "L"); shop.add(p, color: "c1", size: "XL", qty: 3)
             XCTAssertEqual(shop.cart.map(\.qty), [2, 1, 3]); XCTAssertEqual(shop.cartCount, 6)
-            try await Task.sleep(nanoseconds: 1_300_000_000)
+            let sent = try await until(5) { NetStub.paths("PUT").contains("me/cart") }
+            XCTAssertTrue(sent, "Корзина не ушла в аккаунт")
+            try await Task.sleep(nanoseconds: 1_000_000_000)   // лишний запрос успел бы прийти
             let puts = NetStub.seen.filter { $0.method == "PUT" && $0.path == "me/cart" }
             XCTAssertEqual(puts.count, 1, "Серия быстрых изменений — один запрос")
             XCTAssertEqual(JSON(data: puts.first?.body ?? Data())["lines"].array.compactMap(CartLine.init), shop.cart)
