@@ -109,6 +109,14 @@ final class Router: ObservableObject {
         tab = t
     }
 
+    /// Закрыть оформление заказа во всех вкладках (выход и удаление аккаунта): открытый экран хранит в своих полях имя,
+    /// телефон, почту и адрес прежнего покупателя и при любой правке снова записал бы их в черновик (ревью этапа F).
+    /// Остальные экраны вкладок не трогаем
+    func closeCheckout() {
+        func cut(_ s: [Dest]) -> [Dest] { s.firstIndex(of: .checkout).map { Array(s[..<$0]) } ?? s }
+        home = cut(home); catalog = cut(catalog); favorites = cut(favorites); cart = cut(cart); account = cut(account)
+    }
+
     func open(_ url: URL) {
         if url.scheme == "albakov" {
             open(path: "/" + [url.host, url.path].compactMap { $0 }.joined() + (url.query.map { "?" + $0 } ?? ""))

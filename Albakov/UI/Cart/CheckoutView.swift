@@ -410,6 +410,7 @@ enum CheckoutNonce {
 enum OrderTokens {
     static func save(_ id: String, _ t: String) { var d = all; d[id] = t; UserDefaults.standard.set(d, forKey: "orderTokens") }
     static var all: [String: String] { UserDefaults.standard.dictionary(forKey: "orderTokens") as? [String: String] ?? [:] }
+    static func clear() { UserDefaults.standard.removeObject(forKey: "orderTokens") }   // выход и удаление аккаунта (Shop.forgetUser)
 }
 
 /// Вариант доставки или оплаты (.opt): белая карточка, кружок выбора, картинка-значок, подпись и цена капсулой

@@ -133,23 +133,43 @@ jobs:
             2>&1 | tee archive.log | grep -E "error:|warning:|ARCHIVE (SUCCEEDED|FAILED)" || true
           echo "Архив: ошибок $(grep -c ' error:' archive.log), предупреждений $(grep -c ' warning:' archive.log)"
           grep -q "ARCHIVE SUCCEEDED" archive.log
+      - name: Контроль поиска строк — Debug для iPhone
+        run: |
+          set -o pipefail
+          xcodebuild build -project Albakov.xcodeproj -scheme Albakov -configuration Debug \
+            -destination 'generic/platform=iOS' -derivedDataPath build-debug CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee debug-device.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" debug-device.log
       - name: Что попало в архив
         run: |
           A="$RUNNER_TEMP/Albakov.xcarchive"; APP="$A/Products/Applications/Albakov.app"
           {
           echo "== Info.plist архива"; plutil -p "$A/Info.plist"
           echo "== Info.plist приложения"; plutil -p "$APP/Info.plist"
-          echo "== Entitlements (подпись ad-hoc)"; codesign -d --entitlements - --xml "$APP" 2>/dev/null | plutil -p - || echo "нет"
+          echo "== Entitlements (подпись ad-hoc; aps-environment=production ставит экспорт для App Store, его здесь нет)"; codesign -d --entitlements - --xml "$APP" 2>/dev/null | plutil -p - || echo "нет"
           echo "== Архитектуры"; lipo -info "$APP/Albakov"
           echo "== Связанные библиотеки"; otool -L "$APP/Albakov"
           echo "== Слабо связанные"; otool -l "$APP/Albakov" | grep -A2 LC_LOAD_WEAK_DYLIB | grep name || true
           echo "== Файлы приложения"; (cd "$APP" && find . -type f | sort | while read -r f; do printf '%9d %s\n' "$(stat -f %z "$f")" "$f"; done)
           echo "== Размер"; du -sh "$APP"
-          echo "== dSYM"; ls "$A/dSYMs"
-          echo "== Строки отладки и тестов в исполняемом файле Release (должно быть: не найдено)"
-          strings -a "$APP/Albakov" | grep -nE "demo=staff|demo=buyer|update=1|sizes=1|FIRSTCAT|Не разобран ответ|__ctl|127\.0\.0\.1|localhost|owner-audit|5739146280|AlbakovAudit|XCTest" || echo "не найдено"
-          echo "== Контроль поиска: адрес магазина в исполняемом файле (должно быть больше 0)"; strings -a "$APP/Albakov" | grep -c "albakovofficial.ru" || true
+          echo "== dSYM"; ls "$A/dSYMs" || echo "нет"
           } | tee release-contents.txt
+          # Отладочный код в Release. Короткие строки (до 15 байт) Swift кладёт прямо в машинный код — их поиск не видит,
+          # поэтому ищем длинные строки, которые есть только в коде под #if DEBUG (Demo, окно «Вышло обновление», журнал разбора),
+          # и проверяем сам поиск на сборке Debug: там они обязаны найтись
+          MARKS=("подберём по меркам изделия" "Обменять размер можно в личном кабинете" "поддержка с номером обращения и фото" "Не разобран ответ")
+          # ищем байты UTF-8 во всех файлах приложения (strings на macOS кириллицу не выводит; код Debug лежит в Albakov.debug.dylib)
+          DBGAPP=build-debug/Build/Products/Debug-iphoneos/Albakov.app
+          ls "$DBGAPP" | tee -a release-contents.txt
+          cnt() { find "$1" -type f -print0 | xargs -0 cat | LC_ALL=C grep -a -c -F "$2" || true; }
+          bad=0
+          for m in "${MARKS[@]}"; do
+            r=$(cnt "$APP" "$m"); d=$(cnt "$DBGAPP" "$m")
+            echo "«$m»: Release $r, Debug $d" | tee -a release-contents.txt
+            [ "$d" -gt 0 ] || { echo "::error::Контроль не сработал: в Debug нет «$m» — поиск ничего не доказывает"; bad=1; }
+            [ "$r" -eq 0 ] || { echo "::error::В Release попал отладочный код: «$m»"; bad=1; }
+          done
+          exit $bad
       - name: Журналы
         if: always()
         uses: actions/upload-artifact@v4
@@ -159,6 +179,7 @@ jobs:
             release.log
             archive.log
             release-contents.txt
+            debug-device.log
 
   screens:
     name: Экраны (симулятор)

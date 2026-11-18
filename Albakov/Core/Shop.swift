@@ -34,6 +34,9 @@ final class Shop: ObservableObject {
 
     private var cartSync: Task<Void, Never>?
     private var favSync: Task<Void, Never>?
+    /// Номер «сеанса покупателя на телефоне»: растёт при выходе и удалении аккаунта (forgetUser). Ответ GET state,
+    /// запрошенный до выхода и пришедший после, не возвращает прежнего покупателя, его корзину и избранное (ревью этапа F)
+    private var userEpoch = 0
 
     private init() {
         if let d = UserDefaults.standard.data(forKey: "cart"), let c = try? JSONDecoder().decode([CartLine].self, from: d) { cart = c }
@@ -44,10 +47,11 @@ final class Shop: ObservableObject {
 
     // MARK: Загрузка
     func load() async {
+        let epoch = userEpoch
         do {
             let j = try await API.shared.json("GET", "state")
             apply(j["data"])
-            setUser(User(j["user"]), staff: j["isAdmin"].bool, merge: true)
+            if epoch == userEpoch { setUser(User(j["user"]), staff: j["isAdmin"].bool, merge: true) }
             loaded = true; loadError = nil; loadedAt = Date()
         } catch {
             loadError = error.userMessage
@@ -219,7 +223,8 @@ final class Shop: ObservableObject {
     /// Сбой здесь не показывается сознательно (аудит Q-B1): само действие уже сообщило о своём результате, прежние данные
     /// не стираются, а витрина ещё раз обновится при возврате в приложение (Shop.load через 10 минут) или потягиванием вниз
     func refreshUser() async {
-        if let j = try? await API.shared.json("GET", "state") { apply(j["data"]); setUser(User(j["user"]), staff: j["isAdmin"].bool) }
+        let epoch = userEpoch
+        if let j = try? await API.shared.json("GET", "state") { apply(j["data"]); if epoch == userEpoch { setUser(User(j["user"]), staff: j["isAdmin"].bool) } }
     }
     func signedIn(_ j: JSON) {
         setUser(User(j["user"]), staff: j["isAdmin"].bool, merge: true)
@@ -243,10 +248,15 @@ final class Shop: ObservableObject {
     /// iPhone, получал их в свой аккаунт (setUser объединяет корзину и избранное) и видел чужие данные в оформлении.
     /// Как на сайте (store.js, logout: Cart.set([], true), Fav.set([], true)) — очищается только телефон: user уже nil,
     /// поэтому пустые корзина и избранное на сервер не уходят и в аккаунте остаются
+    /// Ключи заказов (OrderTokens) тоже стираются: их сохраняют и заказы, оформленные из кабинета, — иначе «Мои заказы»
+    /// гостя показали бы следующему человеку заказы прежнего покупателя с его именем, телефоном и адресом (ревью этапа F).
+    /// Свои заказы покупатель найдёт после входа, по ссылке из письма или по номеру и телефону
     private func forgetUser() {
+        userEpoch += 1
         user = nil; isStaff = false
         favorites = []; clearCart(); buyNow = nil
         UserDefaults.standard.removeObject(forKey: CheckoutView.draftStore)
+        OrderTokens.clear()
     }
 }
 

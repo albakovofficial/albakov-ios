@@ -934,22 +934,28 @@ final class AuditUITests: XCTestCase {
 
     // MARK: - 17. Выход из кабинета: данные покупателя не остаются на телефоне (этап F, F-1)
 
-    /// Раньше после выхода корзина, избранное и черновик оформления (имя, телефон, почта, адрес) оставались:
-    /// следующий, кто входил на этом iPhone, получал их в свой аккаунт и видел чужие данные в оформлении.
+    /// Раньше после выхода корзина, избранное, черновик оформления (имя, телефон, почта, адрес) и ключи заказов оставались:
+    /// следующий, кто входил на этом iPhone, получал их в свой аккаунт, видел чужие данные в оформлении и чужие заказы.
     /// Корзина в аккаунте при этом должна сохраниться — очищается только телефон, как на сайте
     func test17_LogoutClearsPersonalData() {
         let phone = "79070000171"
         signInOwner()
         startClean()                                   // корзина владельца пуста и на телефоне, и в аккаунте
-        addToCart(product: "p2", size: "M"); sleep(2)  // уходит в корзину аккаунта (сохранение — через 0,8 с)
+        // заказ из кабинета: его ключ сохраняется на телефоне (OrderTokens), контакты — в черновике оформления
+        addToCart(product: "p2", size: "M")
         launch("/checkout")
         fillCheckout(phone: phone)
         shot("17а оформление владельца заполнено")
+        let c = button("Подтвердить заказ"); scrollTo(c); c.tap()
+        XCTAssertTrue(waitOrderOpened(), "Заказ владельца не оформился")
+        addToCart(product: "p2", size: "M"); sleep(2)  // корзина аккаунта (сохранение на сервер — через 0,8 с)
         // выход
         launch("/account")
         let out = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Выйти'")).firstMatch
         scrollTo(out)
         XCTAssertTrue(out.exists, "Нет строки «Выйти» в кабинете"); out.tap()
+        // сначала дождаться окна подтверждения: иначе lastButton мог бы выбрать саму строку «Выйти» (ревью этапа F)
+        _ = app.staticTexts.matching(NSPredicate(format: "label == 'Выйти из кабинета?'")).firstMatch.waitForExistence(timeout: 5)
         let yes = app.sheets.buttons["Выйти"].exists ? app.sheets.buttons["Выйти"] : lastButton(["Выйти"])
         XCTAssertTrue(yes.waitForExistence(timeout: 5), "Нет подтверждения выхода"); yes.tap(); sleep(3)
         XCTAssertTrue(app.secureTextFields.firstMatch.waitForExistence(timeout: 10), "После выхода не показан вход")
@@ -957,6 +963,10 @@ final class AuditUITests: XCTestCase {
         launch("/cart")
         XCTAssertTrue(text("В корзине пока пусто").waitForExistence(timeout: 10), "После выхода в корзине остались вещи аккаунта")
         shot("17б корзина после выхода")
+        // «Мои заказы» гостя: заказ прежнего покупателя (с его именем, телефоном, адресом) не виден
+        launch("/account?tab=orders")
+        XCTAssertTrue(text("У Вас пока нет заказов").waitForExistence(timeout: 20), "После выхода гостю видны заказы прежнего покупателя")
+        shot("17б2 заказы гостя после выхода")
         addToCart(product: "p4", size: "S")
         launch("/checkout")
         _ = text("Оформление").waitForExistence(timeout: 15)

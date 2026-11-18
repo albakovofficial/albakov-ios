@@ -35,6 +35,8 @@ struct AccountView: View {
             .paymentSheet($payURL) { Task { await load() } }
         } else {
             AuthView()
+                // вышли из кабинета: заказы и бонусы прежнего покупателя не должны мелькнуть у следующего, кто войдёт (ревью этапа F)
+                .onAppear { orders = []; bonusLog = []; ordersError = nil; bonusError = nil }
         }
     }
 
@@ -98,7 +100,7 @@ struct AccountView: View {
             }.buttonStyle(.plain)
             // Окно подтверждения привязано к самой строке «Выйти»: на iOS 26 оно всплывает у кнопки, а не вверху экрана
             .confirmationDialog("Выйти из кабинета?", isPresented: $confirmLogout, titleVisibility: .visible) {
-                Button("Выйти", role: .destructive) { Task { await shop.logout() } }
+                Button("Выйти", role: .destructive) { Task { await shop.logout(); router.closeCheckout() } }
             }
         }
         .background(RoundedRectangle(cornerRadius: 20).fill(Theme.tile)).hairline(RoundedRectangle(cornerRadius: 20), 0.06)
@@ -159,17 +161,21 @@ struct AccountView: View {
         }
     }
     private func load() async {
+        let uid = shop.user?.id   // ответ, пришедший после выхода или смены покупателя, на экран не попадает (ревью этапа F)
         await shop.refreshUser()
         do {
-            orders = try await API.shared.json("GET", "orders")["orders"].array.map(Order.init)
+            let list = try await API.shared.json("GET", "orders")["orders"].array.map(Order.init)
+            guard shop.user?.id == uid else { return }
+            orders = list
             orders.forEach { shop.returnExpired($0) }
             ordersError = nil
         } catch {
+            guard shop.user?.id == uid else { return }
             if let m = error.userMessage { if orders.isEmpty { ordersError = m } else { Toast.shared.show(m) } }   // заказы уже на экране — оставляем их
         }
-        do { bonusLog = try await API.shared.json("GET", "me")["bonusLog"].array; bonusError = nil }
+        do { let log = try await API.shared.json("GET", "me")["bonusLog"].array; guard shop.user?.id == uid else { return }; bonusLog = log; bonusError = nil }
         catch {
-            guard let m = error.userMessage else { return }   // загрузку отменили (ушли с экрана)
+            guard shop.user?.id == uid, let m = error.userMessage else { return }   // вышли или загрузку отменили (ушли с экрана)
             if bonusLog.isEmpty { bonusError = m } else { Toast.shared.show(m) }   // история уже на экране — оставляем её
         }
     }

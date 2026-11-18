@@ -159,7 +159,7 @@ struct DeleteAccountSheet: View {
         busy = true; error = nil; defer { busy = false }
         do {
             try await shop.deleteAccount(password: password)
-            Haptic.success(); dismiss(); router.reset(.account); Toast.shared.show("Аккаунт удалён")
+            Haptic.success(); dismiss(); router.closeCheckout(); router.reset(.account); Toast.shared.show("Аккаунт удалён")
         } catch { self.error = error.userMessage; Haptic.error() }
     }
 }
