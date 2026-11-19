@@ -1199,12 +1199,13 @@ final class AuditUITests: XCTestCase {
         XCTAssertEqual(rub(), both, "Опоздавший ответ на прежний выбор заменил сумму возврата: была \(both), стала \(rub())")
 
         // 2) выбор изменился, ответ ещё в пути — прежняя сумма не должна уйти на подтверждение
+        let shown = rub()
         ctl("slow-once?scope=\(path)&ms=6000")
         flip(m); usleep(700_000)
         shot("21 сумма пересчитывается")
-        XCTAssertFalse(pay.isEnabled && rub() == both, "Пока сумма пересчитывается, доступна кнопка с прежней суммой \(both)")
+        XCTAssertFalse(pay.isEnabled && rub() == shown, "Пока сумма пересчитывается, доступна кнопка с прежней суммой \(shown)")
         let deadline = Date().addingTimeInterval(12)
-        while (!pay.isEnabled || rub() == both) && Date() < deadline { usleep(300_000) }
+        while (!pay.isEnabled || rub() == shown) && Date() < deadline { usleep(300_000) }
         let single = rub()
         note("21: за две позиции \(both) ₽, за одну \(single) ₽")
         XCTAssertTrue(single > 0 && single < both, "Сумма за одну позицию не пересчиталась: \(single) (за две — \(both))")
