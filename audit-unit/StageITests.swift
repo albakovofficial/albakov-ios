@@ -475,8 +475,8 @@ final class ShopStateTests: XCTestCase {
             XCTAssertEqual(shop.products.map(\.id), ["p1", "p2"])
             XCTAssertEqual(shop.cart, [line, b], "Строка с телефона остаётся как есть, новая из аккаунта добавляется")
             XCTAssertEqual(shop.favorites, ["p1", "p2"])
-            // объединённая корзина уходит в аккаунт. Ждём саму отправку, а не время: на Intel-симуляторе главный поток
-            // приложения-хоста и URLSession задерживают её на секунды (этап J.2)
+            // объединённая корзина уходит в аккаунт. Ждём саму отправку, а не время: отправка идёт на главном акторе,
+            // а главный поток приложения-хоста на Intel-симуляторе бывает занят до 3 с (этап J.2)
             await shop.cartSync?.value
             XCTAssertTrue(NetStub.paths("PUT").contains("me/cart"), "Объединённая корзина не ушла в аккаунт")
             let put = NetStub.seen.last { $0.method == "PUT" && $0.path == "me/cart" }
