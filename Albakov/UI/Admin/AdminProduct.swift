@@ -193,7 +193,8 @@ private struct ColorCard: View {
                 if index > 0 { tool("arrow.up", moveUp) }
                 if canRemove { tool("xmark", remove) }
             }
-            ColorPhotos(images: Binding(get: { c["images"].array.map(\.str) }, set: { v in update { $0["images"] = v } }))
+            ColorPhotos(images: Binding(get: { c["images"].array.map(\.str) }, set: { v in update { $0["images"] = v } }),
+                        add: { url in update { $0["images"] = JSON($0["images"]).array.map(\.str) + [url] } })
             VStack(spacing: 6) {
                 ForEach(Array(ids.enumerated()), id: \.element) { k, id in
                     let z = JSON(sizes[k])
@@ -236,6 +237,10 @@ private struct ColorCard: View {
 /// Фото цвета: первое — главное; ← сделать раньше, ✕ удалить, «+ Фото» — несколько сразу
 struct ColorPhotos: View {
     @Binding var images: [String]
+    /// Добавить загруженное фото к текущим фото цвета. Загрузка идёт дольше одной перерисовки, а images — снимок
+    /// с прошлой отрисовки: images.append добавлял каждое фото к одному и тому же старому списку, и из нескольких
+    /// выбранных у цвета оставалось только последнее, остальные лежали на сервере ни к чему не привязанными (аудит M-1)
+    let add: (String) -> Void
     @State private var picks: [PhotosPickerItem] = []
     @State private var busy = false
     var body: some View {
@@ -266,7 +271,7 @@ struct ColorPhotos: View {
         guard !items.isEmpty else { return }
         busy = true; defer { busy = false; picks = [] }
         for it in items {
-            do { images.append(try await API.shared.upload(ImageKit.jpeg(try await ImageKit.load(it)))) } catch { Toast.shared.show(error.userMessage) }
+            do { add(try await API.shared.upload(ImageKit.jpeg(try await ImageKit.load(it)))) } catch { Toast.shared.show(error.userMessage) }
         }
     }
 }

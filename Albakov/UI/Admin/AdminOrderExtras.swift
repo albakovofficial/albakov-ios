@@ -72,6 +72,10 @@ struct OrderRefundSection: View {
     @State private var busy = false
     @State private var error: String?
     @State private var key = uid("rf")
+    /// Номер последнего пересчёта суммы: ответ на прежний выбор, пришедший позже, не показывается; пока сумма
+    /// для текущего выбора не пришла, вернуть деньги нельзя — иначе на кнопке была бы сумма за прежний выбор (аудит M-2)
+    @State private var calcSeq = 0
+    @State private var calcing = false
     private var retCost: Int { o["returns"].array.filter { ($0["cost"].int ?? 0) > 0 && !$0["deducted"].bool }.reduce(0) { $0 + ($1["cost"].int ?? 0) } }
     var body: some View {
         let pm = o["payment"], c = o["customer"], total = o["total"].int ?? 0, back = o["refunded"].int ?? 0
@@ -123,7 +127,7 @@ struct OrderRefundSection: View {
                     Text("Деньги уйдут \(c["lastName"].str) \(c["firstName"].str) туда же, откуда была оплата заказа № \(o["number"].str). Покупатель получит письмо.").font(Theme.font(12.5)).foregroundStyle(Theme.muted)
                     ErrorText(text: error)
                     Button(armed ? "Подтвердить возврат \(Fmt.rub(amount))" : amount > 0 ? "Вернуть \(Fmt.rub(amount))" : "Выберите позиции", role: armed ? .destructive : nil) { Task { await refund() } }
-                        .font(Theme.font(15, .medium)).disabled(amount == 0 || busy)
+                        .font(Theme.font(15, .medium)).disabled(amount == 0 || busy || calcing)
                 }
             } else if pm["status"].str == "refunded" { Text("Деньги по заказу возвращены полностью.").font(Theme.font(13.5)).foregroundStyle(Theme.ok) }
             else if pm["method"].str == "cod" { Text("Оплата при получении — деньги возвращаются вручную, переводом покупателю.").font(Theme.font(13)).foregroundStyle(Theme.muted) }
@@ -135,13 +139,23 @@ struct OrderRefundSection: View {
         ["lines": lines.map { ["idx": $0.key, "qty": $0.value] }, "delivery": delivery, "restock": restock && o["status"].str != "canceled", "reason": reason, "dry": dry, "key": key, "deduct": deduct ? retCost : 0]
     }
     private func calc() async {
+        calcSeq += 1
+        let n = calcSeq
         armed = false; error = nil
-        if lines.isEmpty && !delivery { amount = 0; return }
-        do { let r = try await act(o["id"].str, "refund", "POST", payload(true)); amount = r["amount"].int ?? 0; deducted = r["deducted"].int ?? 0 }
-        catch { amount = 0; self.error = error.userMessage }
+        if lines.isEmpty && !delivery { amount = 0; calcing = false; return }
+        calcing = true
+        do {
+            let r = try await act(o["id"].str, "refund", "POST", payload(true))
+            guard n == calcSeq else { return }   // выбор уже другой — его сумму посчитает свой пересчёт
+            amount = r["amount"].int ?? 0; deducted = r["deducted"].int ?? 0
+        } catch {
+            guard n == calcSeq else { return }
+            amount = 0; self.error = error.userMessage
+        }
+        calcing = false
     }
     private func refund() async {
-        guard amount > 0 else { return }
+        guard amount > 0, !calcing, !busy else { return }
         if !armed { armed = true; return }
         busy = true; defer { busy = false }
         do {
