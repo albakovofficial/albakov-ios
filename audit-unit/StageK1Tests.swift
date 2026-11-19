@@ -101,23 +101,27 @@ final class PushOrderTests: XCTestCase {
     private func drain() async { await push.sync?.value }
 
     /// Витрина и подписка — через NetStub, витрина загружена, покупателя нет, адрес устройства есть
-    private func stubbed(_ reply: @escaping (String, String) -> NetStub.Reply = { _, _ in .json(["ok": true]) },
+    private func stubbed(_ reply: @escaping (String, String) -> NetStub.Reply = { _, _ in .ok },
                          _ body: () async throws -> Void) async throws {
         let ready = try await until(30) { Shop.shared.loaded || Shop.shared.loadError != nil }
         XCTAssertTrue(ready, "Хост не закончил первую загрузку витрины")
         let was = (api: shop.api, push: push.api, user: shop.user, staff: shop.isStaff, cart: shop.cart, favorites: shop.favorites)
         shop.api = NetStub.api(); push.api = NetStub.api()
-        NetStub.reset { m, p in p == "state" ? stateReply() : reply(m, p) }
+        defer { shop.api = was.api; push.api = was.push }   // и если тест упал
+        // подготовка — на обычных ответах: адрес устройства и первая отправка не должны забрать задержанный
+        // или ошибочный ответ теста (иначе тест зависел бы от того, запускался ли до него другой)
+        NetStub.reset { _, p in p == "state" ? stateReply() : .ok }
         shop.setUser(nil, staff: false)
         await shop.load()
         XCTAssertTrue(shop.loaded)
         if push.token == nil { push.didRegister(deviceToken: Data([0xAB, 0xCD, 0x01])) }
-        await drain(); NetStub.clearSeen()
+        await drain()
+        NetStub.reset { m, p in p == "state" ? stateReply() : reply(m, p) }   // и журнал с чистого листа
         try await body()
         await drain()
         shop.setUser(was.user, staff: was.staff); shop.cart = was.cart; shop.favorites = was.favorites
-        await drain()   // отправка от восстановления уходит в NetStub, а не на сервер и не в следующий тест
-        shop.api = was.api; push.api = was.push
+        // отправки от теста и от восстановления (подписка, корзина, избранное) уходят в NetStub здесь, а не в следующий тест
+        await drain(); await shop.cartSync?.value; await shop.favSync?.value
     }
     private func signInStaff() async { shop.setUser(staff, staff: true); await drain() }
 

@@ -562,6 +562,8 @@ struct ProductsBulkView: View {
     /// удаление): иначе «Поделиться» отдал бы прежний файл (аудит K, K-M2). Массовые изменения его не сбрасывают —
     /// цена, скидка и видимость в файл не входят (товар, цвет, размер, артикул, остаток, ID)
     @State private var exportURL: URL?
+    /// Растёт при каждом изменении, сбрасывающем файл: выгрузка, начатая до изменения, свой файл не ставит
+    @State private var changes = 0
     private static let actions = [("price", "Цена, ₽", "Новая цена"), ("percent", "Цена ±%", "Например, 10 или −10"), ("discount", "Скидка %", "От 1 до 94"), ("nodiscount", "Убрать скидку", ""), ("show", "Показать на сайте", ""), ("hide", "Скрыть с сайта", "")]
     var body: some View {
         let prods = admin.data["products"].array
@@ -605,12 +607,14 @@ struct ProductsBulkView: View {
         catch { Toast.shared.show(error.userMessage) }
     }
     private func deleteMany() async {
-        do { let r = try await AdminAPI.post("products/delete-many", ["ids": Array(picked)]); picked = []; exportURL = nil; await AdminAPI.reload(); Toast.shared.show("Удалено: \(r["deleted"].int ?? 0)") }
+        do { let r = try await AdminAPI.post("products/delete-many", ["ids": Array(picked)]); picked = []; exportURL = nil; changes += 1; await AdminAPI.reload(); Toast.shared.show("Удалено: \(r["deleted"].int ?? 0)") }
         catch { Toast.shared.show(error.userMessage) }
     }
     private func export() async {
+        let n = changes
         do {
             let d = try await API.shared.raw("GET", "admin/products/stock.csv")
+            guard n == changes else { return }   // пока файл шёл, остатки или товары изменились — нужен новый
             let u = FileManager.default.temporaryDirectory.appendingPathComponent("ostatki.csv"); try d.write(to: u); exportURL = u
         } catch { Toast.shared.show(error.userMessage) }
     }
@@ -628,7 +632,7 @@ struct ProductsBulkView: View {
         } catch { Toast.shared.show(error.userMessage) }
     }
     private func applyCsv() async {
-        do { let r = try await AdminAPI.post("products/stock", ["csv": csvText]); preview = JSON(nil); exportURL = nil; await AdminAPI.reload(); Toast.shared.show(notifyMsg("Остатки обновлены: \(r["changed"].int ?? 0)", r["notify"])) }
+        do { let r = try await AdminAPI.post("products/stock", ["csv": csvText]); preview = JSON(nil); exportURL = nil; changes += 1; await AdminAPI.reload(); Toast.shared.show(notifyMsg("Остатки обновлены: \(r["changed"].int ?? 0)", r["notify"])) }
         catch { Toast.shared.show(error.userMessage) }
     }
 }
