@@ -523,14 +523,26 @@ struct LookSection: View {
         }
     }
     private func addAll(_ all: [Product]) {
-        guard let ms = mainSize else { Toast.shared.show("Сначала выберите размер этой вещи"); Haptic.error(); return }
-        var n = 0
+        let r = Self.add(all, off: off, sizes: sizes, mainColor: mainColor, mainSize: mainSize, to: shop)
+        if let x = r.missing {
+            Toast.shared.show(x.id == product.id ? "Сначала выберите размер этой вещи" : "Выберите размер для «\(x.name)»"); Haptic.error(); return
+        }
+        Haptic.success(); Toast.shared.show("В корзине: \(r.added) \(Fmt.plural(r.added, "вещь", "вещи", "вещей"))")
+    }
+    /// Образ в корзину целиком или ничего: сначала размеры всех выбранных вещей (первая — эта вещь, её размер выбран
+    /// в карточке), потом добавление. missing — первая вещь без размера, тогда в корзину не попало ничего.
+    /// Раньше вещи до неё уже лежали в корзине, и повторное нажатие клало их второй раз (аудит K, K-M1)
+    @MainActor static func add(_ all: [Product], off: Set<String>, sizes: [String: String], mainColor: PColor, mainSize: String?,
+                               to shop: Shop) -> (missing: Product?, added: Int) {
+        guard let ms = mainSize else { return (all.first, 0) }
+        var lines: [(p: Product, color: String, size: String)] = []
         for (i, x) in all.enumerated() where !off.contains(x.id) {
             let c = i == 0 ? mainColor : (x.colors.first { $0.stock > 0 } ?? x.colors[0])
             let avail = c.sizes.filter { $0.stock > 0 }
-            guard let s = i == 0 ? ms : (sizes[x.id] ?? (avail.count == 1 ? avail[0].size : nil)) else { Toast.shared.show("Выберите размер для «\(x.name)»"); Haptic.error(); return }
-            shop.add(x, color: c.id, size: s); n += 1
+            guard let s = i == 0 ? ms : (sizes[x.id] ?? (avail.count == 1 ? avail[0].size : nil)) else { return (x, 0) }
+            lines.append((x, c.id, s))
         }
-        Haptic.success(); Toast.shared.show("В корзине: \(n) \(Fmt.plural(n, "вещь", "вещи", "вещей"))")
+        for l in lines { shop.add(l.p, color: l.color, size: l.size) }
+        return (nil, lines.count)
     }
 }
