@@ -5,10 +5,12 @@
    Запуск при остановленном магазине: node ci/paid-online.js <путь к albakov.sqlite> <id заказа> */
 const { DatabaseSync } = require('node:sqlite');
 const [file, id] = process.argv.slice(2);
+if (process.env.GITHUB_ACTIONS !== 'true') { console.error('Только для копии магазина в GitHub Actions'); process.exit(1); }
 const db = new DatabaseSync(file);
 const row = db.prepare("SELECT data FROM records WHERE coll = 'orders' AND id = ?").get(id);
 if (!row) { console.error('Заказ не найден: ' + id); process.exit(1); }
 const o = JSON.parse(row.data);
 o.payment = Object.assign({}, o.payment, { method: 'online', status: 'paid', providerId: 'audit-' + id });
 db.prepare("UPDATE records SET data = ? WHERE coll = 'orders' AND id = ?").run(JSON.stringify(o), id);
+db.close();
 console.log('Заказ № ' + o.number + ' помечен оплаченным онлайн (только копия магазина)');

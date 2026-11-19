@@ -164,9 +164,11 @@ jobs:
           fi
           # заказ для проверки суммы возврата (этап J, M-2): гость, самовывоз, две вещи. Пока магазин остановлен,
           # заказ помечается оплаченным онлайн (ci/paid-online.js) — без ЮKassa иначе нет экрана «Вернуть деньги»
-          RID=$(python3 -c 'import json; print(json.dumps({"customer": {"firstName": "Возврат", "lastName": "Проверкин", "phone": "79070000201", "email": "refund-audit@example.com"}, "lines": [{"productId": "p6", "colorId": "col1", "size": "M", "qty": 1}, {"productId": "p5", "colorId": "col1", "size": "S", "qty": 1}], "deliveryId": "d3", "payment": "cod", "consent": True}))' \
-            | curl -s -X POST http://127.0.0.1:3999/api/orders -H 'Content-Type: application/json' --data-binary @- \
-            | python3 -c 'import json, sys; print(json.load(sys.stdin).get("order", {}).get("id", ""))' || true)
+          RESP=$(python3 -c 'import json; print(json.dumps({"customer": {"firstName": "Возврат", "lastName": "Проверкин", "phone": "79070000201", "email": "refund-audit@example.com"}, "lines": [{"productId": "p6", "colorId": "col1", "size": "M", "qty": 1}, {"productId": "p5", "colorId": "col1", "size": "S", "qty": 1}], "deliveryId": "d3", "payment": "cod", "consent": True}))' \
+            | curl -s -X POST http://127.0.0.1:3999/api/orders -H 'Content-Type: application/json' --data-binary @- || true)
+          # из ответа — только id или текст ошибки (в ответе есть ключ доступа к заказу, целиком не печатается)
+          RID=$(printf '%s' "$RESP" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("order", {}).get("id", ""))' 2>/dev/null || true)
+          [ -n "$RID" ] || echo "Заказ не создан: $(printf '%s' "$RESP" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("error", "ответ не JSON"))' 2>/dev/null || echo 'ответ не JSON')"
           sleep 2; pkill -f "node server.js" || true; sleep 2
           if [ -n "$RID" ]; then node ci/paid-online.js shop/data/albakov.sqlite "$RID" && echo "AUDIT_REFUND_ORDER=$RID" >> "$GITHUB_ENV"; else echo "::warning::Заказ для проверки возврата не создан"; fi
           start

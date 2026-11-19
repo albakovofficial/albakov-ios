@@ -458,7 +458,8 @@ enum ImageKit {
         guard let data else { throw OpenFailed() }
         return data
     }
-    /// Фото с телефона — в JPEG не больше 2000 px по длинной стороне (сервер принимает до 12 МБ)
+    /// Фото с телефона — в JPEG не больше 2000 px по длинной стороне (сервер принимает файл до 8 МБ, запрос — до 12 МБ).
+    /// На деле размер умножается на масштаб экрана (2–3), см. DEF-1 в STAGE_J_CODE_QUALITY_REPORT.md — не исправлено, ждёт решения
     static func jpeg(_ data: Data, max side: CGFloat = 2000) -> Data {
         guard let img = UIImage(data: data) else { return data }
         let k = min(1, side / max(img.size.width, img.size.height))

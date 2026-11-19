@@ -142,7 +142,7 @@ struct OrderRefundSection: View {
         calcSeq += 1
         let n = calcSeq
         armed = false; error = nil
-        if lines.isEmpty && !delivery { amount = 0; calcing = false; return }
+        if lines.isEmpty && !delivery { amount = 0; deducted = 0; calcing = false; return }
         calcing = true
         do {
             let r = try await act(o["id"].str, "refund", "POST", payload(true))
@@ -161,6 +161,8 @@ struct OrderRefundSection: View {
         do {
             let r = try await act(o["id"].str, "refund", "POST", payload(false))
             await AdminAPI.reload(); Haptic.success(); open = false; lines = [:]; armed = false; key = uid("rf")
+            // выбор сброшен — и сумма с ним: пересчёт, начатый во время возврата, уже не примется (ревью этапа J)
+            calcSeq += 1; amount = 0; deducted = 0; delivery = false; calcing = false
             Toast.shared.show("Возврат \(Fmt.rub(r["refund"]["amount"].int ?? 0)) оформлен" + (r["refund"]["mailedAt"].exists ? ", покупателю отправлено письмо" : ""))
         } catch { self.error = error.userMessage; armed = false }
     }

@@ -1126,7 +1126,8 @@ final class AuditUITests: XCTestCase {
         sleep(3)
         mark("color-photos-loaded")
         let mine = Array(uploads().dropFirst(sent))
-        let scale = XCUIScreen.main.screenshot().image.scale
+        let shotImage = XCUIScreen.main.screenshot().image
+        let scale = (shotImage.size.width * shotImage.scale / app.frame.width).rounded()   // пиксели снимка экрана на точку
         for u in mine {
             let line = "DEF1 фото цвета: код \(u["status"] ?? "?"), JPEG \(u["bytes"] ?? 0) Б, \(u["w"] ?? 0)×\(u["h"] ?? 0) px, \(u["ms"] ?? 0) мс; масштаб экрана \(scale)"
             print(line); note(line)
@@ -1186,8 +1187,10 @@ final class AuditUITests: XCTestCase {
             XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: changed, evaluatedWith: sw)], timeout: 3), .completed, "Переключатель не сработал")
         }
         let path = "admin/orders/\(id)/refund"
+        func delayed() -> Int { ctl("stats")["delayed"] as? Int ?? -1 }
 
         // 1) ответ на прежний выбор (только M) приходит позже ответа на новый (M и S) — сумма остаётся для M и S
+        let d0 = delayed()
         ctl("slow-once?scope=\(path)&ms=6000")
         flip(m); usleep(500_000); flip(s)
         let quoted = Date().addingTimeInterval(5)
@@ -1197,6 +1200,7 @@ final class AuditUITests: XCTestCase {
         sleep(8)   // опоздавший ответ уже пришёл
         shot("21 после опоздавшего ответа")
         XCTAssertEqual(rub(), both, "Опоздавший ответ на прежний выбор заменил сумму возврата: была \(both), стала \(rub())")
+        XCTAssertEqual(delayed(), d0 + 1, "Посредник не задержал ответ — проверка опоздавшего ответа ничего не проверила")
 
         // 2) выбор изменился, ответ ещё в пути — прежняя сумма не должна уйти на подтверждение
         let shown = rub()
@@ -1207,6 +1211,7 @@ final class AuditUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(12)
         while (!pay.isEnabled || rub() == shown) && Date() < deadline { usleep(300_000) }
         let single = rub()
+        XCTAssertEqual(delayed(), d0 + 2, "Посредник не задержал второй пересчёт — проверка кнопки ничего не проверила")
         note("21: за две позиции \(both) ₽, за одну \(single) ₽")
         XCTAssertTrue(single > 0 && single < both, "Сумма за одну позицию не пересчиталась: \(single) (за две — \(both))")
     }

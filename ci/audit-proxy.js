@@ -7,7 +7,8 @@
      on — обычная связь; off — обрыв соединения (с ms — обрыв через ms: ошибка приходит позже); slow — задержка ms;
      drop-after — запрос доходит до магазина, а ответ теряется (один раз);
      502 — ответ «502 Bad Gateway» как от nginx, когда магазин недоступен (один раз).
-   GET /__ctl/stats?phone=7… — сколько заказов магазин реально создал (по ответам на POST /api/orders).
+   GET /__ctl/stats?phone=7… — сколько заказов магазин реально создал (по ответам на POST /api/orders);
+     delayed — сколько запросов задержал режим slow-once.
    slow-once — задержка ms только для первого подходящего запроса, дальше обычная связь (этап J, M-2: ответ на
      прежний выбор приходит позже ответа на новый).
    GET /__ctl/uploads — фото, загруженные в панели (POST /api/admin/upload), по порядку: адрес на сервере, код ответа,
@@ -21,6 +22,7 @@ let mode = 'on', scope = 'all', ms = 0;
 const created = new Map();   // id заказа → телефон
 let seq = 0;                 // номер запроса посредника — технический идентификатор в журнале
 const uploads = [];          // фото панели: { url, status, bytes, w, h, ms }
+let delayed = 0;             // сколько запросов задержал режим slow-once — тест проверяет, что задержка была
 /** Ширина и высота JPEG — из заголовка кадра (SOF0–SOF15, кроме DHT/JPG/DAC), без раскодирования */
 function jpegSize(b) {
   let i = 2;
@@ -40,7 +42,7 @@ http.createServer((req, res) => {
     if (m === 'stats') {
       const ph = u.searchParams.get('phone');
       const ids = [...created].filter(([, p]) => !ph || p === ph).map(([id]) => id);
-      return res.end(JSON.stringify({ orders: ids.length, ids }));
+      return res.end(JSON.stringify({ orders: ids.length, ids, delayed }));
     }
     mode = m; scope = u.searchParams.get('scope') || 'orders'; ms = Number(u.searchParams.get('ms') || 0);
     console.log(new Date().toISOString(), 'режим', mode, scope, ms);
@@ -90,7 +92,7 @@ http.createServer((req, res) => {
       r2.on('error', (e) => { logSupport(502, 'магазин недоступен: ' + e.code); res.writeHead(502); res.end(); });
       r2.end(body);
     };
-    if (hit && mode === 'slow-once') { mode = 'on'; console.log(new Date().toISOString(), 'задержка', ms, 'мс один раз:', req.method, u.pathname); setTimeout(go, ms); }
+    if (hit && mode === 'slow-once') { mode = 'on'; delayed++; console.log(new Date().toISOString(), 'задержка', ms, 'мс один раз:', req.method, u.pathname); setTimeout(go, ms); }
     else if (hit && mode === 'slow') setTimeout(go, ms); else go();
   });
 }).listen(P, '127.0.0.1', () => console.log('посредник', P, '→', T));
