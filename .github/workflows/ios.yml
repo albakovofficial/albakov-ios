@@ -125,9 +125,9 @@ jobs:
           [ -n "$SIM" ] || { echo "::error::Нет доступного симулятора iPhone"; exit 1; }
           echo "Симулятор: $SIM"
           set -o pipefail
-          ONLY="AlbakovUnit${DIAG_ONLY:+/$DIAG_ONLY}"; ITER="${DIAG_ITER:-1}"
+          ONLY="AlbakovUnit${DIAG_ONLY:+/$DIAG_ONLY}"; ITER="${DIAG_ITER:-1}"; REP=(); [ "$ITER" -gt 1 ] && REP=(-test-iterations "$ITER")
           echo "DIAG тесты: $ONLY, повторов: $ITER, процессоров: $(sysctl -n hw.ncpu), $(uname -m)"
-          xcodebuild test -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -only-testing:"$ONLY" -test-iterations "$ITER" \
+          xcodebuild test -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -only-testing:"$ONLY" "${REP[@]}" \
             -destination "id=$SIM" -derivedDataPath unit-build -resultBundlePath unit.xcresult \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
             2>&1 | tee unit.log | grep -E "Test Case.*(passed|failed)|error:|Executed|TEST (SUCCEEDED|FAILED)|DEF1 |DIAG"
