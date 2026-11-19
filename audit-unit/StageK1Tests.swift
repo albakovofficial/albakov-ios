@@ -1,4 +1,7 @@
 import XCTest
+import UIKit
+import ImageIO
+import UniformTypeIdentifiers
 @testable import Albakov
 
 /// Этап K.1, K-M1: «Добавить образ в корзину» — всё или ничего. Раньше вещи до первой вещи без размера уже лежали
@@ -214,3 +217,56 @@ final class PushOrderTests: XCTestCase {
 
 private typealias Reply = NetStub.Reply
 private extension NetStub.Reply { static let ok = NetStub.Reply.json(["ok": true]) }
+
+/// Этап K.1, K-L9: логотип с поворотом из EXIF. Снимок 300×200 записан «как снят»: красный угол — вверху слева
+/// в файле, остальное синее; отметка поворота говорит, как его показывать. После обработки красный угол должен быть
+/// там, где его видит человек, а стороны — повёрнуты для 5–8. Раньше поворот не применялся: при любой отметке
+/// логотип выходил как в файле
+final class LogoOrientationTests: XCTestCase {
+    private func photo(orientation: Int) -> Data? {
+        guard let ctx = CGContext(data: nil, width: 300, height: 200, bitsPerComponent: 8, bytesPerRow: 300 * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.setFillColor(UIColor.blue.cgColor); ctx.fill(CGRect(x: 0, y: 0, width: 300, height: 200))
+        ctx.setFillColor(UIColor.red.cgColor); ctx.fill(CGRect(x: 0, y: 140, width: 60, height: 60))   // верхний левый угол файла
+        guard let img = ctx.makeImage() else { return nil }
+        let out = NSMutableData()
+        guard let dst = CGImageDestinationCreateWithData(out, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(dst, img, [kCGImageDestinationLossyCompressionQuality: 0.95, kCGImagePropertyOrientation: orientation] as CFDictionary)
+        return CGImageDestinationFinalize(dst) ? out as Data : nil
+    }
+    /// В каком углу красный: «вверху слева», «вверху справа», «внизу слева», «внизу справа»
+    private func redCorner(_ png: Data) -> (corner: String, w: Int, h: Int)? {
+        guard let s = CGImageSourceCreateWithData(png as CFData, nil), let cg = CGImageSourceCreateImageAtIndex(s, 0, nil) else { return nil }
+        let w = cg.width, h = cg.height
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue), let raw = ctx.data else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let corners = withExtendedLifetime(ctx) { () -> [(String, Bool)] in
+            let px = raw.bindMemory(to: UInt8.self, capacity: w * h * 4)
+            func red(_ x: Int, _ fromTop: Int) -> Bool { let i = (fromTop * w + x) * 4; return px[i] > 180 && px[i + 2] < 80 }
+            return [("вверху слева", red(15, 15)), ("вверху справа", red(w - 15, 15)), ("внизу слева", red(15, h - 15)), ("внизу справа", red(w - 15, h - 15))]
+        }
+        let hits = corners.filter { $0.1 }.map { $0.0 }
+        return (hits.isEmpty ? "нигде" : hits.joined(separator: " + "), w, h)
+    }
+    private func check(_ orientation: Int, _ corner: String, _ size: [Int], line: UInt = #line) throws {
+        let src = try XCTUnwrap(photo(orientation: orientation), "Нет исходника", line: line)
+        let r = try LogoKit.process(src, removeBg: false, recolor: false)
+        let got = try XCTUnwrap(redCorner(r.png), "PNG логотипа не читается", line: line)
+        XCTAssertEqual([r.w, r.h], size, "EXIF \(orientation): размер логотипа", line: line)
+        XCTAssertEqual([got.w, got.h], size, "EXIF \(orientation): размер PNG", line: line)
+        XCTAssertEqual(got.corner, corner, "EXIF \(orientation): красный угол не на месте", line: line)
+    }
+
+    func test01_Normal() throws { try check(1, "вверху слева", [300, 200]) }
+    func test02_Rotated90() throws { try check(6, "вверху справа", [200, 300]) }
+    func test03_Rotated180() throws { try check(3, "внизу справа", [300, 200]) }
+    func test04_Rotated270() throws { try check(8, "внизу слева", [200, 300]) }
+    /// Зеркальные отметки (фронтальная камера, редакторы): 2 — по горизонтали, 4 — по вертикали, 5 и 7 — с поворотом
+    func test05_Mirrored() throws {
+        try check(2, "вверху справа", [300, 200])
+        try check(4, "внизу слева", [300, 200])
+        try check(5, "вверху слева", [200, 300])
+        try check(7, "внизу справа", [200, 300])
+    }
+}

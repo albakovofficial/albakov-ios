@@ -347,9 +347,10 @@ private struct LogoSlot: View {
 enum LogoKit {
     struct Fail: LocalizedError { let errorDescription: String? }
     static func process(_ data: Data, removeBg: Bool, recolor: Bool) throws -> (png: Data, w: Int, h: Int, note: String?) {
-        guard let img = UIImage(data: data)?.cgImage else { throw Fail(errorDescription: "Файл не похож на изображение. Подойдут PNG, JPG или WebP.") }
-        let k = min(1, 2400 / CGFloat(max(img.width, img.height)))
-        let W = max(1, Int((CGFloat(img.width) * k).rounded())), H = max(1, Int((CGFloat(img.height) * k).rounded()))
+        // Не крупнее 2400 px и с поворотом из EXIF (включая зеркальные): снимок с камеры раньше ложился боком —
+        // UIImage(data:).cgImage отдаёт пиксели без поворота (аудит K, K-L9). Поворот применяется один раз, здесь
+        guard let img = ImageKit.downsample(data, maxPixel: 2400)?.cgImage else { throw Fail(errorDescription: "Файл не похож на изображение. Подойдут PNG, JPG или WebP.") }
+        let W = img.width, H = img.height
         let cs = CGColorSpaceCreateDeviceRGB(), info = CGImageAlphaInfo.premultipliedLast.rawValue
         guard let ctx = CGContext(data: nil, width: W, height: H, bitsPerComponent: 8, bytesPerRow: W * 4, space: cs, bitmapInfo: info), let raw = ctx.data else { throw Fail(errorDescription: "Не удалось обработать картинку") }
         ctx.draw(img, in: CGRect(x: 0, y: 0, width: W, height: H))
