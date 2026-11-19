@@ -43,10 +43,11 @@ final class NetStub: URLProtocol {
 
     private var stopped = false   // под NetStub.lock
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canInit(with request: URLRequest) -> Bool { diag("NetStub.canInit \(request.httpMethod ?? "") \(request.url?.path ?? "")"); return true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        diag("NetStub.startLoading \(request.httpMethod ?? "") \(request.url?.path ?? "")")
         let req = request
         var path = req.url?.path ?? ""
         if path.hasPrefix("/api/") { path.removeFirst(5) }
@@ -72,6 +73,7 @@ final class NetStub: URLProtocol {
     private final class Box: NSObject { let reply: Reply; init(_ r: Reply) { reply = r } }
     @objc private func deliver(_ object: NSObject) {
         NetStub.lock.lock(); let stop = stopped; NetStub.lock.unlock()
+        diag("NetStub.deliver \(request.httpMethod ?? "") \(request.url?.path ?? "") stopped=\(stop) client=\(self.client != nil)")
         guard !stop, let client = self.client, let reply = (object as? Box)?.reply else { return }
         if let e = reply.error { client.urlProtocol(self, didFailWithError: e); return }
         guard let url = request.url, let resp = HTTPURLResponse(url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: nil) else {
@@ -81,7 +83,7 @@ final class NetStub: URLProtocol {
         client.urlProtocol(self, didLoad: reply.body)
         client.urlProtocolDidFinishLoading(self)
     }
-    override func stopLoading() { NetStub.lock.lock(); stopped = true; NetStub.lock.unlock() }
+    override func stopLoading() { diag("NetStub.stopLoading \(request.httpMethod ?? "") \(request.url?.path ?? "")"); NetStub.lock.lock(); stopped = true; NetStub.lock.unlock() }
 
     private static func read(_ s: InputStream) -> Data {
         s.open(); defer { s.close() }
@@ -467,13 +469,16 @@ final class ShopStateTests: XCTestCase {
             var inAccount = line.dict; inAccount["qty"] = 5
             NetStub.reset { _, p in p == "state" ? stateReply(products: [productJSON("p1", 1000), productJSON("p2", 1500)],
                                                                user: ["id": "u1", "cart": [inAccount, b.dict], "favorites": ["p2", "p1"]]) : .json(["ok": true]) }
+            diag("test01: load начат")
             await shop.load()
+            diag("test01: load завершён, user=\(shop.user?.id ?? "nil") cart=\(shop.cart.count)")
             XCTAssertEqual(shop.user?.id, "u1"); XCTAssertFalse(shop.isStaff)
             XCTAssertEqual(shop.products.map(\.id), ["p1", "p2"])
             XCTAssertEqual(shop.cart, [line, b], "Строка с телефона остаётся как есть, новая из аккаунта добавляется")
             XCTAssertEqual(shop.favorites, ["p1", "p2"])
             // объединённая корзина уходит в аккаунт
             let synced = try await until(3) { NetStub.paths("PUT").contains("me/cart") }
+            diag("test01: ожидание PUT окончено, synced=\(synced), запросы=\(NetStub.seen.map { $0.method + " " + $0.path })")
             XCTAssertTrue(synced, "Объединённая корзина не ушла в аккаунт")
             let put = NetStub.seen.last { $0.method == "PUT" && $0.path == "me/cart" }
             XCTAssertEqual(JSON(data: put?.body ?? Data())["lines"].array.compactMap(CartLine.init), [line, b])

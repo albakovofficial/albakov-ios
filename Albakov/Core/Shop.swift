@@ -1,6 +1,14 @@
 import Foundation
 import SwiftUI
 
+// DIAG J.2 (временно): журнал цепочки отправки корзины — время, поток, событие; stderr без буфера
+let diagT0 = Date()
+func diag(_ s: String) {
+    let t = String(format: "%.3f", Date().timeIntervalSince(diagT0))
+    let th = Thread.isMainThread ? "main" : "\(Unmanaged.passUnretained(Thread.current).toOpaque())"
+    FileHandle.standardError.write(Data("DIAG \(t) [\(th)] \(s)\n".utf8))
+}
+
 // Состояние магазина в приложении: товары и настройки с сервера, покупатель, корзина, избранное.
 // Корзина и избранное хранятся на телефоне; у вошедшего покупателя — ещё и на сервере (видны на сайте и других устройствах).
 @MainActor
@@ -191,10 +199,20 @@ final class Shop: ObservableObject {
 
     private func saveCart() {
         if let d = try? JSONEncoder().encode(cart) { UserDefaults.standard.set(d, forKey: "cart") }
+        diag("saveCart user=\(user?.id ?? "nil") lines=\(cart.count) prev=\(cartSync == nil ? "нет" : "отменяется")")
         guard user != nil else { return }
         cartSync?.cancel()
         let lines = cart.map(\.dict), api = self.api
-        cartSync = Task { try? await Task.sleep(nanoseconds: 800_000_000); guard !Task.isCancelled else { return }; _ = try? await api.raw("PUT", "me/cart", body: ["lines": lines]) }
+        let n = Int.random(in: 1000...9999)
+        diag("cartSync#\(n) создаётся, api=\(api.base.host ?? "?")")
+        cartSync = Task {
+            diag("cartSync#\(n) начал, отменён=\(Task.isCancelled)")
+            do { try await Task.sleep(nanoseconds: 800_000_000) } catch { diag("cartSync#\(n) sleep прерван: \(error)") }
+            diag("cartSync#\(n) после паузы, отменён=\(Task.isCancelled)")
+            guard !Task.isCancelled else { return }
+            do { _ = try await api.raw("PUT", "me/cart", body: ["lines": lines]); diag("cartSync#\(n) PUT завершён") }
+            catch { diag("cartSync#\(n) PUT ошибка: \(error)") }
+        }
     }
 
     // MARK: Избранное
