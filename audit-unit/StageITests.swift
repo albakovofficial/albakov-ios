@@ -503,6 +503,8 @@ final class ShopStateTests: XCTestCase {
             let synced = try await until(3) { NetStub.paths("PUT").contains("me/cart") }
             diag("test01: ожидание PUT окончено, synced=\(synced), запросы=\(NetStub.seen.map { $0.method + " " + $0.path })")
             XCTAssertTrue(synced, "Объединённая корзина не ушла в аккаунт")
+            if !synced { try await Task.sleep(nanoseconds: 8_000_000_000) }   // DIAG: дать опоздавшему PUT дойти и попасть в журнал
+            diagFlush()
             let put = NetStub.seen.last { $0.method == "PUT" && $0.path == "me/cart" }
             XCTAssertEqual(JSON(data: put?.body ?? Data())["lines"].array.compactMap(CartLine.init), [line, b])
         }

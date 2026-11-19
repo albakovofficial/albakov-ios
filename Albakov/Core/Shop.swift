@@ -6,7 +6,14 @@ let diagT0 = Date()
 func diag(_ s: String) {
     let t = String(format: "%.3f", Date().timeIntervalSince(diagT0))
     let th = Thread.isMainThread ? "main" : "\(Unmanaged.passUnretained(Thread.current).toOpaque())"
-    FileHandle.standardError.write(Data("DIAG \(t) [\(th)] \(s)\n".utf8))
+    diagLock.lock(); diagBuf.append("DIAG \(t) [\(th)] \(s)\n"); diagLock.unlock()
+}
+/// Журнал копится в памяти и выводится только по diagFlush — запись в stderr во время замера сама тормозила потоки
+let diagLock = NSLock()
+nonisolated(unsafe) var diagBuf: [String] = []
+func diagFlush() {
+    diagLock.lock(); let all = diagBuf.joined(); diagBuf = []; diagLock.unlock()
+    FileHandle.standardError.write(Data(all.utf8))
 }
 
 // Состояние магазина в приложении: товары и настройки с сервера, покупатель, корзина, избранное.
