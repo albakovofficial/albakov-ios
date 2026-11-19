@@ -1227,7 +1227,11 @@ final class AuditUITests: XCTestCase {
     /// Удаляется p10 «Сумка-тоут из кожи» копии магазина: другие тесты его не используют, тест идёт последним
     func test22_StockFileRefreshedAfterDelete() {
         signInOwner()
-        launch("/admin?s=productsBulk")
+        // как сотрудник: из списка товаров (он загружает данные панели) — экран массовых изменений сам их не загружает
+        launch("/admin?s=products")
+        let tools = button("Массовые изменения и остатки в Excel")
+        guard tools.waitForExistence(timeout: 25) else { XCTFail("Список товаров панели не открылся"); shot("22 нет товаров панели"); return }
+        tools.tap()
         let export = button("Выгрузить остатки")
         let share = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Поделиться файлом остатков'")).firstMatch
         guard export.waitForExistence(timeout: 25) else { XCTFail("Экран массовых изменений не открылся"); shot("22 нет экрана"); return }
