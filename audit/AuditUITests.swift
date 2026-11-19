@@ -36,7 +36,24 @@ final class AuditUITests: XCTestCase {
         }
         conn.start(queue: .global())
         _ = sem.wait(timeout: .now() + 20)
-        if let r = buf.range(of: Data("\r\n\r\n".utf8)), let j = try? JSONSerialization.jsonObject(with: buf[r.upperBound...]) as? [String: Any] { out = j }
+        if let r = buf.range(of: Data("\r\n\r\n".utf8)) {
+            // посредник передаёт заголовки магазина: большие ответы (витрина) идут частями — chunked (этап J)
+            let chunked = String(decoding: buf[..<r.lowerBound], as: UTF8.self).lowercased().contains("transfer-encoding: chunked")
+            let body = chunked ? dechunk(Data(buf[r.upperBound...])) : Data(buf[r.upperBound...])
+            if let j = try? JSONSerialization.jsonObject(with: body) as? [String: Any] { out = j }
+        }
+        return out
+    }
+    /// Тело ответа, переданного частями: «размер в hex\r\nданные\r\n» … «0\r\n\r\n»
+    func dechunk(_ d: Data) -> Data {
+        var out = Data(), i = d.startIndex
+        let crlf = Data("\r\n".utf8)
+        while let r = d.range(of: crlf, in: i..<d.endIndex),
+              let n = Int(String(decoding: d[i..<r.lowerBound], as: UTF8.self).split(separator: ";").first ?? "", radix: 16), n > 0,
+              r.upperBound + n <= d.endIndex {
+            out.append(d[r.upperBound..<r.upperBound + n])
+            i = min(d.endIndex, r.upperBound + n + 2)
+        }
         return out
     }
     @discardableResult func ctl(_ cmd: String) -> [String: Any] { http("/__ctl/" + cmd) }
@@ -1148,10 +1165,13 @@ final class AuditUITests: XCTestCase {
         scrollTo(open); open.tap(); sleep(1)
         let m = app.switches.matching(NSPredicate(format: "label CONTAINS 'размер M'")).firstMatch
         let s = app.switches.matching(NSPredicate(format: "label CONTAINS 'размер S'")).firstMatch
-        scrollTo(s)
-        guard m.exists, s.exists else { XCTFail("Нет переключателей позиций заказа"); shot("21 нет позиций"); return }
-        let pay = app.buttons.matching(NSPredicate(format: "label MATCHES %@", "(Вернуть|Подтвердить возврат) [0-9].*")).firstMatch
-        func rub() -> Int { pay.exists ? Int(pay.label.filter(\.isNumber)) ?? -1 : 0 }
+        // кнопка возврата: «Выберите позиции», «Вернуть N ₽» или «Подтвердить возврат N ₽» — на экране вместе с позициями
+        let pay = app.buttons.matching(NSPredicate(format: "label MATCHES %@", "((Вернуть|Подтвердить возврат) [0-9].*|Выберите позиции)")).firstMatch
+        scrollTo(pay)
+        guard m.exists, s.exists, m.isHittable, s.isHittable, pay.exists else {
+            XCTFail("Позиции заказа и кнопка возврата не видны вместе"); shot("21 нет позиций"); return
+        }
+        func rub() -> Int { Int(pay.label.filter(\.isNumber)) ?? 0 }
         func flip(_ sw: XCUIElement) {
             let was = sw.value as? String
             sw.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
@@ -1163,8 +1183,10 @@ final class AuditUITests: XCTestCase {
         // 1) ответ на прежний выбор (только M) приходит позже ответа на новый (M и S) — сумма остаётся для M и S
         ctl("slow-once?scope=\(path)&ms=6000")
         flip(m); usleep(500_000); flip(s)
-        XCTAssertTrue(pay.waitForExistence(timeout: 5), "Нет суммы возврата за две позиции")
+        let quoted = Date().addingTimeInterval(5)
+        while rub() == 0 && Date() < quoted { usleep(200_000) }
         let both = rub()
+        XCTAssertGreaterThan(both, 0, "Нет суммы возврата за две позиции")
         sleep(8)   // опоздавший ответ уже пришёл
         shot("21 после опоздавшего ответа")
         XCTAssertEqual(rub(), both, "Опоздавший ответ на прежний выбор заменил сумму возврата: была \(both), стала \(rub())")
@@ -1173,9 +1195,9 @@ final class AuditUITests: XCTestCase {
         ctl("slow-once?scope=\(path)&ms=6000")
         flip(m); usleep(700_000)
         shot("21 сумма пересчитывается")
-        XCTAssertFalse(pay.exists && pay.isEnabled && rub() == both, "Пока сумма пересчитывается, доступна кнопка с прежней суммой \(both)")
+        XCTAssertFalse(pay.isEnabled && rub() == both, "Пока сумма пересчитывается, доступна кнопка с прежней суммой \(both)")
         let deadline = Date().addingTimeInterval(12)
-        while (!pay.exists || !pay.isEnabled || rub() == both) && Date() < deadline { usleep(300_000) }
+        while (!pay.isEnabled || rub() == both) && Date() < deadline { usleep(300_000) }
         let single = rub()
         note("21: за две позиции \(both) ₽, за одну \(single) ₽")
         XCTAssertTrue(single > 0 && single < both, "Сумма за одну позицию не пересчиталась: \(single) (за две — \(both))")
