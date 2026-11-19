@@ -52,12 +52,16 @@ final class NetStub: URLProtocol {
         var path = req.url?.path ?? ""
         if path.hasPrefix("/api/") { path.removeFirst(5) }
         let method = req.httpMethod ?? "GET"
+        let t0 = Date()
         let body = req.httpBody ?? req.httpBodyStream.map(NetStub.read)
+        diag("NetStub тело прочитано: \(body?.count ?? -1) Б за \(Int(Date().timeIntervalSince(t0) * 1000)) мс, httpBody=\(req.httpBody != nil), поток=\(req.httpBodyStream != nil)")
         NetStub.lock.lock()
         NetStub.log.append(Seen(method: method, path: path, query: req.url?.query, headers: req.allHTTPHeaderFields ?? [:], body: body))
         let h = NetStub.handler
         NetStub.lock.unlock()
+        let t1 = Date()
         let reply = h(method, path)
+        diag("NetStub ответ готов за \(Int(Date().timeIntervalSince(t1) * 1000)) мс")
         // Ответ отдаётся в потоке клиента (URLSession), как требует URLProtocol: там же вызывается stopLoading,
         // поэтому проверка «запрос отменён» и ответ не разойдутся. Обычный ответ — сразу, здесь же (этап J: передача
         // через perform на поток клиента иногда не срабатывала — первый запрос ждал таймаут 25 с, Intel-Mac, ios.yml)
@@ -95,6 +99,24 @@ final class NetStub: URLProtocol {
         }
         return d
     }
+}
+
+/// DIAG J.2 (временно): сторож главного потока — раз в 50 мс отправляет отметку на главный поток и пишет, если она опоздала больше чем на 200 мс
+final class DiagWatch: @unchecked Sendable {
+    private let lock = NSLock(); private var on = true
+    init() {
+        Thread { [self] in
+            while lock.withLock({ on }) {
+                let sent = Date(), done = DispatchSemaphore(value: 0)
+                DispatchQueue.main.async { done.signal() }
+                if done.wait(timeout: .now() + 30) == .timedOut { diag("сторож: главный поток занят больше 30 с"); continue }
+                let ms = Int(Date().timeIntervalSince(sent) * 1000)
+                if ms > 200 { diag("сторож: главный поток был занят \(ms) мс") }
+                usleep(50_000)
+            }
+        }.start()
+    }
+    func stop() { lock.withLock { on = false } }
 }
 
 /// Ждать условие (до timeout секунд), не блокируя главный поток: ответы и обновления экранов успевают прийти.
@@ -469,6 +491,7 @@ final class ShopStateTests: XCTestCase {
             var inAccount = line.dict; inAccount["qty"] = 5
             NetStub.reset { _, p in p == "state" ? stateReply(products: [productJSON("p1", 1000), productJSON("p2", 1500)],
                                                                user: ["id": "u1", "cart": [inAccount, b.dict], "favorites": ["p2", "p1"]]) : .json(["ok": true]) }
+            let watch = DiagWatch(); defer { watch.stop() }
             diag("test01: load начат")
             await shop.load()
             diag("test01: load завершён, user=\(shop.user?.id ?? "nil") cart=\(shop.cart.count)")
