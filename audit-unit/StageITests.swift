@@ -472,9 +472,8 @@ final class ShopStateTests: XCTestCase {
             XCTAssertEqual(shop.products.map(\.id), ["p1", "p2"])
             XCTAssertEqual(shop.cart, [line, b], "Строка с телефона остаётся как есть, новая из аккаунта добавляется")
             XCTAssertEqual(shop.favorites, ["p1", "p2"])
-            // объединённая корзина уходит в аккаунт (отправка — через 0,8 с; запас на медленный Intel-симулятор CI:
-            // в прогоне этапа J.1 отправка не уложилась в прежние 3 с, на macos-15 занимает около 1 с)
-            let synced = try await until(10) { NetStub.paths("PUT").contains("me/cart") }
+            // объединённая корзина уходит в аккаунт
+            let synced = try await until(3) { NetStub.paths("PUT").contains("me/cart") }
             XCTAssertTrue(synced, "Объединённая корзина не ушла в аккаунт")
             let put = NetStub.seen.last { $0.method == "PUT" && $0.path == "me/cart" }
             XCTAssertEqual(JSON(data: put?.body ?? Data())["lines"].array.compactMap(CartLine.init), [line, b])
