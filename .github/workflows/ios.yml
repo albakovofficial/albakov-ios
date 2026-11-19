@@ -44,14 +44,6 @@ on:
         description: 'Проверка релиза (этап F): сборка Release и архив без подписи App Store; ничего не выгружается, секреты не нужны'
         type: boolean
         default: false
-      diag_only:
-        description: 'DIAG J.2 (временно): юнит-тесты только этого класса или теста, например ShopStateTests (пусто — все)'
-        type: string
-        default: ''
-      diag_iterations:
-        description: 'DIAG J.2 (временно): сколько раз повторить каждый тест'
-        type: string
-        default: '1'
       swift_check:
         description: 'Только проверка готовности к Swift 6 (проект и обычные сборки не меняются): complete — все предупреждения о конкурентности, swift6 — ошибки режима Swift 6'
         type: choice
@@ -113,9 +105,6 @@ jobs:
         id: unit
         if: ${{ (inputs.swift_check || 'none') == 'none' }}
         timeout-minutes: 30   # зависший xcodebuild роняет только этот шаг — итоги и журнал всё равно сохраняются
-        env:
-          DIAG_ONLY: ${{ inputs.diag_only }}
-          DIAG_ITER: ${{ inputs.diag_iterations }}
         run: |
           ruby ci/test-targets.rb
           xcodegen generate --spec audit-project.yml
@@ -125,12 +114,10 @@ jobs:
           [ -n "$SIM" ] || { echo "::error::Нет доступного симулятора iPhone"; exit 1; }
           echo "Симулятор: $SIM"
           set -o pipefail
-          ONLY="AlbakovUnit${DIAG_ONLY:+/$DIAG_ONLY}"; ITER="${DIAG_ITER:-1}"; REP=(); [ "$ITER" -gt 1 ] && REP=(-test-iterations "$ITER")
-          echo "DIAG тесты: $ONLY, повторов: $ITER, процессоров: $(sysctl -n hw.ncpu), $(uname -m)"
-          xcodebuild test -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -only-testing:"$ONLY" "${REP[@]}" \
+          xcodebuild test -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -only-testing:AlbakovUnit \
             -destination "id=$SIM" -derivedDataPath unit-build -resultBundlePath unit.xcresult \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
-            2>&1 | tee unit.log | grep -E "Test Case.*(passed|failed)|error:|Executed|TEST (SUCCEEDED|FAILED)|DEF1 |DIAG"
+            2>&1 | tee unit.log | grep -E "Test Case.*(passed|failed)|error:|Executed|TEST (SUCCEEDED|FAILED)|DEF1 "
 
       # Итог — по xcresult и тогда, когда xcodebuild завершился успешно: 0 выполненных тестов — тоже ошибка
       - name: Итоги юнит-тестов
