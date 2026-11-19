@@ -106,8 +106,6 @@ final class API {
     private func send(_ method: String, _ path: String, body: [String: Any]?, query: [String: String]) async throws -> Data {
         let req = try request(method, path, body: body, query: query)
         let data: Data, resp: URLResponse
-        diag("API.send \(method) \(path) → session.data, host=\(base.host ?? "?")")
-        defer { diag("API.send \(method) \(path) ← вернулся") }
         do { (data, resp) = try await session.data(for: req) }
         catch let e as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed].contains(e.code) { throw APIError.offline }
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0

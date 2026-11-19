@@ -43,25 +43,20 @@ final class NetStub: URLProtocol {
 
     private var stopped = false   // под NetStub.lock
 
-    override class func canInit(with request: URLRequest) -> Bool { diag("NetStub.canInit \(request.httpMethod ?? "") \(request.url?.path ?? "")"); return true }
+    override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        diag("NetStub.startLoading \(request.httpMethod ?? "") \(request.url?.path ?? "")")
         let req = request
         var path = req.url?.path ?? ""
         if path.hasPrefix("/api/") { path.removeFirst(5) }
         let method = req.httpMethod ?? "GET"
-        let t0 = Date()
         let body = req.httpBody ?? req.httpBodyStream.map(NetStub.read)
-        diag("NetStub тело прочитано: \(body?.count ?? -1) Б за \(Int(Date().timeIntervalSince(t0) * 1000)) мс, httpBody=\(req.httpBody != nil), поток=\(req.httpBodyStream != nil)")
         NetStub.lock.lock()
         NetStub.log.append(Seen(method: method, path: path, query: req.url?.query, headers: req.allHTTPHeaderFields ?? [:], body: body))
         let h = NetStub.handler
         NetStub.lock.unlock()
-        let t1 = Date()
         let reply = h(method, path)
-        diag("NetStub ответ готов за \(Int(Date().timeIntervalSince(t1) * 1000)) мс")
         // Ответ отдаётся в потоке клиента (URLSession), как требует URLProtocol: там же вызывается stopLoading,
         // поэтому проверка «запрос отменён» и ответ не разойдутся. Обычный ответ — сразу, здесь же (этап J: передача
         // через perform на поток клиента иногда не срабатывала — первый запрос ждал таймаут 25 с, Intel-Mac, ios.yml)
@@ -77,7 +72,6 @@ final class NetStub: URLProtocol {
     private final class Box: NSObject { let reply: Reply; init(_ r: Reply) { reply = r } }
     @objc private func deliver(_ object: NSObject) {
         NetStub.lock.lock(); let stop = stopped; NetStub.lock.unlock()
-        diag("NetStub.deliver \(request.httpMethod ?? "") \(request.url?.path ?? "") stopped=\(stop) client=\(self.client != nil)")
         guard !stop, let client = self.client, let reply = (object as? Box)?.reply else { return }
         if let e = reply.error { client.urlProtocol(self, didFailWithError: e); return }
         guard let url = request.url, let resp = HTTPURLResponse(url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: nil) else {
@@ -87,7 +81,7 @@ final class NetStub: URLProtocol {
         client.urlProtocol(self, didLoad: reply.body)
         client.urlProtocolDidFinishLoading(self)
     }
-    override func stopLoading() { diag("NetStub.stopLoading \(request.httpMethod ?? "") \(request.url?.path ?? "")"); NetStub.lock.lock(); stopped = true; NetStub.lock.unlock() }
+    override func stopLoading() { NetStub.lock.lock(); stopped = true; NetStub.lock.unlock() }
 
     private static func read(_ s: InputStream) -> Data {
         s.open(); defer { s.close() }
@@ -99,24 +93,6 @@ final class NetStub: URLProtocol {
         }
         return d
     }
-}
-
-/// DIAG J.2 (временно): сторож главного потока — раз в 50 мс отправляет отметку на главный поток и пишет, если она опоздала больше чем на 200 мс
-final class DiagWatch: @unchecked Sendable {
-    private let lock = NSLock(); private var on = true
-    init() {
-        Thread { [self] in
-            while lock.withLock({ on }) {
-                let sent = Date(), done = DispatchSemaphore(value: 0)
-                DispatchQueue.main.async { done.signal() }
-                if done.wait(timeout: .now() + 30) == .timedOut { diag("сторож: главный поток занят больше 30 с"); continue }
-                let ms = Int(Date().timeIntervalSince(sent) * 1000)
-                if ms > 200 { diag("сторож: главный поток был занят \(ms) мс") }
-                usleep(50_000)
-            }
-        }.start()
-    }
-    func stop() { lock.withLock { on = false } }
 }
 
 /// Ждать условие (до timeout секунд), не блокируя главный поток: ответы и обновления экранов успевают прийти.
@@ -482,6 +458,9 @@ final class ShopStateTests: XCTestCase {
             shop.api = was.api   // отложенные отправки корзины уже взяли NetStub — на сервер не уходят
         }
         try await body()
+        // отложенная отправка из теста доходит до NetStub здесь, а не в следующем тесте: при выходе (user = nil)
+        // saveCart новую отправку не создаёт, а уже запланированную не отменяет (этап J.2)
+        await shop.cartSync?.value; await shop.favSync?.value
     }
 
     func test01_LoadMergesAccountCartAndFavorites() async throws {
@@ -491,18 +470,15 @@ final class ShopStateTests: XCTestCase {
             var inAccount = line.dict; inAccount["qty"] = 5
             NetStub.reset { _, p in p == "state" ? stateReply(products: [productJSON("p1", 1000), productJSON("p2", 1500)],
                                                                user: ["id": "u1", "cart": [inAccount, b.dict], "favorites": ["p2", "p1"]]) : .json(["ok": true]) }
-            let watch = DiagWatch(); defer { watch.stop() }
-            diag("test01: load начат")
             await shop.load()
-            diag("test01: load завершён, user=\(shop.user?.id ?? "nil") cart=\(shop.cart.count)")
             XCTAssertEqual(shop.user?.id, "u1"); XCTAssertFalse(shop.isStaff)
             XCTAssertEqual(shop.products.map(\.id), ["p1", "p2"])
             XCTAssertEqual(shop.cart, [line, b], "Строка с телефона остаётся как есть, новая из аккаунта добавляется")
             XCTAssertEqual(shop.favorites, ["p1", "p2"])
-            // объединённая корзина уходит в аккаунт
-            let synced = try await until(3) { NetStub.paths("PUT").contains("me/cart") }
-            diag("test01: ожидание PUT окончено, synced=\(synced), запросы=\(NetStub.seen.map { $0.method + " " + $0.path })")
-            XCTAssertTrue(synced, "Объединённая корзина не ушла в аккаунт")
+            // объединённая корзина уходит в аккаунт. Ждём саму отправку, а не время: на Intel-симуляторе главный поток
+            // приложения-хоста и URLSession задерживают её на секунды (этап J.2)
+            await shop.cartSync?.value
+            XCTAssertTrue(NetStub.paths("PUT").contains("me/cart"), "Объединённая корзина не ушла в аккаунт")
             let put = NetStub.seen.last { $0.method == "PUT" && $0.path == "me/cart" }
             XCTAssertEqual(JSON(data: put?.body ?? Data())["lines"].array.compactMap(CartLine.init), [line, b])
         }
@@ -555,8 +531,8 @@ final class ShopStateTests: XCTestCase {
             shop.cart = [line]; shop.favorites = ["p1"]; shop.buyNow = [line]
             UserDefaults.standard.set(["firstName": "Анна"], forKey: CheckoutView.draftStore)
             OrderTokens.save("o1", String(repeating: "a", count: 32))
-            let synced = try await until(3) { NetStub.paths("PUT").contains("me/cart") && NetStub.paths("PUT").contains("me/favorites") }
-            XCTAssertTrue(synced)
+            await shop.cartSync?.value; await shop.favSync?.value
+            XCTAssertTrue(NetStub.paths("PUT").contains("me/cart") && NetStub.paths("PUT").contains("me/favorites"))
             NetStub.clearSeen()
             await shop.logout()
             XCTAssertNil(shop.user); XCTAssertFalse(shop.isStaff)
@@ -578,13 +554,13 @@ final class ShopStateTests: XCTestCase {
             try await Task.sleep(nanoseconds: 1_000_000_000)
             XCTAssertTrue(NetStub.seen.isEmpty, "Корзина гостя ушла на сервер")
             shop.setUser(User(JSON(["id": "u1"])), staff: false)
-            let merged = try await until(3) { NetStub.paths("PUT").contains("me/cart") }
-            XCTAssertTrue(merged)
+            await shop.cartSync?.value
+            XCTAssertTrue(NetStub.paths("PUT").contains("me/cart"))
             NetStub.clearSeen()
             shop.add(p, color: "c1", size: "M"); shop.add(p, color: "c1", size: "L"); shop.add(p, color: "c1", size: "XL", qty: 3)
             XCTAssertEqual(shop.cart.map(\.qty), [2, 1, 3]); XCTAssertEqual(shop.cartCount, 6)
-            let sent = try await until(5) { NetStub.paths("PUT").contains("me/cart") }
-            XCTAssertTrue(sent, "Корзина не ушла в аккаунт")
+            await shop.cartSync?.value
+            XCTAssertTrue(NetStub.paths("PUT").contains("me/cart"), "Корзина не ушла в аккаунт")
             try await Task.sleep(nanoseconds: 1_000_000_000)   // лишний запрос успел бы прийти
             let puts = NetStub.seen.filter { $0.method == "PUT" && $0.path == "me/cart" }
             XCTAssertEqual(puts.count, 1, "Серия быстрых изменений — один запрос")
