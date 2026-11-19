@@ -162,7 +162,13 @@ jobs:
             python3 -c 'import json, os; print(json.dumps({"firstName": "Аудит", "lastName": "Владелец", "phone": "79070009999", "email": "owner-audit@example.com", "password": os.environ["SHOP_TEST_PASSWORD"], "consent": True}))' \
               | curl -s -X POST http://127.0.0.1:3999/api/auth/register -H 'Content-Type: application/json' --data-binary @- | head -c 120; echo
           fi
+          # заказ для проверки суммы возврата (этап J, M-2): гость, самовывоз, две вещи. Пока магазин остановлен,
+          # заказ помечается оплаченным онлайн (ci/paid-online.js) — без ЮKassa иначе нет экрана «Вернуть деньги»
+          RID=$(python3 -c 'import json; print(json.dumps({"customer": {"firstName": "Возврат", "lastName": "Проверкин", "phone": "79070000201", "email": "refund-audit@example.com"}, "lines": [{"productId": "p6", "colorId": "col1", "size": "M", "qty": 1}, {"productId": "p5", "colorId": "col1", "size": "S", "qty": 1}], "deliveryId": "d3", "payment": "cod", "consent": True}))' \
+            | curl -s -X POST http://127.0.0.1:3999/api/orders -H 'Content-Type: application/json' --data-binary @- \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin).get("order", {}).get("id", ""))' || true)
           sleep 2; pkill -f "node server.js" || true; sleep 2
+          if [ -n "$RID" ]; then node ci/paid-online.js shop/data/albakov.sqlite "$RID" && echo "AUDIT_REFUND_ORDER=$RID" >> "$GITHUB_ENV"; else echo "::warning::Заказ для проверки возврата не создан"; fi
           start
           grep -E "Владелец панели" server.log || true
           (env -u SHOP_TEST_PASSWORD nohup node ci/audit-proxy.js 3998 3999 > proxy.log 2>&1 &)
@@ -195,6 +201,7 @@ jobs:
           # пароль владельца копии — тестам через окружение раннера (приставку TEST_RUNNER_ xcodebuild снимает);
           # XCUITest пишет набор в секретное поле как <redacted>
           export TEST_RUNNER_SHOP_TEST_PASSWORD="$SHOP_TEST_PASSWORD"
+          export TEST_RUNNER_AUDIT_REFUND_ORDER="${AUDIT_REFUND_ORDER:-}"   # заказ для проверки возврата (этап J, M-2)
           # Thread Sanitizer: отчёты процессов в симуляторе (приложение под UI-тестами и хост юнит-тестов) — в файлы на этом Mac
           SAN=""; if [ "$TSAN" = true ]; then SAN="-enableThreadSanitizer YES"; mkdir -p "$RUNNER_TEMP/tsan"; export SIMCTL_CHILD_TSAN_OPTIONS="log_path=$RUNNER_TEMP/tsan/report halt_on_error=0"; export TEST_RUNNER_TSAN_OPTIONS="$SIMCTL_CHILD_TSAN_OPTIONS"; fi
           # память приложения (RSS, КБ) раз в полсекунды — пик между отметками MEMMARK из тестов (этап A, IOS-03)

@@ -1080,4 +1080,104 @@ final class AuditUITests: XCTestCase {
         XCTAssertTrue(text(last).exists, "В панели нет заказа сотрудника — данные admin/data не загрузились")
         shot("19 запуск по ссылке — заказы панели")
     }
+
+    // MARK: - 20. Этап J, M-1: несколько фото цвета товара — все прикреплены, лишних загрузок нет; замер фото (DEF-1)
+
+    /// Фото, загруженные в панели, по данным посредника (ci/audit-proxy.js): адрес, код ответа, байты, размеры, время
+    func uploads() -> [[String: Any]] { (ctl("uploads")["uploads"] as? [[String: Any]]) ?? [] }
+    /// Фото первого цвета товара — по данным витрины копии магазина
+    func colorImages(_ product: String) -> [String] {
+        let products = ((http("/api/state")["data"] as? [String: Any])?["products"] as? [[String: Any]]) ?? []
+        let colors = products.first { $0["id"] as? String == product }?["colors"] as? [[String: Any]]
+        return colors?.first?["images"] as? [String] ?? []
+    }
+
+    func test20_ColorPhotosAllAttached() {
+        signInOwner()
+        let before = colorImages("p1"), sent = uploads().count
+        launch("/admin?s=products&id=p1")
+        XCTAssertTrue(text("Цвета, фото и остатки").waitForExistence(timeout: 25), "Карточка товара не открылась")
+        let add = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Фото этого цвета'")).firstMatch
+        scrollTo(add)
+        guard add.exists else { XCTFail("Нет кнопки «Фото этого цвета»"); shot("20 нет кнопки фото"); return }
+        mark("color-photos-start")
+        add.tap(); sleep(3)
+        guard pickPhotos(3, "20") else { return }
+        // загрузка идёт по одному фото; ждём три ответа сервера (большие снимки, медленный Mac — с запасом)
+        let deadline = Date().addingTimeInterval(240)
+        while uploads().count < sent + 3 && Date() < deadline { sleep(2) }
+        sleep(3)
+        mark("color-photos-loaded")
+        let mine = Array(uploads().dropFirst(sent))
+        let scale = XCUIScreen.main.screenshot().image.scale
+        for u in mine {
+            let line = "DEF1 фото цвета: код \(u["status"] ?? "?"), JPEG \(u["bytes"] ?? 0) Б, \(u["w"] ?? 0)×\(u["h"] ?? 0) px, \(u["ms"] ?? 0) мс; масштаб экрана \(scale)"
+            print(line); note(line)
+        }
+        shot("20 три фото цвета")
+        XCTAssertEqual(mine.count, 3, "Загрузок не 3 — лишние или потерянные: \(mine)")
+        XCTAssertTrue(mine.allSatisfy { $0["status"] as? Int == 200 }, "Не все фото приняты сервером: \(mine)")
+        let urls = mine.compactMap { $0["url"] as? String }
+        let save = button("Сохранить")
+        scrollTo(save)
+        guard save.exists else { XCTFail("Нет кнопки «Сохранить»"); return }
+        save.tap()
+        // у цвета — прежние фото и все три новых по порядку; ни одно загруженное не осталось «ничьим»
+        var after: [String] = []
+        let saved = Date().addingTimeInterval(30)
+        repeat { sleep(2); after = colorImages("p1") } while after == before && Date() < saved
+        shot("20 товар сохранён")
+        XCTAssertEqual(after, before + urls, "У цвета не все выбранные фото: было \(before.count), загружено \(urls.count), стало \(after.count) — \(after)")
+        XCTAssertEqual(uploads().count, sent + 3, "После сохранения появились лишние загрузки")
+    }
+
+    // MARK: - 21. Этап J, M-2: сумма возврата — для текущего выбора; пока сумма пересчитывается, вернуть деньги нельзя
+
+    func test21_RefundSumFollowsSelection() {
+        // заказ «Возврат Проверкин» (две вещи, M и S) создан и помечен оплаченным онлайн в audit.yml
+        guard let id = ProcessInfo.processInfo.environment["AUDIT_REFUND_ORDER"], !id.isEmpty else {
+            return XCTFail("Нет заказа для проверки возврата: audit.yml не передал AUDIT_REFUND_ORDER")
+        }
+        signInOwner()
+        launch("/admin?s=orders&id=\(id)")
+        let open = button("Вернуть деньги")
+        if !open.waitForExistence(timeout: 25) { scrollTo(open) }
+        guard open.exists else {
+            XCTFail("Нет кнопки «Вернуть деньги» — заказ не оплачен онлайн?"); shot("21 нет возврата"); return
+        }
+        scrollTo(open); open.tap(); sleep(1)
+        let m = app.switches.matching(NSPredicate(format: "label CONTAINS 'размер M'")).firstMatch
+        let s = app.switches.matching(NSPredicate(format: "label CONTAINS 'размер S'")).firstMatch
+        scrollTo(s)
+        guard m.exists, s.exists else { XCTFail("Нет переключателей позиций заказа"); shot("21 нет позиций"); return }
+        let pay = app.buttons.matching(NSPredicate(format: "label MATCHES %@", "(Вернуть|Подтвердить возврат) [0-9].*")).firstMatch
+        func rub() -> Int { pay.exists ? Int(pay.label.filter(\.isNumber)) ?? -1 : 0 }
+        func flip(_ sw: XCUIElement) {
+            let was = sw.value as? String
+            sw.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+            let changed = NSPredicate(format: "value != %@", was ?? "")
+            XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: changed, evaluatedWith: sw)], timeout: 3), .completed, "Переключатель не сработал")
+        }
+        let path = "admin/orders/\(id)/refund"
+
+        // 1) ответ на прежний выбор (только M) приходит позже ответа на новый (M и S) — сумма остаётся для M и S
+        ctl("slow-once?scope=\(path)&ms=6000")
+        flip(m); usleep(500_000); flip(s)
+        XCTAssertTrue(pay.waitForExistence(timeout: 5), "Нет суммы возврата за две позиции")
+        let both = rub()
+        sleep(8)   // опоздавший ответ уже пришёл
+        shot("21 после опоздавшего ответа")
+        XCTAssertEqual(rub(), both, "Опоздавший ответ на прежний выбор заменил сумму возврата: была \(both), стала \(rub())")
+
+        // 2) выбор изменился, ответ ещё в пути — прежняя сумма не должна уйти на подтверждение
+        ctl("slow-once?scope=\(path)&ms=6000")
+        flip(m); usleep(700_000)
+        shot("21 сумма пересчитывается")
+        XCTAssertFalse(pay.exists && pay.isEnabled && rub() == both, "Пока сумма пересчитывается, доступна кнопка с прежней суммой \(both)")
+        let deadline = Date().addingTimeInterval(12)
+        while (!pay.exists || !pay.isEnabled || rub() == both) && Date() < deadline { usleep(300_000) }
+        let single = rub()
+        note("21: за две позиции \(both) ₽, за одну \(single) ₽")
+        XCTAssertTrue(single > 0 && single < both, "Сумма за одну позицию не пересчиталась: \(single) (за две — \(both))")
+    }
 }
