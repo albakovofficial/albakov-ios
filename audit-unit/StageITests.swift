@@ -58,12 +58,14 @@ final class NetStub: URLProtocol {
         NetStub.lock.unlock()
         let reply = h(method, path)
         // Ответ отдаётся в потоке клиента (URLSession), как требует URLProtocol: там же вызывается stopLoading,
-        // поэтому проверка «запрос отменён» и ответ не разойдутся
+        // поэтому проверка «запрос отменён» и ответ не разойдутся. Обычный ответ — сразу, здесь же (этап J: передача
+        // через perform на поток клиента иногда не срабатывала — первый запрос ждал таймаут 25 с, Intel-Mac, ios.yml)
+        guard let gate = reply.hold else { return deliver(Box(reply)) }
         let thread = Thread.current
-        var modes = [RunLoop.Mode.default.rawValue]
+        var modes = [RunLoop.Mode.default.rawValue, RunLoop.Mode.common.rawValue]
         if let m = RunLoop.current.currentMode, m != .default { modes.append(m.rawValue) }
         DispatchQueue.global().async {
-            reply.hold?.wait()
+            gate.wait()
             self.perform(#selector(self.deliver(_:)), on: thread, with: Box(reply), waitUntilDone: false, modes: modes)
         }
     }
