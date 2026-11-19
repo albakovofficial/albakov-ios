@@ -558,6 +558,9 @@ struct ProductsBulkView: View {
     @State private var importing = false
     @State private var preview = JSON(nil)
     @State private var csvText = ""
+    /// Выгруженный файл остатков. Сбрасывается, когда остатки или список товаров изменились здесь же (загрузка файла,
+    /// удаление): иначе «Поделиться» отдал бы прежний файл (аудит K, K-M2). Массовые изменения его не сбрасывают —
+    /// цена, скидка и видимость в файл не входят (товар, цвет, размер, артикул, остаток, ID)
     @State private var exportURL: URL?
     private static let actions = [("price", "Цена, ₽", "Новая цена"), ("percent", "Цена ±%", "Например, 10 или −10"), ("discount", "Скидка %", "От 1 до 94"), ("nodiscount", "Убрать скидку", ""), ("show", "Показать на сайте", ""), ("hide", "Скрыть с сайта", "")]
     var body: some View {
@@ -602,7 +605,7 @@ struct ProductsBulkView: View {
         catch { Toast.shared.show(error.userMessage) }
     }
     private func deleteMany() async {
-        do { let r = try await AdminAPI.post("products/delete-many", ["ids": Array(picked)]); picked = []; await AdminAPI.reload(); Toast.shared.show("Удалено: \(r["deleted"].int ?? 0)") }
+        do { let r = try await AdminAPI.post("products/delete-many", ["ids": Array(picked)]); picked = []; exportURL = nil; await AdminAPI.reload(); Toast.shared.show("Удалено: \(r["deleted"].int ?? 0)") }
         catch { Toast.shared.show(error.userMessage) }
     }
     private func export() async {
@@ -625,7 +628,7 @@ struct ProductsBulkView: View {
         } catch { Toast.shared.show(error.userMessage) }
     }
     private func applyCsv() async {
-        do { let r = try await AdminAPI.post("products/stock", ["csv": csvText]); preview = JSON(nil); await AdminAPI.reload(); Toast.shared.show(notifyMsg("Остатки обновлены: \(r["changed"].int ?? 0)", r["notify"])) }
+        do { let r = try await AdminAPI.post("products/stock", ["csv": csvText]); preview = JSON(nil); exportURL = nil; await AdminAPI.reload(); Toast.shared.show(notifyMsg("Остатки обновлены: \(r["changed"].int ?? 0)", r["notify"])) }
         catch { Toast.shared.show(error.userMessage) }
     }
 }

@@ -1221,4 +1221,39 @@ final class AuditUITests: XCTestCase {
         note("21: за две позиции \(both) ₽, за одну \(single) ₽")
         XCTAssertTrue(single > 0 && single < both, "Сумма за одну позицию не пересчиталась: \(single) (за две — \(both))")
     }
+
+    /// K-M2 (этап K.1): после удаления товара файл остатков выгружается заново. Раньше кнопка «Поделиться файлом
+    /// остатков» продолжала отдавать файл, выгруженный до удаления, — с уже удалённым товаром.
+    /// Удаляется p10 «Сумка-тоут из кожи» копии магазина: другие тесты его не используют, тест идёт последним
+    func test22_StockFileRefreshedAfterDelete() {
+        signInOwner()
+        launch("/admin?s=productsBulk")
+        let export = button("Выгрузить остатки")
+        let share = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Поделиться файлом остатков'")).firstMatch
+        guard export.waitForExistence(timeout: 25) else { XCTFail("Экран массовых изменений не открылся"); shot("22 нет экрана"); return }
+        export.tap()
+        XCTAssertTrue(share.waitForExistence(timeout: 25), "Файл остатков не выгрузился"); shot("22 файл выгружен")
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Сумка-тоут из кожи'")).firstMatch
+        scrollTo(row)
+        guard row.exists else { XCTFail("Нет товара «Сумка-тоут из кожи» в списке"); shot("22 нет товара"); return }
+        row.tap()
+        let del = button("Удалить выбранные")
+        var n = 0
+        while !del.isHittable && n < 14 { app.swipeDown(velocity: .slow); n += 1 }
+        del.tap()
+        let confirm = app.buttons.matching(NSPredicate(format: "label == 'Удалить'")).firstMatch
+        guard confirm.waitForExistence(timeout: 10) else { XCTFail("Нет подтверждения удаления"); shot("22 нет подтверждения"); return }
+        confirm.tap()
+        n = 0
+        while !export.exists && n < 14 { app.swipeDown(velocity: .slow); n += 1 }
+        XCTAssertTrue(export.waitForExistence(timeout: 25), "После удаления товара осталась кнопка прежнего файла, а не «Выгрузить остатки»")
+        XCTAssertFalse(share.exists, "После удаления товара предлагается прежний файл остатков")
+        shot("22 после удаления")
+        // выгрузить заново — новый файл с сервера, уже без удалённого товара
+        export.tap()
+        XCTAssertTrue(share.waitForExistence(timeout: 25), "Файл остатков не выгрузился заново")
+        let left = (http("/api/state")["data"] as? [String: Any])?["products"] as? [[String: Any]] ?? []
+        XCTAssertFalse(left.isEmpty, "Не получили витрину копии магазина")
+        XCTAssertFalse(left.contains { $0["id"] as? String == "p10" }, "Товар не удалился на сервере — проверка ничего не проверила")
+    }
 }
