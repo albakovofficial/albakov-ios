@@ -17,6 +17,9 @@ final class ImageKitMeasureTests: XCTestCase {
     /// Исходник: JPEG качества 0,9. Гладкое — градиент (сжимается сильнее любого снимка); с зерном — градиент
     /// и полупрозрачный шум (ближе к снимку камеры); шум — случайные пиксели (худший случай для размера файла)
     private func source(_ w: Int, _ h: Int, _ t: Texture) -> Data? {
+        picture(w, h, t).flatMap { encode($0, type: .jpeg) }
+    }
+    private func picture(_ w: Int, _ h: Int, _ t: Texture) -> CGImage? {
         guard let ctx = bitmap(w, h) else { return nil }
         if t == .noise, let raw = ctx.data { arc4random_buf(raw, w * h * 4) } else {
             let colors = [UIColor(red: 0.2, green: 0.5, blue: 0.6, alpha: 1).cgColor, UIColor(red: 0.9, green: 0.6, blue: 0.3, alpha: 1).cgColor]
@@ -27,8 +30,7 @@ final class ImageKitMeasureTests: XCTestCase {
                 if let n = tile.makeImage() { ctx.setAlpha(0.08); ctx.draw(n, in: CGRect(x: 0, y: 0, width: 256, height: 256), byTiling: true) }
             }
         }
-        guard let img = ctx.makeImage() else { return nil }
-        return encode(img, type: .jpeg)
+        return ctx.makeImage()
     }
     private func bitmap(_ w: Int, _ h: Int) -> CGContext? {
         CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
@@ -188,20 +190,26 @@ final class ImageKitMeasureTests: XCTestCase {
     @MainActor
     func test06_SupportedFormats() async throws {
         let writable = (CGImageDestinationCopyTypeIdentifiers() as? [String]) ?? []
-        guard let ctx = bitmap(3000, 2000) else { return XCTFail("Нет холста") }
-        ctx.setFillColor(UIColor.orange.cgColor); ctx.fill(CGRect(x: 0, y: 0, width: 3000, height: 2000))
-        guard let img = ctx.makeImage() else { return XCTFail("Нет картинки") }
+        // с зерном, а не однотонная: однотонный GIF 3000×2000 сжимается в 1:1000+, и ImageIO отвергает его как испорченный
+        guard let img = picture(3000, 2000, .grain) else { return XCTFail("Нет картинки") }
         var checked: [String] = []
         for type in [UTType.jpeg, .heic, .png, .gif, .tiff] where writable.contains(type.identifier) {
             guard let src = encode(img, type: type) else {   // HEIC: на Intel-симуляторе без кодировщика HEVC тип заявлен, но не пишется
                 if type == .heic { log("DEF1 форматы: HEIC в симуляторе не записывается — пропущен"); continue }
                 XCTFail("\(type.identifier): не записывается"); continue
             }
-            let out = try await ImageKit.jpeg(src)
-            let (ow, oh, t) = pixels(out)
-            XCTAssertEqual(t, UTType.jpeg.identifier, "\(type.identifier): результат не JPEG")
-            XCTAssertTrue(ow == 2000 && abs(oh - 1333) <= 1, "\(type.identifier) → \(ow)×\(oh)")   // 1333,3: ImageIO округляет
-            checked.append(type.preferredFilenameExtension ?? type.identifier)
+            do {
+                let (ow, oh, t) = pixels(try await ImageKit.jpeg(src))
+                XCTAssertEqual(t, UTType.jpeg.identifier, "\(type.identifier): результат не JPEG")
+                XCTAssertTrue(ow == 2000 && abs(oh - 1333) <= 1, "\(type.identifier) → \(ow)×\(oh)")   // 1333,3: ImageIO округляет
+                checked.append(type.preferredFilenameExtension ?? type.identifier)
+            } catch {
+                // HEIC на Intel-симуляторе: файл записывается, но сама система его не раскодирует (нет декодера HEVC) — не ошибка ImageKit
+                let decodes = CGImageSourceCreateWithData(src as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) } != nil
+                log("DEF1 форматы: \(type.identifier) не открылся (\(error)); система раскодирует файл целиком: \(decodes ? "да" : "нет")")
+                if type == .heic && !decodes { continue }
+                XCTFail("\(type.identifier): \(error)")
+            }
         }
         log("DEF1 форматы: " + checked.joined(separator: ", "))
         XCTAssertTrue(["jpeg", "png"].allSatisfy(checked.contains), "Не проверены основные форматы: \(checked)")
