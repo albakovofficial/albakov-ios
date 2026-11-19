@@ -203,9 +203,6 @@ struct CheckoutView: View {
     }
 
     // MARK: Части экрана
-    private func block<C: View>(_ title: String, @ViewBuilder _ c: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 12) { Text(title).font(Theme.font(20, .light)); c() }
-    }
     private func pickerRow(_ label: String, _ value: String) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) { Text(label).font(Theme.font(12.5)).foregroundStyle(Theme.muted); Text(value).font(Theme.font(15)).foregroundStyle(Theme.text).multilineTextAlignment(.leading) }

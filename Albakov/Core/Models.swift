@@ -353,6 +353,9 @@ enum ISO {
     private static let f1: ISO8601DateFormatter = { let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f }()
     private static let f2 = ISO8601DateFormatter()
     static func date(_ s: String) -> Date? { f1.date(from: s) ?? f2.date(from: s) }
+    /// День «ГГГГ-ММ-ДД» без времени — в поясе телефона, григорианский календарь (en_US_POSIX): так дни пишут формы
+    /// панели и подарочного сертификата. Форматтер один на приложение (этап K: та же настройка повторялась в восьми местах)
+    static let ymd: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f }()
 }
 
 enum Fmt {

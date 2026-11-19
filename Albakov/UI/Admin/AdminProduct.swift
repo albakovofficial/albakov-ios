@@ -534,9 +534,8 @@ struct ReceiveSheet: View {
         if lines.isEmpty { error = "Укажите, сколько штук пришло"; return }
         if cats.isEmpty && (Int(unit) ?? 0) > 0 { error = "В «Финансах» нет категории закупки"; return }
         busy = true; defer { busy = false }
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
         do {
-            let r = try await AdminAPI.post("finance/receive", ["productId": pid, "date": f.string(from: date), "lines": lines, "unitCost": unit, "categoryId": cat, "costMode": mode, "note": note])
+            let r = try await AdminAPI.post("finance/receive", ["productId": pid, "date": ISO.ymd.string(from: date), "lines": lines, "unitCost": unit, "categoryId": cat, "costMode": mode, "note": note])
             await AdminAPI.reload(); Haptic.success()
             Toast.shared.show("Принято на склад: \(r["receipt"]["qty"].int ?? 0) шт." + ((r["receipt"]["total"].int ?? 0) > 0 ? ", закупка \(Fmt.rub(r["receipt"]["total"].int ?? 0)) записана в «Финансы»" : ""))
             dismiss()

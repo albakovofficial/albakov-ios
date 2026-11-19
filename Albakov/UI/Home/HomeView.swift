@@ -7,7 +7,6 @@ struct HomeView: View {
     @EnvironmentObject private var router: Router
     private var h: JSON { shop.settings.raw["home"] }
     private func show(_ k: String) -> Bool { !h[k].exists || h[k].bool }
-    private var gSub: String? { shop.gender.map { Sections.name($0).lowercased() } }
 
     var body: some View {
         if shop.closed(shop.gender) { SoonView() } else { content }
@@ -32,13 +31,13 @@ struct HomeView: View {
                     }
                     if show("showNew"), !newList.isEmpty {
                         VStack(alignment: .leading, spacing: 22) {
-                            SectionTitle(title: "Новинки", sub: gSub, action: "Смотреть все") { router.push(.catalog(cat: nil, tag: "new", sale: false), on: .home) }
+                            SectionTitle(title: "Новинки", action: "Смотреть все") { router.push(.catalog(cat: nil, tag: "new", sale: false), on: .home) }
                             ProductGrid(products: newList, tab: .home)
                         }
                     }
                     if show("showHits"), !shop.hits.isEmpty {
                         VStack(alignment: .leading, spacing: 22) {
-                            SectionTitle(title: "Хиты продаж", sub: gSub, action: "Смотреть все") { router.push(.catalog(cat: nil, tag: "hit", sale: false), on: .home) }
+                            SectionTitle(title: "Хиты продаж", action: "Смотреть все") { router.push(.catalog(cat: nil, tag: "hit", sale: false), on: .home) }
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(alignment: .top, spacing: 10) { ForEach(shop.hits) { ProductCard(product: $0, tab: .home).frame(width: 166) } }.padding(.horizontal, Theme.gutter)
                             }

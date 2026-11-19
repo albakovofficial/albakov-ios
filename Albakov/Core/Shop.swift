@@ -129,7 +129,6 @@ final class Shop: ObservableObject {
         let ids = Set(visibleProducts.map(\.categoryId))
         return categories.filter { ids.contains($0.id) }
     }
-    var newProducts: [Product] { Array(visibleProducts.filter { $0.tags.contains("new") }.sorted { $0.createdAt > $1.createdAt }.prefix(10)) }
     var hits: [Product] {
         let h = hitIds.compactMap { id in visibleProducts.first { $0.id == id } }
         return h.isEmpty ? Array(visibleProducts.filter { $0.tags.contains("hit") }.prefix(10)) : Array(h.prefix(10))
@@ -141,7 +140,6 @@ final class Shop: ObservableObject {
     func clearRecent() { recentIds = []; UserDefaults.standard.removeObject(forKey: "recent") }
     /// Самый низкий порог «Бесплатно от» среди способов доставки — для {free} в строке объявления
     var freeFromMin: Int { settings.delivery.map(\.freeFrom).filter { $0 > 0 }.min() ?? 0 }
-    var saleProducts: [Product] { visibleProducts.filter { price($0).oldPrice > 0 } }
     func page(_ slug: String) -> Page? { pages.first { $0.slug == slug } }
 
     // MARK: Корзина

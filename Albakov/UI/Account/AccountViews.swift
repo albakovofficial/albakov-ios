@@ -197,7 +197,7 @@ struct AuthView: View {
     @State private var error: String?
     @State private var code: CodeStep?
 
-    struct CodeStep: Identifiable { let id: String; let email: String; let kind: String; var resetPassword = "" }
+    struct CodeStep: Identifiable { let id: String; let email: String; let kind: String }
 
     var body: some View {
         ScrollView {

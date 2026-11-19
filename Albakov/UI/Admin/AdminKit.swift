@@ -378,18 +378,17 @@ struct MultiPick: View {
 struct DateField: View {
     let label: String
     @Binding var value: String
-    private static let f: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f }()
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(Theme.font(14)).foregroundStyle(Theme.muted)
             HStack {
-                if let d = DateField.f.date(from: value) {
-                    DatePicker("", selection: Binding(get: { d }, set: { value = DateField.f.string(from: $0) }), displayedComponents: .date)
+                if let d = ISO.ymd.date(from: value) {
+                    DatePicker("", selection: Binding(get: { d }, set: { value = ISO.ymd.string(from: $0) }), displayedComponents: .date)
                         .labelsHidden().environment(\.locale, Locale(identifier: "ru_RU")).tint(Theme.ink)
                     Spacer()
                     Button { value = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.dim) }
                 } else {
-                    Button { value = DateField.f.string(from: Date()) } label: { Text("Без даты — указать").font(Theme.font(15)).foregroundStyle(Theme.text) }
+                    Button { value = ISO.ymd.string(from: Date()) } label: { Text("Без даты — указать").font(Theme.font(15)).foregroundStyle(Theme.text) }
                     Spacer()
                 }
             }.padding(.horizontal, 14).frame(height: 50).background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))

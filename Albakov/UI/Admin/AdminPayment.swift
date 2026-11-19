@@ -20,7 +20,6 @@ struct AdminPayment: View {
     @State private var cdekSecret = ""
     @State private var cdekTest = false
     @State private var cdekState: (String, Bool?)?
-    @State private var addKind = false
     private static let tax = [(1, "ОСН — общая система"), (2, "УСН «Доходы»"), (3, "УСН «Доходы минус расходы»"), (5, "ЕСХН"), (6, "Патентная система")]
     private static let vat = [(1, "Без НДС"), (2, "НДС 0%"), (7, "НДС 5%"), (8, "НДС 7%"), (3, "НДС 10%"), (4, "НДС 20% (до 2026)"), (11, "НДС 22%")]
 

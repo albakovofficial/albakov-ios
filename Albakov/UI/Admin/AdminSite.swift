@@ -48,10 +48,8 @@ extension ISO {
     /// «2026-03-01» → начало этого дня
     static func day(_ s: String) -> Date? {
         guard s.count >= 10 else { return nil }
-        return posixDay.date(from: String(s.prefix(10)))
+        return ymd.date(from: String(s.prefix(10)))
     }
-    /// Разбор дня для статуса слайда — вызывается в каждой строке списка при отрисовке, форматтер один (аудит Q-B6)
-    private static let posixDay: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f }()
 }
 
 struct AdminSlider: View {

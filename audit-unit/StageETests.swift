@@ -150,8 +150,10 @@ final class DateFormatTests: XCTestCase {
         XCTAssertEqual(DateParse.moscowDay(utc("2026-11-16T21:30:00Z")), "2026-11-17", "00:30 по Москве — уже 17-е")
         XCTAssertEqual(DateParse.moscowDay(utc("2026-11-16T20:59:59Z")), "2026-11-16")
         XCTAssertEqual(DateParse.moscowDay(utc("2026-12-31T21:00:00Z")), "2027-01-01", "Новый год по Москве")
-        XCTAssertEqual(DateParse.ymd("2026-11-17"), local(2026, 11, 17, 0))
-        XCTAssertNil(DateParse.ymd("17-11-2026"))
+        // день формы панели (этап K: общий форматтер ISO.ymd вместо DateParse.ymd и семи своих копий)
+        XCTAssertEqual(ISO.ymd.date(from: "2026-11-17"), local(2026, 11, 17, 0))
+        XCTAssertNil(ISO.ymd.date(from: "17-11-2026"))
+        XCTAssertEqual(ISO.ymd.string(from: local(2026, 11, 17, 23)), "2026-11-17")
     }
 
     /// Окно акции и слайда без дат — всегда; выключенная — никогда (Promotion.inWindow)

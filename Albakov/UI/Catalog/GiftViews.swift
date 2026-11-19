@@ -168,8 +168,7 @@ struct GiftView: View {
         if !offer { error = "Примите условия публичной оферты"; return }
         if !consent { error = "Нужно согласие на обработку персональных данных"; return }
         busy = true; defer { busy = false }
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
-        var b: [String: Any] = ["amount": sum, "toName": toName, "toEmail": toEmail, "message": message, "fromName": fromName, "sendAt": onDate ? f.string(from: sendAt) : "",
+        var b: [String: Any] = ["amount": sum, "toName": toName, "toEmail": toEmail, "message": message, "fromName": fromName, "sendAt": onDate ? ISO.ymd.string(from: sendAt) : "",
                                 "customer": ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email], "consent": true]
         // Ключ повтора хранится в памяти телефона до успешной покупки (Q-1): повтор после обрыва связи — даже с нового
         // экрана или после перезапуска — вернёт тот же сертификат, а не создаст второй

@@ -90,7 +90,7 @@ private struct MailLetters: View {
 
 private struct Letter: Identifiable { let j: JSON; var id: String { j["key"].str } }
 
-/// Готовое HTML-письмо внутри приложения (ссылки не открываются)
+/// Готовое HTML-письмо внутри приложения — предпросмотр. Делегата навигации нет: ссылка из письма открывается в этом же окне
 struct HTMLView: UIViewRepresentable {
     let html: String
     func makeUIView(context: Context) -> WKWebView { let w = WKWebView(); w.loadHTMLString(html, baseURL: API.shared.base); return w }

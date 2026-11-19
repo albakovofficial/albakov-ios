@@ -78,7 +78,7 @@ enum AdminSections {
     @MainActor static var catOpts: [(String, String)] { Admin.shared.data["categories"].array.map { ($0["id"].str, $0["name"].str) } }
     @MainActor static var prodOpts: [(String, String)] { Admin.shared.data["products"].array.map { ($0["id"].str, $0["name"].str) } }
     static let genderOpts = [("", "Определять по товарам"), ("women", "Женщинам"), ("men", "Мужчинам"), ("kids", "Детям"), ("unisex", "Женщинам и мужчинам")]
-    static func today() -> String { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f.string(from: Date()) }
+    static func today() -> String { ISO.ymd.string(from: Date()) }
 
     // MARK: - Категории
     static var categories: CollectionCfg {

@@ -63,8 +63,7 @@ struct AdminFinance: View {
     private var input: [String: Any] {
         ["orders": admin.data["orders"].arrAny, "products": admin.data["products"].arrAny, "expenses": admin.data["expenses"].arrAny, "finance": admin.data["finance"].raw ?? [String: Any](), "receipts": admin.data["receipts"].arrAny]
     }
-    private func ymd(_ d: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f.string(from: d) }
-    private func recalc() { if ready { r = eng.report(input, kind: kind, shift: shift, from: ymd(from), to: ymd(to)) } }
+    private func recalc() { if ready { r = eng.report(input, kind: kind, shift: shift, from: ISO.ymd.string(from: from), to: ISO.ymd.string(from: to)) } }
 
     var body: some View {
         List {
@@ -233,15 +232,14 @@ struct ExpenseSheet: View {
             .navigationTitle(expense == nil ? "Новая операция" : "Операция").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() } } }
             .onAppear {
-                if let e = expense { date = DateParse.ymd(e["date"].str) ?? Date(); cat = e["categoryId"].str; amount = e["amount"].numberText; note = e["note"].str }
+                if let e = expense { date = ISO.ymd.date(from: e["date"].str) ?? Date(); cat = e["categoryId"].str; amount = e["amount"].numberText; note = e["note"].str }
                 else if cat.isEmpty { cat = cats.first?["id"].str ?? "" }
             }
         }
     }
     private func save() async {
         busy = true; defer { busy = false }
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
-        let b: [String: Any] = ["date": f.string(from: date), "categoryId": cat, "amount": Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0, "note": note]
+        let b: [String: Any] = ["date": ISO.ymd.string(from: date), "categoryId": cat, "amount": Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0, "note": note]
         do {
             if let e = expense { _ = try await API.shared.json("PUT", "admin/finance/expenses/\(e["id"].str)", body: b) } else { _ = try await AdminAPI.post("finance/expenses", b) }
             done(); dismiss()
@@ -253,7 +251,6 @@ struct ExpenseSheet: View {
 }
 
 enum DateParse {
-    static func ymd(_ s: String) -> Date? { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f.date(from: s) }
     /// День статистики — как его пишет сервер: «ГГГГ-ММ-ДД» по Москве, григорианский календарь
     /// (new Date(Date.now() + 3 ч).toISOString().slice(0, 10), api-shop.js). Без en_US_POSIX календарь брался из настроек
     /// телефона: при буддийском или японском году ключи не совпадали с серверными — графики были пустыми (аудит Q-B6).

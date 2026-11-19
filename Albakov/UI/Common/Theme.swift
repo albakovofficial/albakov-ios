@@ -31,7 +31,6 @@ enum Theme {
     static let lineStrong = Color(hex: "#c2c7cd")
     static let surface = Color(hex: "#f3f4f6")      // подложки фото и блоков
     static let surface2 = Color(hex: "#e8eaed")
-    static let paper = Color.white
     static var accent: Color { Palette.colors[1] }  // цвет раздела: точка в заголовках, счётчики, выделение
     static var accentSoft: Color { Palette.colors[0] }
     static var tint: Color { Palette.tint }
@@ -101,7 +100,6 @@ extension View {
     func softCard(_ radius: CGFloat = 18, fill: Color = .white, alpha: Double = 0.08) -> some View {
         background(RoundedRectangle(cornerRadius: radius).fill(fill)).hairline(RoundedRectangle(cornerRadius: radius), alpha)
     }
-    func dropShadow(_ a: Double = 0.25, y: CGFloat = 6, r: CGFloat = 16) -> some View { shadow(color: Theme.ink.opacity(a * 0.45), radius: r / 2, y: y) }
 }
 
 /// Белый кружок со стрелкой внутри чёрной кнопки (и чёрный — внутри светлой)
@@ -262,21 +260,10 @@ struct DotTitle: View {
     }
 }
 
-/// Маленькая серая капсула рядом с заголовком: «Новинки (мужчинам)»
-struct HSub: View {
-    let text: String
-    var body: some View {
-        HStack(spacing: 5) { Circle().fill(Theme.accentGradient).frame(width: 5, height: 5); Text(text).font(Theme.font(12.5)).kerning(0.25) }
-            .foregroundStyle(Theme.text).padding(.horizontal, 9).padding(.vertical, 3.5)
-            .background(Capsule().fill(Theme.surface)).hairline(Capsule(), 0.06)
-    }
-}
-
 /// Заголовок раздела на главной: тонкий заголовок и капсула «Смотреть все →» в одну строку
-/// (капсула раздела «мужчинам» убрана — владелец 15.11; параметр sub оставлен для совместимости вызовов)
+/// (капсула раздела «мужчинам» убрана — владелец 15.11)
 struct SectionTitle: View {
     let title: String
-    var sub: String? = nil
     var action: String? = nil
     var onAction: (() -> Void)? = nil
     var body: some View {
