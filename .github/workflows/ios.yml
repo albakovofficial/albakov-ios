@@ -117,7 +117,7 @@ jobs:
           xcodebuild test -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -only-testing:AlbakovUnit \
             -destination "id=$SIM" -derivedDataPath unit-build -resultBundlePath unit.xcresult \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
-            2>&1 | tee unit.log | grep -E "Test Case.*(passed|failed)|error:|Executed|TEST (SUCCEEDED|FAILED)"
+            2>&1 | tee unit.log | grep -E "Test Case.*(passed|failed)|error:|Executed|TEST (SUCCEEDED|FAILED)|DEF1 "
 
       # Итог — по xcresult и тогда, когда xcodebuild завершился успешно: 0 выполненных тестов — тоже ошибка
       - name: Итоги юнит-тестов
