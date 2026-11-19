@@ -1167,7 +1167,14 @@ final class AuditUITests: XCTestCase {
         let s = app.switches.matching(NSPredicate(format: "label CONTAINS 'размер S'")).firstMatch
         // кнопка возврата: «Выберите позиции», «Вернуть N ₽» или «Подтвердить возврат N ₽» — на экране вместе с позициями
         let pay = app.buttons.matching(NSPredicate(format: "label MATCHES %@", "((Вернуть|Подтвердить возврат) [0-9].*|Выберите позиции)")).firstMatch
-        scrollTo(pay)
+        // небольшими сдвигами, пока кнопка не окажется над панелью вкладок: обычный свайп пролистывает позиции целиком
+        scrollTo(s)
+        var k = 0
+        while !(pay.exists && pay.isHittable && pay.frame.maxY < app.frame.maxY - 90) && k < 8 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)).press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)))
+            k += 1
+        }
+        shot("21 позиции и кнопка возврата")
         guard m.exists, s.exists, m.isHittable, s.isHittable, pay.exists else {
             XCTFail("Позиции заказа и кнопка возврата не видны вместе"); shot("21 нет позиций"); return
         }
