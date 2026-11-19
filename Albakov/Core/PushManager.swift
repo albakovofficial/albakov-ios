@@ -17,6 +17,11 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
 
     @Published private(set) var status: UNAuthorizationStatus = .notDetermined
     private(set) var token: String?
+    /// Сервер для подписки; var — для юнит-тестов (как Shop.api)
+    var api = API.shared
+    /// Последняя отправка подписки и её номер. Вызовы идут с главного потока (вход, выход, панель, AppDelegate)
+    private(set) var sync: Task<Void, Never>?
+    private var generation = 0
 
     private override init() { super.init() }
 
@@ -42,16 +47,26 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
     }
 
     /// Сообщить серверу адрес устройства: после получения адреса, входа и выхода из кабинета.
+    /// Отправки идут строго по очереди: новая ждёт, пока прежняя закончит начатый запрос, и только потом шлёт свои.
+    /// Прежняя, у которой появилась более новая, оставшиеся запросы не шлёт — последней всегда выполняется самая новая.
+    /// Раньше каждая отправка шла сама по себе: при быстром выходе и входе «отписать сотрудника» могло прийти на сервер
+    /// после «подписать», и панель переставала присылать уведомления (аудит K, K-M3). Начатый запрос не отменяем:
+    /// отмена на телефоне не отзывает уже отправленный запрос, и сервер мог бы получить его позже нового
     func resend() {
         guard let token else { return }
-        Task { @MainActor in
+        generation += 1
+        let n = generation, previous = sync, api = self.api
+        sync = Task { @MainActor in
+            await previous?.value
+            let current = { n == self.generation && !Task.isCancelled }
+            guard current() else { return }
             let apns: [String: Any] = ["token": token, "env": PushManager.environment]
-            _ = try? await API.shared.raw("POST", "push/subscribe", body: ["apns": apns, "scope": "customer"])
+            _ = try? await api.raw("POST", "push/subscribe", body: ["apns": apns, "scope": "customer"])
             // Уведомления панели (новые заказы, оплаты, вопросы) — только пока на этом iPhone вошли под аккаунтом сотрудника.
             // Вышли или вошёл покупатель — устройство перестаёт получать уведомления панели (1.0.2)
-            guard Shop.shared.loaded else { return }   // кто вошёл, станет известно после загрузки — тогда resend вызовется снова
-            if Shop.shared.isStaff { _ = try? await API.shared.raw("POST", "push/subscribe", body: ["apns": apns, "scope": "staff"]) }
-            else { _ = try? await API.shared.raw("POST", "push/unsubscribe", body: ["endpoint": "apns:" + token, "scope": "staff"]) }
+            guard current(), Shop.shared.loaded else { return }   // кто вошёл, станет известно после загрузки — тогда resend вызовется снова
+            if Shop.shared.isStaff { _ = try? await api.raw("POST", "push/subscribe", body: ["apns": apns, "scope": "staff"]) }
+            else { _ = try? await api.raw("POST", "push/unsubscribe", body: ["endpoint": "apns:" + token, "scope": "staff"]) }
         }
     }
 
