@@ -1135,6 +1135,12 @@ final class AuditUITests: XCTestCase {
         shot("20 три фото цвета")
         XCTAssertEqual(mine.count, 3, "Загрузок не 3 — лишние или потерянные: \(mine)")
         XCTAssertTrue(mine.allSatisfy { $0["status"] as? Int == 200 }, "Не все фото приняты сервером: \(mine)")
+        // DEF-1 (этап J.1): на сервер уходит не крупнее 2000 px по длинной стороне и не больше 8 МБ — на любом экране
+        for u in mine {
+            let w = u["w"] as? Int ?? 0, h = u["h"] as? Int ?? 0, bytes = u["bytes"] as? Int ?? 0
+            XCTAssertTrue(max(w, h) > 0 && max(w, h) <= 2000, "Фото \(w)×\(h) px — больше 2000 по длинной стороне")
+            XCTAssertLessThanOrEqual(bytes, 8 * 1024 * 1024, "Фото \(bytes) Б — больше предела сервера 8 МБ")
+        }
         let urls = mine.compactMap { $0["url"] as? String }
         let save = button("Сохранить")
         scrollTo(save)

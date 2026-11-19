@@ -1,6 +1,5 @@
 import SwiftUI
 import PhotosUI
-import ImageIO
 
 // Поддержка (1.0.1, вариант B — как на сайте 13.64.3): у обращения свой номер, тема, заказ и статус.
 // Покупатель: список обращений, переписка с фото и отметкой «прочитано», новое обращение — тема плиткой, заказ карточкой.
@@ -40,7 +39,7 @@ enum Support {
     /// Снимок раскодируется один раз и сразу в размере 1600 px (48 Мп целиком — это ≈190 МБ);
     /// миниатюра уменьшается уже из этой картинки
     static func photo(_ data: Data) -> (jpeg: Data, thumbnail: UIImage)? {
-        guard let image = downsample(data, maxPixel: 1600), let jpeg = image.jpegData(compressionQuality: 0.85) else { return nil }
+        guard let image = ImageKit.downsample(data, maxPixel: 1600), let jpeg = image.jpegData(compressionQuality: 0.85) else { return nil }
         return (jpeg, resized(image, maxPixel: thumbPixels))
     }
     /// Миниатюра для полоски выбранных фото: 64 pt на экране 3x — хватает 300 px по длинной стороне
@@ -51,21 +50,6 @@ enum Support {
         let size = CGSize(width: (image.size.width * k).rounded(), height: (image.size.height * k).rounded())
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
         return UIGraphicsImageRenderer(size: size, format: fmt).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
-    }
-    /// Уменьшенная копия снимка (ImageIO): с учётом поворота из EXIF, не крупнее исходника.
-    /// Полноразмерная картинка в памяти не создаётся
-    private static func downsample(_ data: Data, maxPixel: CGFloat) -> UIImage? {
-        guard let src = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
-        let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
-        let w = (props?[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue ?? 0
-        let h = (props?[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue ?? 0
-        let side = max(w, h) > 0 ? min(maxPixel, CGFloat(max(w, h))) : maxPixel   // не увеличиваем, как и раньше
-        let opts: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
-                                     kCGImageSourceCreateThumbnailWithTransform: true,
-                                     kCGImageSourceShouldCacheImmediately: true,
-                                     kCGImageSourceThumbnailMaxPixelSize: side]
-        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
-        return UIImage(cgImage: cg)
     }
 }
 

@@ -271,7 +271,7 @@ struct ColorPhotos: View {
         guard !items.isEmpty else { return }
         busy = true; defer { busy = false; picks = [] }
         for it in items {
-            do { add(try await API.shared.upload(ImageKit.jpeg(try await ImageKit.load(it)))) } catch { Toast.shared.show(error.userMessage) }
+            do { add(try await API.shared.upload(try await ImageKit.jpeg(try await ImageKit.load(it)))) } catch { Toast.shared.show(error.userMessage) }
         }
     }
 }

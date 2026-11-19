@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import ImageIO
 
 // Основа родной панели: поля форм по описанию (как fieldHtml/formHtml в public/js/admin.js),
 // списки и карточки коллекций (категории, сетки, акции, промокоды, страницы, товары), формы настроек.
@@ -441,7 +442,7 @@ struct ImageField: View {
     private func upload(_ it: PhotosPickerItem?) async {
         guard let it else { return }
         busy = true; defer { busy = false; item = nil }
-        do { value = try await API.shared.upload(ImageKit.jpeg(try await ImageKit.load(it))) } catch { Toast.shared.show(error.userMessage) }
+        do { value = try await API.shared.upload(try await ImageKit.jpeg(try await ImageKit.load(it))) } catch { Toast.shared.show(error.userMessage) }
     }
 }
 
@@ -458,14 +459,29 @@ enum ImageKit {
         guard let data else { throw OpenFailed() }
         return data
     }
-    /// Фото с телефона — в JPEG не больше 2000 px по длинной стороне (сервер принимает файл до 8 МБ, запрос — до 12 МБ).
-    /// На деле размер умножается на масштаб экрана (2–3), см. DEF-1 в STAGE_J_CODE_QUALITY_REPORT.md — не исправлено, ждёт решения
-    static func jpeg(_ data: Data, max side: CGFloat = 2000) -> Data {
-        guard let img = UIImage(data: data) else { return data }
-        let k = min(1, side / max(img.size.width, img.size.height))
-        let size = CGSize(width: (img.size.width * k).rounded(), height: (img.size.height * k).rounded())
-        let r = UIGraphicsImageRenderer(size: size).image { _ in img.draw(in: CGRect(origin: .zero, size: size)) }
-        return r.jpegData(compressionQuality: 0.86) ?? data
+    /// Фото с телефона для сайта — JPEG не больше 2000 px по длинной стороне, качество 0,86 (сервер принимает файл до 8 МБ).
+    /// Раньше снимок раскодировался целиком на главном потоке и рисовался в масштабе экрана: уходило 4000–6000 px,
+    /// детальные снимки превышали предел сервера (аудит DEF-1). Теперь — вне главного потока и без полного раскодирования.
+    /// Не картинка или повреждённый файл — ошибка «Не получилось открыть фото», а не отправка исходных данных как JPEG
+    static func jpeg(_ data: Data) async throws -> Data {
+        let jpeg = await Task.detached(priority: .userInitiated) { ImageKit.downsample(data, maxPixel: 2000)?.jpegData(compressionQuality: 0.86) }.value
+        guard let jpeg else { throw OpenFailed() }
+        return jpeg
+    }
+    /// Уменьшенная копия снимка (ImageIO): с учётом поворота из EXIF, не крупнее исходника, ровно в пикселях — без масштаба
+    /// экрана. Полноразмерная картинка в памяти не создаётся. Общая для фото панели (jpeg) и поддержки (Support.photo)
+    static func downsample(_ data: Data, maxPixel: CGFloat) -> UIImage? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+        let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+        let w = (props?[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue ?? 0
+        let h = (props?[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue ?? 0
+        let side = max(w, h) > 0 ? min(maxPixel, CGFloat(max(w, h))) : maxPixel   // не увеличиваем
+        let opts: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                     kCGImageSourceCreateThumbnailWithTransform: true,
+                                     kCGImageSourceShouldCacheImmediately: true,
+                                     kCGImageSourceThumbnailMaxPixelSize: side]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg)
     }
 }
 
