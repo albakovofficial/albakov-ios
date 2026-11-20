@@ -54,7 +54,7 @@ http.createServer((req, res) => {
   const isSupport = u.pathname.startsWith('/api/') && u.pathname.includes('support');
   const isUpload = req.method === 'POST' && u.pathname === '/api/admin/upload';
   const rid = ++seq, t0 = Date.now();
-  if (req.method === 'GET' && u.pathname === '/api/admin/data') { adminData++; console.log(new Date().toISOString(), 'DIAG admin/data #' + adminData, u.search); }
+  if (req.method === 'GET' && u.pathname === '/api/admin/data') adminData++;
   const hit = scope === 'all' || (scope === 'orders' ? isOrder : u.pathname.startsWith('/api/' + scope));
   const chunks = [];
   req.on('data', (c) => chunks.push(c));

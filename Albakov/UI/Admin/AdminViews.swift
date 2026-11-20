@@ -31,11 +31,11 @@ final class Admin: ObservableObject {
     var orders: [Order] { data["orders"].array.map(Order.init).sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) } }
     var products: [JSON] { data["products"].array }
 
-    func load(diagFile: String = #fileID, diagLine: Int = #line) async {   // DIAG K.2 (временно): кто загружает данные панели
+    func load() async {
         let s = session
         loading = true; defer { if s == session { loading = false } }
         do {
-            let d = try await API.shared.json("GET", "admin/data", query: ["diag": "\(diagFile.split(separator: "/").last ?? ""):\(diagLine)"])["data"]
+            let d = try await API.shared.json("GET", "admin/data")["data"]
             guard s == session else { return }   // ответ для прежнего сотрудника или после выхода — не показываем
             data = d; error = nil
         } catch {
