@@ -90,12 +90,90 @@ jobs:
           if [ "$CHECK" != none ]; then echo "Проверка $CHECK: ошибок $(grep -c ' error:' build.log), предупреждений $(grep -c ' warning:' build.log)"; fi
           [ "$CHECK" = swift6 ] || grep -q "BUILD SUCCEEDED" build.log
 
+      # Проверка Swift и для целей тестов (этап L.1.1) — только при swift_check ≠ none; обычная сборка и юнит-тесты не меняются.
+      # Цели те же, что у тестов (ci/test-targets.rb → схема AlbakovAudit: Albakov, AlbakovUnit, AlbakovAudit); тесты только
+      # собираются (build-for-testing), не запускаются. Настройка — в командной строке xcodebuild, как у шага «Собрать»;
+      # применилась ли она к каждой цели, показывают настройки целей и флаги компилятора из журнала (swift-diag.txt).
+      # Шаг сам не падает: код завершения сборки — в выходе rc, итог — в шаге «Итог проверки Swift» после сохранения журналов
+      - name: Диагностика целей тестов
+        id: testdiag
+        if: ${{ !cancelled() && (inputs.swift_check || 'none') != 'none' }}
+        timeout-minutes: 30   # зависшая сборка роняет только этот шаг — журналы и итог всё равно сохраняются
+        env:
+          CHECK: ${{ inputs.swift_check }}
+        run: |
+          case "$CHECK" in complete) EXTRA="SWIFT_STRICT_CONCURRENCY=complete";; swift6) EXTRA="SWIFT_VERSION=6";; *) echo "::error::Неизвестный режим $CHECK"; exit 1;; esac
+          { echo "== Среда"; xcodebuild -version; xcrun swiftc --version; sw_vers; echo "== Режим: $CHECK, настройка: $EXTRA"; } 2>&1 | tee swift-diag.txt
+          ruby ci/test-targets.rb
+          xcodegen generate --spec audit-project.yml
+          echo "== Настройки целей (как в проекте → с настройкой проверки)" | tee -a swift-diag.txt
+          for T in Albakov AlbakovUnit AlbakovAudit; do
+            for X in "" "$EXTRA"; do
+              S=$(xcodebuild -showBuildSettings -project Albakov.xcodeproj -target "$T" -configuration Debug $X 2>/dev/null | grep -E '^ +(SWIFT_VERSION|SWIFT_STRICT_CONCURRENCY) =' | sed -E 's/^ +//' | tr '\n' ' ' || true)
+              echo "$T, ${X:-без настройки проверки}: ${S:-нет данных (xcodebuild -showBuildSettings не ответил)}" | tee -a swift-diag.txt
+            done
+          done
+          echo "== Команда: xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath tests-build -continue-building-after-errors CODE_SIGNING_ALLOWED=NO $EXTRA" | tee -a swift-diag.txt
+          set +e
+          xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath tests-build -continue-building-after-errors \
+            CODE_SIGNING_ALLOWED=NO $EXTRA > build-tests.log 2>&1
+          RC=$?
+          set -e
+          echo "rc=$RC" >> "$GITHUB_OUTPUT"
+          python3 - "$RC" <<'PY' | tee -a swift-diag.txt
+          import os, re, sys, collections
+          rc, lines = sys.argv[1], open('build-tests.log', errors='replace').read().split('\n')
+          print('== Код завершения xcodebuild (цели тестов):', rc)
+          print('== Итог:', ' / '.join(l.strip() for l in lines if re.search(r'\*\* (TEST )?BUILD (SUCCEEDED|FAILED) \*\*', l)) or 'итоговой строки нет')
+          tgt = lambda l: (re.search(r"\(in target '([^']+)'", l) or [None, None])[1]
+          comp = collections.Counter(tgt(l) for l in lines if re.match(r'(SwiftCompile|SwiftEmitModule) ', l))
+          print('== Задачи компиляции Swift по целям (SwiftCompile и SwiftEmitModule):', dict(comp) or 'нет')
+          print('== Флаги компилятора по целям (вызов swiftc после SwiftDriver):')
+          seen, cur = set(), None
+          for l in lines:
+              if l.startswith('SwiftDriver '): cur = tgt(l); continue
+              if cur and cur not in seen and 'swiftc' in l:
+                  seen.add(cur); print(' ', cur + ':', ' '.join(re.findall(r'-swift-version \S+|-strict-concurrency=\S+|-enable-upcoming-feature \S+', l)) or 'флаги не найдены')
+          diag = sorted(set(l.strip().replace(os.environ['GITHUB_WORKSPACE'].rstrip('/') + '/', '') for l in lines if re.search(r'(^|: )(warning|error): ', l.strip())))
+          area = lambda d: 'тесты audit-unit/' if d.startswith('audit-unit/') else 'тесты audit/' if d.startswith('audit/') else 'приложение Albakov/' if d.startswith('Albakov/') else 'прочее'
+          cnt = collections.Counter((area(d), 'error' if re.search(r'(^|: )error: ', d) else 'warning') for d in diag)
+          print('== Уникальные диагностики по областям:', {f'{a} {k}': n for (a, k), n in sorted(cnt.items())} or 'нет')
+          for d in diag: print('  [' + area(d) + '] ' + d)
+          # Цель тестов не компилировалась (например, не собрался модуль Albakov) — её диагностик нет вовсе, а не «ноль проблем»
+          for t in ('AlbakovUnit', 'AlbakovAudit'):
+              if not comp.get(t):
+                  print(f'::warning::{t}: исходники тестов не компилировались — диагностик этой цели нет (см. «Не выполнились»)')
+          i = next((n for n, l in enumerate(lines) if 'The following build commands failed' in l), None)
+          if i is not None:
+              print('== Не выполнились:'); [print(' ', l.strip()) for l in lines[i + 1:i + 40] if l.strip()]
+          PY
+
       - name: Лог сборки
         if: failure() || (github.event_name == 'workflow_dispatch' && inputs.swift_check != '' && inputs.swift_check != 'none')
         uses: actions/upload-artifact@v4
         with:
           name: build-log
-          path: build.log
+          # build.log — приложение (шаг «Собрать»); build-tests.log и swift-diag.txt — цели тестов (только при swift_check)
+          path: |
+            build.log
+            build-tests.log
+            swift-diag.txt
+
+      # Ожидаемые ошибки Swift 6 не выдаются за успех: сборка не прошла — запуск красный (журналы уже сохранены шагом выше)
+      - name: Итог проверки Swift
+        if: ${{ !cancelled() && (inputs.swift_check || 'none') != 'none' }}
+        env:
+          CHECK: ${{ inputs.swift_check }}
+          TESTS_RC: ${{ steps.testdiag.outputs.rc }}
+        run: |
+          APP=$(grep -q '\*\* BUILD SUCCEEDED \*\*' build.log && echo "собрано" || echo "НЕ собрано")
+          TESTS=$([ "$TESTS_RC" = 0 ] && echo "собраны" || echo "НЕ собраны (код ${TESTS_RC:-нет})")
+          echo "Проверка $CHECK: приложение Albakov — $APP; цели тестов AlbakovUnit и AlbakovAudit (build-for-testing) — $TESTS"
+          if [ "$APP" != "собрано" ] || [ "$TESTS_RC" != 0 ]; then
+            echo "::error::Проверка $CHECK: сборка не прошла. Ошибки — в шагах «Собрать» и «Диагностика целей тестов», полные журналы — в артефакте build-log"
+            exit 1
+          fi
 
       # Юнит-тесты (этап I, I-1) — те же цели и та же проверка итогов, что в audit.yml (ci/test-targets.rb, ci/check-tests.py);
       # project.yml не меняется. UI-тесты остаются в audit.yml: им нужна копия магазина и они идут 40+ минут.
