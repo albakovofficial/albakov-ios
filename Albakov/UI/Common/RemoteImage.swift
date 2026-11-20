@@ -4,9 +4,15 @@ import os
 
 // Картинки с сайта с кэшем в памяти и на диске (URLCache): каталог листается без повторной загрузки фото.
 // Одинаковые адреса, запрошенные разом (сетка каталога, карточка и её миниатюра), качаются один раз:
-// второй и следующие ждут ту же загрузку (running). load вызывается из разных потоков —
-// список загрузок под OSAllocatedUnfairLock.withLock: NSLock.lock()/unlock() в async-коде — ошибка в Swift 6 (аудит Q-B3).
+// второй и следующие ждут ту же загрузку (running). Список загрузок — под OSAllocatedUnfairLock.withLock (аудит Q-B3: тогда
+// load вызывался из разных потоков; NSLock.lock()/unlock() в async-коде — ошибка в Swift 6). С этапа L.2.5 load — на главном
+// акторе, замок оставлен: логика загрузок не менялась.
 // Под замком нет await, внутри — только чтение и запись словаря: взаимной блокировки быть не может.
+// Главный актор (этап L.2.5): кэш — часть интерфейса, им пользуется только RemoteImage, и картинка из памяти нужна экрану
+// синхронно (cached в body — без мигания заглушки). NSCache не Sendable, поэтому кэш принадлежит одному актору. На главном —
+// только поиск в памяти, список загрузок и запись в кэш; сама загрузка и подготовка картинки — в задачах вне главного актора
+// (Task создаётся в @Sendable-замыкании замка и актор не наследует, подготовка — в Task.detached)
+@MainActor
 final class ImageCache {
     static let shared = ImageCache()
     private let memory = NSCache<NSURL, UIImage>()
@@ -19,7 +25,13 @@ final class ImageCache {
         c.urlCache = URLCache(memoryCapacity: 16 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
         c.requestCachePolicy = .returnCacheDataElseLoad
         session = URLSession(configuration: c)
-        NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: nil) { [weak self] _ in self?.memory.removeAllObjects() }
+        // Очередь главная: обработчик всегда выполняется на главном потоке — из главного потока (так шлёт UIKit) сразу,
+        // из другого отправитель ждёт его выполнения на главной очереди (если главный поток в это время ждёт отправителя —
+        // взаимная блокировка; в приложении уведомление шлёт только UIKit). Поэтому очистка синхронная, а assumeIsolated
+        // (проверяется при выполнении) верен
+        NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.memory.removeAllObjects() }
+        }
     }
 
     func cached(_ url: URL) -> UIImage? { memory.object(forKey: url as NSURL) }

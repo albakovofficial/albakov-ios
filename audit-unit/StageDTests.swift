@@ -30,6 +30,8 @@ final class ImageStub: URLProtocol {
     override func stopLoading() {}
 }
 
+/// На главном акторе, как и ImageCache (этап L.2.5): проверки те же
+@MainActor
 final class ImageCacheTests: XCTestCase {
     private func cache() -> ImageCache {
         let c = URLSessionConfiguration.ephemeral
