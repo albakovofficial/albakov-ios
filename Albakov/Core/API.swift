@@ -22,7 +22,10 @@ extension JSONSerialization {
     }
 }
 
-final class API {
+// Sendable (этап L.2.7) — проверяет компилятор: все поля неизменяемые (let) и сами Sendable (URL, URLSession, JSONDecoder).
+// Своего изменяемого состояния у API нет: куки — в HTTPCookieStorage, часы сервера — ServerClock под замком. Поэтому общий
+// экземпляр безопасен из любого контекста, и запросы, разбор и декодирование идут вне главного актора, как раньше
+final class API: Sendable {
     static let shared = API()
 
     let base: URL
