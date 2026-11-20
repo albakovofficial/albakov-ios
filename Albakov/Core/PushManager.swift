@@ -4,6 +4,10 @@ import UserNotifications
 // Push-уведомления Apple (APNs). Адрес устройства (token) отправляется на сервер магазина:
 // покупателю — о заказах, поддержке, бонусах; сотруднику — ещё и уведомления панели по его роли.
 // Отладочная сборка из Xcode ходит в «песочницу» APNs, TestFlight и App Store — в боевой.
+// Главный актор (этап L.2.6): состояние (статус, адрес устройства, очередь отправок) — интерфейса, его читают экраны,
+// меняют Shop, AppDelegate и экраны — все на главном акторе. Методы делегата уведомлений — nonisolated: в SDK они
+// не изолированы, система может вызвать их не с главного потока, а состояние PushManager они не трогают
+@MainActor
 final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     static let shared = PushManager()
 
@@ -19,7 +23,7 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
     private(set) var token: String?
     /// Сервер для подписки; var — для юнит-тестов (как Shop.api)
     var api = API.shared
-    /// Последняя отправка подписки и её номер. Вызовы идут с главного потока (вход, выход, панель, AppDelegate)
+    /// Последняя отправка подписки и её номер. Вызовы — на главном акторе (вход, выход, панель, AppDelegate)
     private(set) var sync: Task<Void, Never>?
     private var generation = 0
 
@@ -27,7 +31,8 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
 
     func refreshStatus() {
         UNUserNotificationCenter.current().getNotificationSettings { s in
-            DispatchQueue.main.async { self.status = s.authorizationStatus }
+            let status = s.authorizationStatus   // на главную очередь — только значение, не сами настройки (они не Sendable)
+            DispatchQueue.main.async { self.status = status }
         }
     }
 
@@ -37,7 +42,7 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         let c = UNUserNotificationCenter.current()
         let granted = (try? await c.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         refreshStatus()
-        if granted { await MainActor.run { UIApplication.shared.registerForRemoteNotifications() } }
+        if granted { UIApplication.shared.registerForRemoteNotifications() }
         return granted
     }
 
@@ -74,13 +79,13 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
 
     // MARK: UNUserNotificationCenterDelegate
     // Приложение открыто — всё равно показываем баннер (новый заказ, ответ поддержки).
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .list, .sound, .badge])
     }
 
     // Нажали на уведомление — открываем нужный экран по адресу из поля "url" ("/order/42", "/admin?s=orders&id=…").
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
         if let link = info["url"] as? String, !link.isEmpty {
