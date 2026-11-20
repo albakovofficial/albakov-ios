@@ -1174,11 +1174,26 @@ final class AuditUITests: XCTestCase {
         let s = app.switches.matching(NSPredicate(format: "label CONTAINS 'размер S'")).firstMatch
         // кнопка возврата: «Выберите позиции», «Вернуть N ₽» или «Подтвердить возврат N ₽» — на экране вместе с позициями
         let pay = app.buttons.matching(NSPredicate(format: "label MATCHES %@", "((Вернуть|Подтвердить возврат) [0-9].*|Выберите позиции)")).firstMatch
-        // небольшими сдвигами, пока кнопка не окажется над панелью вкладок: обычный свайп пролистывает позиции целиком
-        scrollTo(s)
+        // Позиции M и S и кнопка возврата — вместе, между навигацией и панелью вкладок. Короткие сдвиги без инерции
+        // (палец держится в конце жеста) в сторону, которую показывает фактическое положение элементов, не больше
+        // 16 шагов. Этап K.2: раньше свайпы только вверх с инерцией докатывали список дальше — кнопка оказывалась
+        // на экране, а позиции уходили за его верх, и тест падал «позиции и кнопка не видны вместе»
+        let win = app.windows.firstMatch.frame
+        let top = win.minY + 70, bottom = win.maxY - 90
+        func drag(up: Bool) {
+            let w = app.windows.firstMatch
+            let from = w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.62 : 0.5))
+            let to = w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.5 : 0.62))
+            from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+        }
         var k = 0
-        while !(pay.exists && pay.isHittable && pay.frame.maxY < app.frame.maxY - 90) && k < 8 {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)).press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)))
+        while k < 16 {
+            let shown = [m, s, pay].allSatisfy { $0.exists && $0.isHittable }
+            if shown && m.frame.minY >= top && pay.frame.maxY <= bottom { break }
+            // позиции видны или ещё ниже — листаем дальше вниз по странице; ушли за верх (или их уже нет, а кнопка
+            // на экране) — назад
+            let positionsAbove = m.exists ? m.frame.minY < top : (pay.exists && pay.frame.maxY <= bottom)
+            drag(up: !positionsAbove)
             k += 1
         }
         shot("21 позиции и кнопка возврата")
