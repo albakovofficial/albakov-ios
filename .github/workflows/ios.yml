@@ -113,11 +113,16 @@ jobs:
               echo "$T, ${X:-без настройки проверки}: ${S:-нет данных (xcodebuild -showBuildSettings не ответил)}" | tee -a swift-diag.txt
             done
           done
-          echo "== Команда: xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath tests-build CODE_SIGNING_ALLOWED=NO $EXTRA" | tee -a swift-diag.txt
+          # Собранные тесты можно и запустить (этап L.2.1): поэтому, как в шаге «Юнит-тесты», — конкретный симулятор, подпись
+          # «для себя» и адрес магазина в закрытый порт (тесты не ходят на боевой сайт). На диагностику компилятора это не влияет
+          plutil -replace AlbakovBaseURL -string "https://127.0.0.1:9" Albakov/Resources/Info.plist
+          SIM=$(xcrun simctl list devices available | grep -E "^ +iPhone" | grep -oE "[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}" | sed -n 1p)
+          [ -n "$SIM" ] || { echo "::error::Нет доступного симулятора iPhone"; exit 1; }
+          SIGN="CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER="
+          echo "== Команда: xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -destination id=$SIM -derivedDataPath tests-build $SIGN $EXTRA" | tee -a swift-diag.txt
           set +e
           xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' -derivedDataPath tests-build \
-            CODE_SIGNING_ALLOWED=NO $EXTRA > build-tests.log 2>&1
+            -destination "id=$SIM" -derivedDataPath tests-build $SIGN $EXTRA > build-tests.log 2>&1
           RC=$?
           set -e
           echo "rc=$RC" >> "$GITHUB_OUTPUT"
@@ -148,6 +153,21 @@ jobs:
           if i is not None:
               print('== Не выполнились:'); [print(' ', l.strip()) for l in lines[i + 1:i + 40] if l.strip()]
           PY
+          # Этап L.2.1: окно оплаты ЮKassa в строгой сборке. В complete компилятор сообщает, что метод WKNavigationDelegate
+          # PayWeb.C «почти совпадает» с протоколом; виден ли он WebKit, проверяет только запущенный тест (в обычной сборке он
+          # идёт в шаге «Юнит-тесты»). Запускается один этот тест из уже собранных продуктов
+          if [ "$CHECK" = complete ] && [ "$RC" = 0 ]; then
+            echo "== Тест окна оплаты в сборке complete: xcodebuild test-without-building … -only-testing:AlbakovUnit/PayWebDelegateTests" | tee -a swift-diag.txt
+            set +e
+            xcodebuild test-without-building -project Albakov.xcodeproj -scheme AlbakovAudit -destination "id=$SIM" \
+              -derivedDataPath tests-build -only-testing:AlbakovUnit/PayWebDelegateTests > paytest.log 2>&1
+            PRC=$?
+            set -e
+            grep -qE "Executed [1-9][0-9]* tests?" paytest.log || { echo "Ни одного теста не выполнено" | tee -a swift-diag.txt; [ "$PRC" != 0 ] || PRC=1; }
+            grep -E "Test Case .*(passed|failed)|: error:|Executed [0-9]+ test|\*\* TEST" paytest.log | sort -u | tee -a swift-diag.txt || true
+            echo "== Код завершения теста окна оплаты: $PRC" | tee -a swift-diag.txt
+            echo "pay=$PRC" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Лог сборки
         if: failure() || (github.event_name == 'workflow_dispatch' && inputs.swift_check != '' && inputs.swift_check != 'none')
@@ -159,6 +179,7 @@ jobs:
             build.log
             build-tests.log
             swift-diag.txt
+            paytest.log
 
       # Ожидаемые ошибки Swift 6 не выдаются за успех: сборка не прошла — запуск красный (журналы уже сохранены шагом выше)
       - name: Итог проверки Swift
@@ -166,10 +187,15 @@ jobs:
         env:
           CHECK: ${{ inputs.swift_check }}
           TESTS_RC: ${{ steps.testdiag.outputs.rc }}
+          PAY_RC: ${{ steps.testdiag.outputs.pay }}
         run: |
           APP=$(grep -q '\*\* BUILD SUCCEEDED \*\*' build.log && echo "собрано" || echo "НЕ собрано")
           TESTS=$([ "$TESTS_RC" = 0 ] && echo "собраны" || echo "НЕ собраны (код ${TESTS_RC:-нет})")
           echo "Проверка $CHECK: приложение Albakov — $APP; цели тестов AlbakovUnit и AlbakovAudit (build-for-testing) — $TESTS"
+          if [ "$CHECK" = complete ]; then
+            echo "Тест окна оплаты PayWebDelegateTests в сборке complete: $([ "$PAY_RC" = 0 ] && echo "прошёл" || echo "НЕ прошёл (код ${PAY_RC:-не запускался})")"
+            [ "$PAY_RC" = 0 ] || { echo "::error::Тест окна оплаты PayWebDelegateTests в сборке complete не прошёл — см. paytest.log в артефакте build-log"; exit 1; }
+          fi
           if [ "$APP" != "собрано" ] || [ "$TESTS_RC" != 0 ]; then
             echo "::error::Проверка $CHECK: сборка не прошла. Ошибки — в шагах «Собрать» и «Диагностика целей тестов», полные журналы — в артефакте build-log"
             exit 1
