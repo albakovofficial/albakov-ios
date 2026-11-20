@@ -67,7 +67,10 @@ enum Dest: Hashable {
     }
 }
 
-// Ссылки albakovofficial.ru (письма, push, мессенджеры), albakov://… и внутренние ссылки из слайдов
+// Ссылки albakovofficial.ru (письма, push, мессенджеры), albakov://… и внутренние ссылки из слайдов.
+// Состояние переходов принадлежит главному актору (этап L.2.2): его читают и меняют только экраны SwiftUI, а push
+// открывает ссылку через DispatchQueue.main (PushManager)
+@MainActor
 final class Router: ObservableObject {
     static let shared = Router()
 

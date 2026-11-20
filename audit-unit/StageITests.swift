@@ -123,6 +123,7 @@ func stateReply(products: [[String: Any]] = [], user: [String: Any]? = nil, staf
 
 // MARK: - I-2. Ссылки: сайт, albakov://, push
 
+@MainActor   // Router — на главном акторе (этап L.2.2)
 final class RouterLinkTests: XCTestCase {
     func test01_ProductOpensOnCurrentTabNotAccount() {
         let r = Router()

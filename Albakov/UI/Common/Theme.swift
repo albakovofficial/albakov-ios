@@ -498,7 +498,9 @@ struct EmptyState: View {
     }
 }
 
-/// Всплывающая подсказка внизу экрана («Добавлено в корзину»)
+/// Всплывающая подсказка внизу экрана («Добавлено в корзину»). Текст и задача показа принадлежат главному актору
+/// (этап L.2.2): show вызывают экраны и @MainActor-код, сообщение рисует ToastView в окне ToastWindow
+@MainActor
 final class Toast: ObservableObject {
     static let shared = Toast()
     @Published var text: String?
