@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 #if DEBUG
 /// Только для снимков экрана на GitHub (сборка Debug, в TestFlight и App Store этого кода нет).
@@ -10,18 +11,25 @@ enum Demo {
     static var on: Bool { screen.contains("demo=staff") || screen.contains("demo=buyer") }
     private static var staff: Bool { screen.contains("demo=staff") }
 
-    private static var products: [[String: Any]] = []
-    /// Витрина с сайта как есть: настройки, категории, акции, страницы — чтобы разделы панели на снимках были заполнены
-    private static var pub: [String: Any] = [:]
+    /// Витрина с сайта как есть: настройки, категории, акции, страницы — чтобы разделы панели на снимках были заполнены.
+    /// Пишет ответ state, читают ответы заказов, поддержки и панели — из API.raw, вне главного потока и одновременно
+    /// (этап L.2.8: раньше — два static var без защиты, гонка данных). Хранится как JSON (Data — Sendable) под замком
+    /// и разбирается при чтении: словари [String: Any] не Sendable. До первого ответа state — пусто, как раньше
+    private static let site = OSAllocatedUnfairLock<Data?>(initialState: nil)
+    private static var pub: [String: Any] {
+        site.withLock { $0 }.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    }
+    private static var products: [[String: Any]] { pub["products"] as? [[String: Any]] ?? [] }
 
     /// nil — запрос идёт на сервер как обычно
     static func answer(_ method: String, _ path: String, real: () async throws -> Data) async throws -> Data? {
         if path == "state" {
             let data = try await real()
             guard var j = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return data }
-            pub = (j["data"] as? [String: Any]) ?? [:]
-            products = ((pub["products"] as? [[String: Any]]) ?? []).map(withFit)
-            pub["products"] = products; j["data"] = pub
+            var pub = (j["data"] as? [String: Any]) ?? [:]
+            pub["products"] = ((pub["products"] as? [[String: Any]]) ?? []).map(withFit); j["data"] = pub
+            let snapshot = try JSONSerialization.checkedData(pub)
+            site.withLock { $0 = snapshot }
             j["user"] = user; j["isAdmin"] = staff
             return try JSONSerialization.checkedData(j)
         }
