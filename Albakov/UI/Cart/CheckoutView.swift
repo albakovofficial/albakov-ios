@@ -567,7 +567,9 @@ struct PayWeb: UIViewRepresentable {
         let done: (Bool) -> Void
         private var finished = false
         init(done: @escaping (Bool) -> Void) { self.done = done }
-        func webView(_ webView: WKWebView, decidePolicyFor a: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        /// Тип decisionHandler — точно как в SDK (@MainActor @Sendable): иначе при строгой проверке конкурентности и в Swift 6
+        /// метод не считается реализацией протокола, не попадает в Objective-C, и WebKit его не вызывает (этап L.2.1)
+        func webView(_ webView: WKWebView, decidePolicyFor a: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
             guard let u = a.request.url else { return decisionHandler(.cancel) }
             let scheme = u.scheme?.lowercased() ?? ""
             if !["http", "https", "about", "blob", "data"].contains(scheme) { UIApplication.shared.open(u); return decisionHandler(.cancel) }   // приложения банков, СБП
