@@ -46,7 +46,9 @@ final class ImageCacheTests: XCTestCase {
         let c = cache(), u = try url()
         let got = await withTaskGroup(of: Bool.self) { g in
             for _ in 0..<20 { g.addTask { await c.load(u) != nil } }
-            return await g.reduce(0) { $0 + ($1 ? 1 : 0) }
+            var n = 0
+            for await ok in g where ok { n += 1 }
+            return n
         }
         XCTAssertEqual(got, 20, "Не все получили картинку")
         XCTAssertEqual(ImageStub.count(u), 1, "Один адрес качался несколько раз")
