@@ -113,10 +113,10 @@ jobs:
               echo "$T, ${X:-без настройки проверки}: ${S:-нет данных (xcodebuild -showBuildSettings не ответил)}" | tee -a swift-diag.txt
             done
           done
-          echo "== Команда: xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath tests-build -continue-building-after-errors CODE_SIGNING_ALLOWED=NO $EXTRA" | tee -a swift-diag.txt
+          echo "== Команда: xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath tests-build CODE_SIGNING_ALLOWED=NO $EXTRA" | tee -a swift-diag.txt
           set +e
           xcodebuild build-for-testing -project Albakov.xcodeproj -scheme AlbakovAudit -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' -derivedDataPath tests-build -continue-building-after-errors \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath tests-build \
             CODE_SIGNING_ALLOWED=NO $EXTRA > build-tests.log 2>&1
           RC=$?
           set -e
