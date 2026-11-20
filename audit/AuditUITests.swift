@@ -1298,7 +1298,8 @@ final class AuditUITests: XCTestCase {
         let tools = button("Массовые изменения и остатки в Excel")
         guard tools.waitForExistence(timeout: 25) else { XCTFail("Список товаров панели не открылся"); shot("21a нет товаров панели"); return }
         // список товаров закончил свою загрузку (строки товаров на экране) — дальше считаем только экран массовых изменений
-        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Сумка-тоут из кожи'")).firstMatch
+        // строка товара — «ALB-0008 · Верхняя одежда · 38 900 ₽ · остаток 19»; конкретный товар может быть ниже экрана
+        let row = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'остаток '")).firstMatch   // строка — кнопка или текст в ней
         guard row.waitForExistence(timeout: 25) else { XCTFail("Список товаров панели не загрузился"); shot("21a список не загрузился"); return }
         let again = loads()
         tools.tap()
