@@ -5,6 +5,9 @@
 # 2) Снимки экранов с боевыми товарами (только чтение; всё, что меняет данные, в демо-режиме не уходит):
 #    маленький, обычный и большой iPhone, крупный системный шрифт, тёмная тема, запуск без интернета.
 # Результат — ветка audit-shots этого репозитория: снимки, итоги тестов, журналы.
+# Где что проверяется (этап K.2): сборки Debug, Release, архив и юнит-тесты — ios.yml на Intel-Mac; UI-тесты — здесь,
+# на Mac с Apple Silicon (macos-15): на Intel 23 UI-теста шли 78 мин 43 с при пределе шага 80 мин, на macos-15 — около 50 мин.
+# Юнит-тесты здесь по умолчанию не повторяются; «unit» в «only» запускает их и здесь.
 # Секрет репозитория SHOP_TEST_PASSWORD (этап I.1; вводит владелец, только цифры — в секретном поле симулятора русская
 # раскладка): пароль владельца в копии магазина. Копия создаётся заново в каждом прогоне на этом Mac (127.0.0.1),
 # снаружи недоступна. Без секрета UI-тесты не запускаются — первый шаг «Секрет копии магазина» завершается ошибкой.
@@ -28,14 +31,14 @@ on:
         type: boolean
         default: false
       only:
-        description: 'Только эти тесты через пробел, например test03_CheckoutValidationAndDoubleTap (пусто — все)'
+        description: 'Только эти тесты через пробел, например test03_CheckoutValidationAndDoubleTap; unit — юнит-тесты (пусто — все UI-тесты)'
         type: string
         default: ''
       runner:
-        description: 'Mac на GitHub'
+        description: 'Mac на GitHub (Apple Silicon: на Intel UI-тесты не укладываются в предел шага — этап K.2)'
         type: choice
-        options: [macos-15-intel, macos-26, macos-15]
-        default: macos-15-intel
+        options: [macos-15, macos-26]
+        default: macos-15
       tsan:
         description: 'Thread Sanitizer: приложение и тесты собираются с поиском гонок данных, отчёты — в tsan/ (медленнее; только проверка)'
         type: boolean
@@ -193,7 +196,7 @@ jobs:
       - name: UI-тесты покупки
         id: uitests
         if: inputs.tests
-        timeout-minutes: 80   # 16 UI-тестов с этапа B идут ~45 мин на Intel-Mac — 50 минут впритык
+        timeout-minutes: 80   # 23 UI-теста на macos-15 — около 50 мин (этап K.2; на Intel было 78 мин 43 с)
         env:
           ONLY: ${{ inputs.only }}
           TSAN: ${{ inputs.tsan }}
@@ -208,8 +211,9 @@ jobs:
           SAN=""; if [ "$TSAN" = true ]; then SAN="-enableThreadSanitizer YES"; mkdir -p "$RUNNER_TEMP/tsan"; export SIMCTL_CHILD_TSAN_OPTIONS="log_path=$RUNNER_TEMP/tsan/report halt_on_error=0"; export TEST_RUNNER_TSAN_OPTIONS="$SIMCTL_CHILD_TSAN_OPTIONS"; fi
           # память приложения (RSS, КБ) раз в полсекунды — пик между отметками MEMMARK из тестов (этап A, IOS-03)
           ( unset SHOP_TEST_PASSWORD TEST_RUNNER_SHOP_TEST_PASSWORD; while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
-          # «unit» — все юнит-тесты; иначе имя UI-теста
+          # «unit» — все юнит-тесты; иначе имя UI-теста. Пусто — все UI-тесты: юнит-тесты идут в ios.yml на Intel (этап K.2)
           SEL=""; for t in $ONLY; do if [ "$t" = unit ]; then SEL="$SEL -only-testing:AlbakovUnit"; else SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; fi; done
+          [ -z "$SEL" ] && SEL="-only-testing:AlbakovAudit"
           set +e
           xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SAN $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed|ThreadSanitizer"
           code=${PIPESTATUS[0]}
