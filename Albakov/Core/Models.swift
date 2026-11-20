@@ -354,8 +354,19 @@ struct OrderItem: Hashable {
 }
 
 enum ISO {
-    private static let f1: ISO8601DateFormatter = { let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f }()
-    private static let f2 = ISO8601DateFormatter()
+    /// Форматтеры дат сервера — свои у каждого потока (этап L.2.4): общий экземпляр ISO8601DateFormatter (не Sendable) Swift 6
+    /// запрещает, а Date.ISO8601FormatStyle на iOS 18+ разбирает нестандартные строки не так (отчёт L.2.4). Настройки — прежние; форматтер
+    /// создаётся при первом разборе в потоке и хранится в его threadDictionary. Разбор синхронный — от получения форматтера
+    /// до результата поток не меняется, и другой поток этот экземпляр не видит
+    static let f1Key = "ru.albakovofficial.app.ISO.f1", f2Key = "ru.albakovofficial.app.ISO.f2"
+    private static var f1: ISO8601DateFormatter { perThread(f1Key) { let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f } }
+    private static var f2: ISO8601DateFormatter { perThread(f2Key) { ISO8601DateFormatter() } }
+    private static func perThread(_ key: String, _ make: () -> ISO8601DateFormatter) -> ISO8601DateFormatter {
+        let d = Thread.current.threadDictionary
+        if let f = d[key] as? ISO8601DateFormatter { return f }
+        let f = make(); d[key] = f
+        return f
+    }
     static func date(_ s: String) -> Date? { f1.date(from: s) ?? f2.date(from: s) }
     /// День «ГГГГ-ММ-ДД» без времени — в поясе телефона, григорианский календарь (en_US_POSIX): дни форм панели и подарочного
     /// сертификата, слайдов (ISO.day) и диапазона отчёта «Финансы». Форматтер один на приложение (этап K: та же настройка
