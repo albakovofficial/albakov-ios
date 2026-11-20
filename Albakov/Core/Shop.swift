@@ -266,6 +266,9 @@ final class Shop: ObservableObject {
     }
 }
 
+/// Тактильный отклик: генераторы UIKit работают на главном акторе (этап L.2.3); вызывают его экраны и Shop.
+/// Генераторы — по одному на приложение, как и раньше: создаются при первом отклике
+@MainActor
 enum Haptic {
     private static let light = UIImpactFeedbackGenerator(style: .light)
     private static let notify = UINotificationFeedbackGenerator()

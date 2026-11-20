@@ -5,7 +5,9 @@ import UIKit
 // капсулы цвета раздела с белым кружком-стрелкой, тонкие заголовки Montserrat с точкой цвета раздела.
 
 /// Цвет раздела (13.63, как на сайте): женщинам — бордо, мужчинам — чёрный, детям — небесный; без раздела — чёрный.
-/// Меняется вместе с разделом (Shop.gender); экраны перерисовываются целиком (RootView, .id)
+/// Меняется вместе с разделом (Shop.gender); экраны перерисовываются целиком (RootView, .id).
+/// Раздел — состояние интерфейса главного актора (этап L.2.3): пишет только Shop, читают экраны через цвета Theme ниже
+@MainActor
 enum Palette {
     static var section: String?
     /// светлый край, основной (текст и плашки с белым текстом), тёмный край перехода
@@ -23,7 +25,9 @@ enum Palette {
 enum Theme {
     static let ink = Color(hex: "#121417")          // текст и главные элементы
     static let text = Color(hex: "#121417")
-    static var dark: Color { Palette.colors[1] }    // главные кнопки — цвет раздела
+    // Цвета раздела зависят от Palette.section — на главном акторе, как и Palette (этап L.2.3). Остальные значения Theme —
+    // постоянные и доступны из любого контекста: их используют и подписи PhotosPicker, замыкания которых в SDK — @Sendable, не изолированы
+    @MainActor static var dark: Color { Palette.colors[1] }    // главные кнопки — цвет раздела
     static let night = Color(hex: "#0d0e10")        // подвал и кнопка чата
     static let muted = Color(hex: "#464b52")        // холодный графит
     static let dim = Color(hex: "#666c74")
@@ -31,15 +35,15 @@ enum Theme {
     static let lineStrong = Color(hex: "#c2c7cd")
     static let surface = Color(hex: "#f3f4f6")      // подложки фото и блоков
     static let surface2 = Color(hex: "#e8eaed")
-    static var accent: Color { Palette.colors[1] }  // цвет раздела: точка в заголовках, счётчики, выделение
-    static var accentSoft: Color { Palette.colors[0] }
-    static var tint: Color { Palette.tint }
+    @MainActor static var accent: Color { Palette.colors[1] }  // цвет раздела: точка в заголовках, счётчики, выделение
+    @MainActor static var accentSoft: Color { Palette.colors[0] }
+    @MainActor static var tint: Color { Palette.tint }
     static let ok = Color(hex: "#3e6847")
     static let warn = Color(hex: "#7a5c16")
     static let danger = Color(hex: "#9e3b30")
     static let sale = Color(hex: "#d8452f")         // цена со скидкой
     static let gutter: CGFloat = 16
-    static var accentGradient: LinearGradient { LinearGradient(colors: Palette.colors, startPoint: .topLeading, endPoint: .bottomTrailing) }
+    @MainActor static var accentGradient: LinearGradient { LinearGradient(colors: Palette.colors, startPoint: .topLeading, endPoint: .bottomTrailing) }
     /// светло-серые плитки с лёгким переходом
     static let tile = LinearGradient(colors: [Color(hex: "#f8f9fa"), Color(hex: "#eef0f2")], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let photo = LinearGradient(colors: [Color(hex: "#f6f7f8"), Color(hex: "#eceef1")], startPoint: .top, endPoint: .bottom)
