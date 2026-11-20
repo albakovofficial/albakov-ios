@@ -7,7 +7,8 @@
 # Результат — ветка audit-shots этого репозитория: снимки, итоги тестов, журналы.
 # Где что проверяется (этап K.2): сборки Debug, Release, архив и юнит-тесты — ios.yml на Intel-Mac; UI-тесты — здесь,
 # на Mac с Apple Silicon (macos-15): на Intel 23 UI-теста шли 78 мин 43 с при пределе шага 80 мин, на macos-15 — около 50 мин.
-# Юнит-тесты здесь по умолчанию не повторяются; «unit» в «only» запускает их и здесь.
+# Юнит-тесты здесь по умолчанию не повторяются; «unit» в «only» запускает их и здесь (в том числе замеры фото DEF1 на экране
+# масштаба 2 — в ios.yml экран 3). С Thread Sanitizer юнит-тесты идут вместе с UI-тестами, как раньше.
 # Секрет репозитория SHOP_TEST_PASSWORD (этап I.1; вводит владелец, только цифры — в секретном поле симулятора русская
 # раскладка): пароль владельца в копии магазина. Копия создаётся заново в каждом прогоне на этом Mac (127.0.0.1),
 # снаружи недоступна. Без секрета UI-тесты не запускаются — первый шаг «Секрет копии магазина» завершается ошибкой.
@@ -69,6 +70,10 @@ jobs:
           ui=yes; set -- $ONLY
           if [ $# -gt 0 ]; then ui=no; for t in "$@"; do [ "$t" = unit ] || ui=yes; done; fi
           if [ "$ui" = no ]; then echo "Только юнит-тесты — пароль копии магазина не нужен"; exit 0; fi
+          # весь набор UI-тестов на Intel не укладывается в предел шага 80 мин (было 78 мин 43 с) — сразу, до сборки (этап K.2)
+          if [ "$RUNNER_ARCH" = X64 ] && [ $# -eq 0 ]; then
+            echo "::error::Весь набор UI-тестов на Intel-Mac не укладывается в предел шага — запустите на macos-15 или укажите тесты в «only»"; exit 1
+          fi
           if [ -z "$SHOP_TEST_PASSWORD" ]; then
             echo "::error::Нет секрета SHOP_TEST_PASSWORD (Settings → Secrets and variables → Actions): пароль владельца копии магазина для UI-тестов"; exit 1
           fi
@@ -213,7 +218,10 @@ jobs:
           ( unset SHOP_TEST_PASSWORD TEST_RUNNER_SHOP_TEST_PASSWORD; while true; do P=$(pgrep -f "Albakov\.app/Albakov( |$)" | head -1); [ -n "$P" ] && echo "$(date +%s) $(ps -o rss= -p "$P" | tr -d ' ')"; sleep 0.5; done > mem.log 2>/dev/null & )
           # «unit» — все юнит-тесты; иначе имя UI-теста. Пусто — все UI-тесты: юнит-тесты идут в ios.yml на Intel (этап K.2)
           SEL=""; for t in $ONLY; do if [ "$t" = unit ]; then SEL="$SEL -only-testing:AlbakovUnit"; else SEL="$SEL -only-testing:AlbakovAudit/AuditUITests/$t"; fi; done
-          [ -z "$SEL" ] && SEL="-only-testing:AlbakovAudit"
+          if [ -z "$SEL" ]; then
+            SEL="-only-testing:AlbakovAudit"
+            if [ "$TSAN" = true ]; then SEL="$SEL -only-testing:AlbakovUnit"; fi   # гонки ищем и в хосте юнит-тестов, как раньше
+          fi
           set +e
           xcodebuild test-without-building -xctestrun "$RUN" -destination "id=$SMALL" -resultBundlePath audit.xcresult $SAN $SEL 2>&1 | tee test.log | grep -E "Test Case|error:|XCTAssert|Executed|ThreadSanitizer"
           code=${PIPESTATUS[0]}

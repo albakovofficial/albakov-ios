@@ -1180,22 +1180,24 @@ final class AuditUITests: XCTestCase {
         // на экране, а позиции уходили за его верх, и тест падал «позиции и кнопка не видны вместе»
         let win = app.windows.firstMatch.frame
         let top = win.minY + 70, bottom = win.maxY - 90
-        func drag(up: Bool) {
+        func drag(up: Bool, by f: CGFloat) {
             let w = app.windows.firstMatch
-            let from = w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.62 : 0.5))
-            let to = w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.5 : 0.62))
+            let from = w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.5 + f : 0.5))
+            let to = w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.5 : 0.5 + f))
             from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
         }
-        var k = 0
+        var k = 0, step: CGFloat = 0.12, last: Bool?
         while k < 16 {
             let shown = [m, s, pay].allSatisfy { $0.exists && $0.isHittable }
             if shown && m.frame.minY >= top && pay.frame.maxY <= bottom { break }
             // позиции видны или ещё ниже — листаем дальше вниз по странице; ушли за верх (или их уже нет, а кнопка
-            // на экране) — назад
-            let positionsAbove = m.exists ? m.frame.minY < top : (pay.exists && pay.frame.maxY <= bottom)
-            drag(up: !positionsAbove)
+            // на экране) — назад. Сменили направление — шаг вдвое меньше, чтобы не качаться между двумя положениями
+            let up = !(m.exists ? m.frame.minY < top : (pay.exists && pay.frame.maxY <= bottom))
+            if let last, last != up { step = max(step / 2, 0.03) }
+            drag(up: up, by: step); last = up
             k += 1
         }
+        note("21: позиции и кнопка возврата — шагов \(k) из 16")
         shot("21 позиции и кнопка возврата")
         guard m.exists, s.exists, m.isHittable, s.isHittable, pay.exists else {
             XCTFail("Позиции заказа и кнопка возврата не видны вместе"); shot("21 нет позиций"); return
@@ -1278,13 +1280,13 @@ final class AuditUITests: XCTestCase {
 
     /// Этап K.2: прямая ссылка на массовые изменения сразу после запуска (сотрудник уже вошёл) — экран сам загружает
     /// данные панели, один раз; открытый повторно (данные уже есть) — не загружает. Раньше по ссылке список был пустым.
-    /// Перед test22: тот удаляет товар, а здесь сверяется число товаров с сервером
+    /// Перед test22 (тот удаляет товар): число товаров при обоих открытиях одно и то же
     func test21a_BulkDeepLinkLoadsData() {
         signInOwner()
         func loads() -> Int { ctl("stats")["adminData"] as? Int ?? -1 }
-        let all = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Выбрать все ('")).firstMatch
         let before = loads()
         launch("/admin?s=productsBulk")
+        let all = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Выбрать все ('")).firstMatch
         guard all.waitForExistence(timeout: 25) else { XCTFail("По прямой ссылке список товаров пуст или не загрузился"); shot("21a пустой список"); return }
         shot("21a по прямой ссылке")
         let n = Int(all.label.filter(\.isNumber)) ?? 0
@@ -1295,7 +1297,9 @@ final class AuditUITests: XCTestCase {
         launch("/admin?s=products")
         let tools = button("Массовые изменения и остатки в Excel")
         guard tools.waitForExistence(timeout: 25) else { XCTFail("Список товаров панели не открылся"); shot("21a нет товаров панели"); return }
-        sleep(2)   // список товаров закончил свою загрузку (если она была) — дальше считаем только экран массовых изменений
+        // список товаров закончил свою загрузку (строки товаров на экране) — дальше считаем только экран массовых изменений
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Сумка-тоут из кожи'")).firstMatch
+        guard row.waitForExistence(timeout: 25) else { XCTFail("Список товаров панели не загрузился"); shot("21a список не загрузился"); return }
         let again = loads()
         tools.tap()
         XCTAssertTrue(all.waitForExistence(timeout: 15), "Массовые изменения из списка товаров открылись без товаров")
