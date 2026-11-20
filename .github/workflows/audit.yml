@@ -35,9 +35,9 @@ on:
         type: string
         default: ''
       runner:
-        description: 'Mac на GitHub (Apple Silicon: на Intel UI-тесты не укладываются в предел шага — этап K.2)'
+        description: 'Mac на GitHub. Все UI-тесты — только Apple Silicon (macos-15, macos-26): на Intel они не укладываются в предел шага 80 мин (этап K.2); Intel — для отдельных тестов из «only»'
         type: choice
-        options: [macos-15, macos-26]
+        options: [macos-15, macos-26, macos-15-intel]
         default: macos-15
       tsan:
         description: 'Thread Sanitizer: приложение и тесты собираются с поиском гонок данных, отчёты — в tsan/ (медленнее; только проверка)'
