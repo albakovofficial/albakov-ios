@@ -597,6 +597,7 @@ struct ProductsBulkView: View {
             }
         }
         .navigationTitle("Массовые изменения").navigationBarTitleDisplayMode(.inline)
+        .task { if !admin.data.exists { await admin.load() } }   // открыт сразу по ссылке — минуя список товаров (этап K.2)
         .confirmationDialog("Удалить \(picked.count) \(Fmt.plural(picked.count, "товар", "товара", "товаров"))?", isPresented: $confirmDelete, titleVisibility: .visible) { Button("Удалить", role: .destructive) { Task { await deleteMany() } } }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.commaSeparatedText, .plainText, .text]) { r in Task { await importCsv(r) } }
     }

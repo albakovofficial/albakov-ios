@@ -1275,4 +1275,32 @@ final class AuditUITests: XCTestCase {
         XCTAssertFalse(left.isEmpty, "Не получили витрину копии магазина")
         XCTAssertFalse(left.contains { $0["id"] as? String == "p10" }, "Товар не удалился на сервере — проверка ничего не проверила")
     }
+
+    /// Этап K.2: прямая ссылка на массовые изменения сразу после запуска (сотрудник уже вошёл) — экран сам загружает
+    /// данные панели, один раз; открытый повторно (данные уже есть) — не загружает. Раньше по ссылке список был пустым.
+    /// Перед test22: тот удаляет товар, а здесь сверяется число товаров с сервером
+    func test21a_BulkDeepLinkLoadsData() {
+        signInOwner()
+        func loads() -> Int { ctl("stats")["adminData"] as? Int ?? -1 }
+        let all = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Выбрать все ('")).firstMatch
+        let before = loads()
+        launch("/admin?s=productsBulk")
+        guard all.waitForExistence(timeout: 25) else { XCTFail("По прямой ссылке список товаров пуст или не загрузился"); shot("21a пустой список"); return }
+        shot("21a по прямой ссылке")
+        let n = Int(all.label.filter(\.isNumber)) ?? 0
+        XCTAssertGreaterThan(n, 0, "По прямой ссылке нет товаров: \(all.label)")
+        XCTAssertFalse(button("Снять выбор").exists, "Экран показывает пустой список")
+        XCTAssertEqual(loads() - before, 1, "Данные панели по прямой ссылке загружены не один раз")
+        // повторно — из списка товаров панели, данные уже есть: экран массовых изменений их не загружает
+        launch("/admin?s=products")
+        let tools = button("Массовые изменения и остатки в Excel")
+        guard tools.waitForExistence(timeout: 25) else { XCTFail("Список товаров панели не открылся"); shot("21a нет товаров панели"); return }
+        sleep(2)   // список товаров закончил свою загрузку (если она была) — дальше считаем только экран массовых изменений
+        let again = loads()
+        tools.tap()
+        XCTAssertTrue(all.waitForExistence(timeout: 15), "Массовые изменения из списка товаров открылись без товаров")
+        XCTAssertEqual(Int(all.label.filter(\.isNumber)), n, "Повторно открытый экран показывает другое число товаров")
+        sleep(2)
+        XCTAssertEqual(loads(), again, "Повторно открытый экран снова загрузил данные панели")
+    }
 }
