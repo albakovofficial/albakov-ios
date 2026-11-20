@@ -304,7 +304,11 @@ struct Order: Identifiable, Hashable {
         adminNote = j["adminNote"].str
         history = j["history"].array.map { (ISO.date($0["at"].str), $0["text"].str) }
     }
-    static func == (a: Order, b: Order) -> Bool { a.id == b.id && a.status == b.status && a.payStatus == b.payStatus }
+    /// Равны — тот же заказ с теми же данными с сервера (этап L.0.1, как Product после DEF-3). Раньше — по id, status и payStatus:
+    /// экраны, получившие заказ свойством (OrderRow, PayLeftLabel и др.), SwiftUI считал неизменными и после обновления заказа
+    /// с теми же статусами показывал прежние срок оплаты, вещи, сумму. Все поля заказа — из raw, поэтому сравнивается он.
+    /// Хеш — по id: равные заказы по-прежнему с одинаковым хешем
+    static func == (a: Order, b: Order) -> Bool { a.id == b.id && (a.raw.raw as? NSObject)?.isEqual(b.raw.raw) ?? (b.raw.raw == nil) }
     func hash(into h: inout Hasher) { h.combine(id) }
 
     static let statusRu = ["new": "Принят", "processing": "Собирается", "shipped": "В пути", "done": "Получен", "canceled": "Отменён", "returned": "Возврат"]
