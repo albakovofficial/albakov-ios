@@ -345,7 +345,9 @@ private struct LogoSlot: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(Theme.font(15, .medium)); Text(hint).font(Theme.font(12)).foregroundStyle(Theme.muted)
                 HStack(spacing: 14) {
-                    PhotosPicker(selection: $item, matching: .images) { Text(busy ? "Загружаю…" : "Загрузить").font(Theme.font(13.5, .medium)).foregroundStyle(Theme.ink) }
+                    // Метка PhotosPicker в SDK — @Sendable: в неё передаётся значение busy (Bool), а не вся View (этап L.2.23,
+                    // как в ImageField). Метка не escaping — вызывается сразу, в том же пересчёте body, поэтому значение всегда текущее
+                    PhotosPicker(selection: $item, matching: .images) { [busy] in Text(busy ? "Загружаю…" : "Загрузить").font(Theme.font(13.5, .medium)).foregroundStyle(Theme.ink) }
                     if !src.isEmpty { Button("Убрать") { set(nil) }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
                 }
             }
