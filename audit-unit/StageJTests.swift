@@ -2,7 +2,51 @@ import XCTest
 import UIKit
 import ImageIO
 import UniformTypeIdentifiers
+import os
 @testable import Albakov
+
+/// Рост памяти процесса за время операции: пик минус замер до неё (этапы J, L.2.18). Пик опрашивает фоновый поток
+/// раз в `every` мкс. Пик и флаг «опрос идёт» — под OSAllocatedUnfairLock (раньше — класс с NSLock и @unchecked Sendable):
+/// читаются и пишутся только под замком, проверка флага и запись пика — один захват, поэтому после остановки опросчик
+/// ничего не пишет. Пик начинается с замера до операции и дополняется замером сразу после неё: операция, закончившаяся
+/// до первого фонового опроса, не даёт нулевого роста «по умолчанию». На главном акторе, как вызывающие тесты (L.2.17):
+/// тяжёлая работа — внутри самой операции (ImageKit.jpeg уходит в Task.detached)
+enum MemoryPeak {
+    private struct State: Sendable { var peak: Int64; var running = true }
+
+    /// Память процесса (phys_footprint), байты
+    static func footprint() -> Int64 {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        return kr == KERN_SUCCESS ? Int64(info.phys_footprint) : 0
+    }
+
+    /// Результат операции и рост памяти за время её выполнения. read — источник замеров (в тестах самого замера — подставной)
+    @MainActor static func measure<T>(read: @escaping @Sendable () -> Int64 = { MemoryPeak.footprint() }, every: useconds_t = 2000,
+                                      _ body: () async throws -> T) async rethrows -> (value: T, grow: Int64) {
+        let base = read()
+        let state = OSAllocatedUnfairLock(initialState: State(peak: base))
+        Thread {
+            while true {
+                let f = read()
+                let more = state.withLock { s -> Bool in
+                    guard s.running else { return false }
+                    s.peak = max(s.peak, f); return true
+                }
+                guard more else { return }
+                usleep(every)
+            }
+        }.start()
+        defer { state.withLock { $0.running = false } }   // операция бросила ошибку — опрос тоже останавливается
+        let value = try await body()
+        let last = read()
+        let peak = state.withLock { s -> Int64 in s.peak = max(s.peak, last); s.running = false; return s.peak }
+        return (value, peak - base)
+    }
+}
 
 /// Этапы J и J.1, DEF-1: фото панели (ImageKit.jpeg). До J.1 снимок рисовался в масштабе экрана (4000–6000 px вместо 2000),
 /// раскодировался целиком на главном потоке, детальные снимки превышали предел сервера 8 МБ.
@@ -50,29 +94,6 @@ final class ImageKitMeasureTests: XCTestCase {
               let p = CGImageSourceCopyPropertiesAtIndex(s, 0, nil) as? [CFString: Any] else { return (0, 0, "") }
         return ((p[kCGImagePropertyPixelWidth] as? Int) ?? 0, (p[kCGImagePropertyPixelHeight] as? Int) ?? 0, (CGImageSourceGetType(s) as String?) ?? "")
     }
-    /// Память процесса (phys_footprint), байты
-    private static func footprint() -> Int64 {
-        var info = task_vm_info_data_t()
-        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
-        let kr = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
-        }
-        return kr == KERN_SUCCESS ? Int64(info.phys_footprint) : 0
-    }
-    /// Пик памяти: опрос в фоне раз в 2 мс, пока идёт замеряемое
-    private final class Peak: @unchecked Sendable { let lock = NSLock(); var value: Int64 = 0; var running = true }
-    /// Результат операции и пик памяти за время её выполнения. На главном акторе, как и вызывающие тесты (этап L.2.17):
-    /// замыкание и раньше шло на главном акторе, а тяжёлая обработка — вне его, в самом ImageKit.jpeg (Task.detached).
-    /// Память опрашивает свой фоновый поток; phys_footprint — память всего процесса, от потока замера не зависит
-    @MainActor private func sampling<T>(_ body: () async throws -> T) async rethrows -> (value: T, peak: Int64) {
-        let peak = Peak(), base = Self.footprint()
-        Thread {
-            while peak.lock.withLock({ peak.running }) { let f = Self.footprint(); peak.lock.withLock { peak.value = max(peak.value, f) }; usleep(2000) }
-        }.start()
-        defer { peak.lock.withLock { peak.running = false } }
-        let value = try await body()
-        return (value, max(0, peak.lock.withLock { peak.value } - base))
-    }
     /// Пропорции те же: ориентация (стоя/лёжа) сохранена, короткая сторона — с точностью до пикселя (ImageIO округляет)
     private func sameShape(_ w: Int, _ h: Int, _ ow: Int, _ oh: Int) -> Bool {
         (ow >= oh) == (w >= h) && abs(min(ow, oh) - Int((Double(min(w, h)) * Double(max(ow, oh)) / Double(max(w, h))).rounded())) <= 1
@@ -89,7 +110,7 @@ final class ImageKitMeasureTests: XCTestCase {
             for t in [Texture.smooth, .grain, .noise] {
                 guard let src = autoreleasepool(invoking: { source(w, h, t) }) else { XCTFail("Не получилось создать исходник \(w)×\(h)"); continue }
                 let t0 = Date()
-                let (out, grow) = try await sampling { try await ImageKit.jpeg(src) }
+                let (out, grow) = try await MemoryPeak.measure { try await ImageKit.jpeg(src) }
                 let ms = Int(Date().timeIntervalSince(t0) * 1000)
                 let (ow, oh, _) = pixels(out)
                 log("DEF1 \(w)×\(h) \(t.rawValue): исходник \(mb(Int64(src.count))) МБ → \(ow)×\(oh) px, \(mb(Int64(out.count))) МБ, "
@@ -174,13 +195,13 @@ final class ImageKitMeasureTests: XCTestCase {
     @MainActor
     func test05_TenPhotosMemory() async throws {
         guard let src = autoreleasepool(invoking: { source(8064, 6048, .grain) }) else { return XCTFail("Нет исходника") }
-        let before = Self.footprint()
-        let (sizes, grow) = try await sampling { () async throws -> [Int] in
+        let before = MemoryPeak.footprint()
+        let (sizes, grow) = try await MemoryPeak.measure { () async throws -> [Int] in
             var acc: [Int] = []
             for _ in 0..<10 { acc.append(try await ImageKit.jpeg(src).count) }
             return acc
         }
-        let left = max(0, Self.footprint() - before)
+        let left = max(0, MemoryPeak.footprint() - before)
         log("DEF1 десять снимков 48 Мп: пик памяти +\(mb(grow)) МБ, после обработки +\(mb(left)) МБ, файлы \(sizes.map { mb(Int64($0)) }.joined(separator: ", ")) МБ")
         XCTAssertEqual(sizes.count, 10)
         XCTAssertLessThan(grow, 120 * 1_048_576, "Пик памяти при 10 снимках +\(mb(grow)) МБ")

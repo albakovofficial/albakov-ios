@@ -2,6 +2,7 @@ import XCTest
 import UIKit
 import ImageIO
 import UniformTypeIdentifiers
+import os
 @testable import Albakov
 
 /// Этап K.1, K-M1: «Добавить образ в корзину» — всё или ничего. Раньше вещи до первой вещи без размера уже лежали
@@ -77,6 +78,14 @@ final class LookAddTests: XCTestCase {
     }
 }
 
+/// Ответ, который отдаётся один раз — для первого подходящего запроса. Обработчики NetStub вызываются из потоков
+/// URLSession, поэтому проверка и отметка — один захват OSAllocatedUnfairLock (раньше — класс с NSLock и @unchecked
+/// Sendable, этап L.2.18). Копии Once (обработчик захватывает значение) делят один замок. Под замком — только флаг
+struct Once: Sendable {
+    private let used = OSAllocatedUnfairLock(initialState: false)
+    func take() -> Bool { used.withLock { u in if u { return false }; u = true; return true } }
+}
+
 /// Этап K.1, K-M3: подписка на push идёт строго по очереди, последней — самая новая. Раньше каждая отправка шла
 /// сама по себе, и при быстром выходе и входе «отписать сотрудника» могло прийти на сервер после «подписать»
 @MainActor
@@ -86,11 +95,6 @@ final class PushOrderTests: XCTestCase {
     private let staff = User(JSON(["id": "staff1"]))
     private let buyer = User(JSON(["id": "buyer1"]))
 
-    /// Ответ, который отдаётся один раз — для первого подходящего запроса
-    private final class Once: @unchecked Sendable {
-        private let lock = NSLock(); private var used = false
-        func take() -> Bool { lock.lock(); defer { lock.unlock() }; if used { return false }; used = true; return true }
-    }
     /// Запросы подписки по порядку прихода на «сервер»: «subscribe customer», «unsubscribe staff»…
     private var ops: [String] {
         NetStub.seen.filter { $0.path.hasPrefix("push/") }.map { s in
