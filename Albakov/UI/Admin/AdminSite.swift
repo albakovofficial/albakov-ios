@@ -337,7 +337,7 @@ private struct LogoSlot: View {
     let removeBg: Bool, recolor: Bool
     let set: ([String: Any]?) -> Void
     @State private var item: PhotosPickerItem?
-    @State private var busy = false
+    @StateObject private var upload = LogoUpload()
     var body: some View {
         HStack(spacing: 12) {
             Group { if src.isEmpty { Text("Не загружен").font(Theme.font(11)).foregroundStyle(.white.opacity(0.6)) } else { RemoteImage(path: src, contentMode: .fit).padding(8) } }
@@ -347,23 +347,54 @@ private struct LogoSlot: View {
                 HStack(spacing: 14) {
                     // Метка PhotosPicker в SDK — @Sendable: в неё передаётся значение busy (Bool), а не вся View (этап L.2.23,
                     // как в ImageField). Метка не escaping — вызывается сразу, в том же пересчёте body, поэтому значение всегда текущее
-                    PhotosPicker(selection: $item, matching: .images) { [busy] in Text(busy ? "Загружаю…" : "Загрузить").font(Theme.font(13.5, .medium)).foregroundStyle(Theme.ink) }
-                    if !src.isEmpty { Button("Убрать") { set(nil) }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
+                    PhotosPicker(selection: $item, matching: .images) { [busy = upload.busy] in Text(busy ? "Загружаю…" : "Загрузить").font(Theme.font(13.5, .medium)).foregroundStyle(Theme.ink) }
+                    // «Убрать» — новое действие: начатая загрузка устаревает и свой результат уже не запишет (этап L.2.26)
+                    if !src.isEmpty { Button("Убрать") { upload.cancel(); set(nil) }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
                 }
             }
         }
-        .onChange(of: item) { it in Task { await upload(it) } }
+        .onChange(of: item) { it in
+            guard let it else { return }
+            item = nil   // выбор принят; следующий выбор (и то же фото ещё раз) — новое действие
+            upload.start({ [removeBg, recolor] () async throws -> (src: String, w: Int, h: Int, note: String?) in
+                let r = try await LogoKit.process(try await ImageKit.load(it), removeBg: removeBg, recolor: recolor)
+                try Task.checkCancellation()   // за время обработки выбрали другое фото или нажали «Убрать» — на сервер не отправляем
+                return (src: try await API.shared.upload(r.png, mime: "image/png"), w: r.w, h: r.h, note: r.note)
+            }, apply: { r in
+                set(["src": r.src, "w": r.w, "h": r.h])
+                if let n = r.note { Toast.shared.show(n) }
+            }, fail: { Toast.shared.show($0.userMessage) })
+        }
     }
-    private func upload(_ it: PhotosPickerItem?) async {
-        guard let it else { return }
-        busy = true; defer { busy = false; item = nil }
-        do {
-            let r = try await LogoKit.process(try await ImageKit.load(it), removeBg: removeBg, recolor: recolor)
-            let url = try await API.shared.upload(r.png, mime: "image/png")
-            set(["src": url, "w": r.w, "h": r.h])
-            if let n = r.note { Toast.shared.show(n) }
-        } catch { Toast.shared.show(error.userMessage) }
+}
+
+/// Загрузка в одно место логотипа (этап L.2.26). Актуально только последнее действие пользователя — новое фото или
+/// «Убрать»: прежняя загрузка отменяется, а её результат, ошибка и сброс «Загружаю…» больше не применяются, даже если
+/// она дойдёт до конца (LogoKit.process отмену не проверяет, а ответ сервера мог прийти раньше отмены). Отмена и проверка
+/// «не отменена ли» — на главном акторе, без промежутка между проверкой и записью результата. Отмена не отзывает файл,
+/// уже принятый сервером: он просто не попадает в настройки (их сохраняет кнопка «Сохранить»)
+@MainActor final class LogoUpload: ObservableObject {
+    @Published private(set) var busy = false
+    private var task: Task<Void, Never>?
+    /// work — получить, обработать и отправить фото (тяжёлая часть — вне главного актора, в LogoKit.process);
+    /// apply — записать результат, fail — показать ошибку. Оба — только для актуальной загрузки
+    func start<T>(_ work: @escaping @MainActor () async throws -> T, apply: @escaping @MainActor (T) -> Void, fail: @escaping @MainActor (any Error) -> Void) {
+        task?.cancel()
+        busy = true
+        task = Task {
+            do {
+                let r = try await work()
+                guard !Task.isCancelled else { return }
+                apply(r)
+            } catch {
+                guard !Task.isCancelled else { return }
+                fail(error)
+            }
+            self.busy = false; self.task = nil
+        }
     }
+    /// «Убрать»: начатая загрузка устарела
+    func cancel() { task?.cancel(); task = nil; busy = false }
 }
 
 /// Обработка логотипа как processLogo на сайте: однотонный фон → прозрачный, цвет → светлый #ece6dc, обрезка пустых полей
