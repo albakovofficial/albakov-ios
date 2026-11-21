@@ -1,0 +1,62 @@
+{
+  "devices" : [
+    {
+      "architecture" : "x86_64",
+      "deviceId" : "4E62D48E-A75F-4AF3-BDC2-1C74916B5810",
+      "deviceName" : "iPhone SE (3rd generation)",
+      "modelName" : "iPhone SE (3rd generation)",
+      "osBuildNumber" : "22G86",
+      "osVersion" : "18.6",
+      "platform" : "iOS Simulator"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "duration" : "3m 18s",
+                  "durationInSeconds" : 198.61505699157715,
+                  "name" : "test02_Cart()",
+                  "nodeIdentifier" : "AuditUITests/test02_Cart()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test02_Cart",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "4m 4s",
+                  "durationInSeconds" : 244.70848405361176,
+                  "name" : "test20_ColorPhotosAllAttached()",
+                  "nodeIdentifier" : "AuditUITests/test20_ColorPhotosAllAttached()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test20_ColorPhotosAllAttached",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "AuditUITests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            }
+          ],
+          "name" : "AlbakovAudit",
+          "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit",
+          "nodeType" : "UI test bundle",
+          "result" : "Passed"
+        }
+      ],
+      "name" : "AlbakovAudit",
+      "nodeType" : "Test Plan",
+      "result" : "Passed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}
