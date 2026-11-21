@@ -6,21 +6,42 @@ import PhotosUI
 
 // MARK: - Слайдер на главной
 
-private enum SlideKit {
-    static let tpl: [(key: String, name: String, hint: String, slide: [String: Any])] = [
-        ("sale", "Акция", "Связан с акцией: сам покажет скидку и срок и скроется, когда акция закончится",
-         ["layout": "full", "eyebrow": "Акция", "title": "Название\n*акции*", "text": "Коротко о том, на что скидка.", "image": "img/slide-sale.jpg", "btn1": ["label": "Смотреть товары", "link": "#/sale"], "btn2": ["label": "Все акции", "link": "#/sale"]]),
-        ("welcome", "Скидка на первый заказ", "С промокодом, который покупатель копирует одним нажатием",
-         ["layout": "split", "eyebrow": "Для новых покупателей", "title": "−10%\nна *первый заказ*", "text": "Зарегистрируйтесь и введите промокод при оформлении.", "image": "img/slide-welcome.jpg", "code": "WELCOME10", "btn1": ["label": "Зарегистрироваться", "link": "#/account?tab=register"], "btn2": ["label": "", "link": ""]]),
-        ("news", "Новинки", "Новая коллекция или поступление",
-         ["layout": "split", "eyebrow": "Новое поступление", "title": "Новая\n*коллекция*", "text": "Пара строк о коллекции.", "image": "img/slide-new.jpg", "btn1": ["label": "Смотреть новинки", "link": "#/catalog?tag=new"], "btn2": ["label": "Весь каталог", "link": "#/catalog"]]),
-        ("blank", "Пустой слайд", "Свой текст, фото и кнопки",
-         ["layout": "split", "eyebrow": "", "title": "Заголовок", "text": "", "image": "", "btn1": ["label": "Подробнее", "link": "#/catalog"], "btn2": ["label": "", "link": ""]])
+enum SlideKit {
+    /// Готовый слайд для «Добавить слайд» — неизменяемая конфигурация, как шаблоны слайдов на сайте. Типизирована
+    /// (этап L.2.9): раньше — кортежи со словарём [String: Any], который не Sendable, и Swift 6 не принимал static let
+    struct Template: Sendable {
+        /// Кнопка слайда: надпись и адрес — как btn1/btn2 в настройках сайта
+        typealias Btn = (label: String, link: String)
+        let key: String, name: String, hint: String
+        let layout: String, eyebrow: String, title: String, text: String, image: String
+        var code: String? = nil   // var — ради умолчания в init: промокод есть только у «Скидки на первый заказ»
+        let btn1: Btn, btn2: Btn
+        /// Поля слайда в том виде, в каком слайды хранятся в настройках сайта (settings.slider.slides)
+        var fields: [String: Any] {
+            var f: [String: Any] = ["layout": layout, "eyebrow": eyebrow, "title": title, "text": text, "image": image,
+                                    "btn1": ["label": btn1.label, "link": btn1.link], "btn2": ["label": btn2.label, "link": btn2.link]]
+            if let code { f["code"] = code }
+            return f
+        }
+    }
+    static let tpl: [Template] = [
+        Template(key: "sale", name: "Акция", hint: "Связан с акцией: сам покажет скидку и срок и скроется, когда акция закончится",
+                 layout: "full", eyebrow: "Акция", title: "Название\n*акции*", text: "Коротко о том, на что скидка.", image: "img/slide-sale.jpg",
+                 btn1: ("Смотреть товары", "#/sale"), btn2: ("Все акции", "#/sale")),
+        Template(key: "welcome", name: "Скидка на первый заказ", hint: "С промокодом, который покупатель копирует одним нажатием",
+                 layout: "split", eyebrow: "Для новых покупателей", title: "−10%\nна *первый заказ*", text: "Зарегистрируйтесь и введите промокод при оформлении.",
+                 image: "img/slide-welcome.jpg", code: "WELCOME10", btn1: ("Зарегистрироваться", "#/account?tab=register"), btn2: ("", "")),
+        Template(key: "news", name: "Новинки", hint: "Новая коллекция или поступление",
+                 layout: "split", eyebrow: "Новое поступление", title: "Новая\n*коллекция*", text: "Пара строк о коллекции.", image: "img/slide-new.jpg",
+                 btn1: ("Смотреть новинки", "#/catalog?tag=new"), btn2: ("Весь каталог", "#/catalog")),
+        Template(key: "blank", name: "Пустой слайд", hint: "Свой текст, фото и кнопки",
+                 layout: "split", eyebrow: "", title: "Заголовок", text: "", image: "",
+                 btn1: ("Подробнее", "#/catalog"), btn2: ("", ""))
     ]
     @MainActor static func blank(_ key: String) -> [String: Any] {
         var s: [String: Any] = ["id": uid("sl"), "active": true, "layout": "split", "eyebrow": "", "title": "", "text": "", "image": "", "badge": "", "code": "", "promotionId": "",
                                 "btn1": ["label": "", "link": ""], "btn2": ["label": "", "link": ""], "gender": "", "startsAt": "", "endsAt": ""]
-        for (k, v) in (tpl.first { $0.key == key } ?? tpl[3]).slide { s[k] = v }
+        for (k, v) in (tpl.first { $0.key == key } ?? tpl[3]).fields { s[k] = v }
         let d = Admin.shared.data
         if key == "sale", let p = d["promotions"].array.first(where: { Promotion($0).inWindow(Date()) }) ?? d["promotions"].array.first {
             s["promotionId"] = p["id"].str; s["title"] = p["title"].str; if !p["description"].str.isEmpty { s["text"] = p["description"].str }
