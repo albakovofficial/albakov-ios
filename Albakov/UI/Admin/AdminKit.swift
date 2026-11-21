@@ -450,6 +450,9 @@ struct ImageField: View {
                 Spacer()
             }
         }
+        // пока фото грузится, форма не сохраняется (этап L.2.28). busy гаснет вместе с записью фото в поле — в одном шаге
+        // главного актора, поэтому «Сохранить» становится доступна, когда новое фото уже в форме
+        .preference(key: PhotoUploadingKey.self, value: upload.busy)
         .onChange(of: item) { it in
             guard let it else { return }
             item = nil   // выбор принят; следующий выбор (и то же фото ещё раз) — новое действие
@@ -623,6 +626,14 @@ private struct RowFields: View {
 
 // MARK: - Экран раздела панели: заголовок с точкой, подзаголовок, содержимое, кнопка «Сохранить» внизу
 
+/// Идёт ли в форме загрузка фото (этап L.2.28). Поле фото (ImageField) сообщает, что у него «Загружаю…», AdminPage
+/// собирает это со всех полей формы и, пока хоть одно фото грузится, не даёт нажать «Сохранить»: иначе сохранилось бы
+/// прежнее фото, а новое появилось бы в поле уже после «Сохранено» (или потерялось бы с закрытием экрана)
+struct PhotoUploadingKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() || value }
+}
+
 struct AdminPage<C: View>: View {
     let title: String
     var sub = ""
@@ -631,6 +642,8 @@ struct AdminPage<C: View>: View {
     var error: String? = nil
     var onSave: (() -> Void)? = nil
     @ViewBuilder let content: () -> C
+    /// В форме идёт загрузка фото (PhotoUploadingKey, этап L.2.28) — «Сохранить» недоступна до её конца или «Убрать»
+    @State private var uploading = false
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -639,10 +652,11 @@ struct AdminPage<C: View>: View {
                 content()
                 if let onSave {
                     ErrorText(text: error)
-                    PrimaryButton(title: saveTitle ?? "Сохранить", busy: busy, action: onSave).padding(.top, 6)
+                    PrimaryButton(title: saveTitle ?? "Сохранить", busy: busy, disabled: uploading, action: onSave).padding(.top, 6)
                 }
             }.padding(Theme.gutter).padding(.bottom, 40)
         }
+        .onPreferenceChange(PhotoUploadingKey.self) { uploading = $0 }
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
     }
