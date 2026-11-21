@@ -256,7 +256,10 @@ struct ColorPhotos: View {
                         }
                         .overlay(alignment: .bottomLeading) { if k == 0 { Text("Главное").font(Theme.font(9.5, .semibold)).padding(.horizontal, 6).padding(.vertical, 3).background(Capsule().fill(.white)).padding(4) } }
                 }
-                PhotosPicker(selection: $picks, maxSelectionCount: 10, matching: .images) {
+                // Метка PhotosPicker в SDK — @Sendable, вложенный VStack наследует её неизолированность: в метку передаётся значение
+                // busy (Bool), а не вся View (этап L.2.24, как в L.2.22–L.2.23). Метка не escaping — вызывается сразу, в том же
+                // пересчёте body, поэтому значение всегда текущее
+                PhotosPicker(selection: $picks, maxSelectionCount: 10, matching: .images) { [busy] in
                     VStack(spacing: 6) { if busy { ProgressView() } else { Image(systemName: "plus") }; Text("Фото этого цвета").font(Theme.font(10.5)).multilineTextAlignment(.center) }
                         .foregroundStyle(Theme.muted).frame(width: 78, height: 104).background(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                 }
