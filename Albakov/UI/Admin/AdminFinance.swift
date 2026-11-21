@@ -284,8 +284,9 @@ struct FinanceCosts: View {
         .onAppear { if costs.isEmpty { for (k, v) in admin.data["finance"]["costs"].dict { costs[k] = v.numberText } } }
     }
     /// Значение для сервера: пусто — себестоимости нет (""), иначе число. nil — текст не число («1.200,50»):
-    /// раньше он молча становился 0, а 0 сервер понимает как «себестоимость не задана» — она пропадала (аудит Q-B4)
-    static func value(_ text: String) -> Any? {
+    /// раньше он молча становился 0, а 0 сервер понимает как «себестоимость не задана» — она пропадала (аудит Q-B4).
+    /// Чистый расчёт без состояния экрана — не на главном акторе, как Shop.price (этап L.2.14)
+    nonisolated static func value(_ text: String) -> Any? {
         if text.isEmpty { return "" }
         guard let n = Double(text.replacingOccurrences(of: ",", with: ".")), n.isFinite else { return nil }
         return n
@@ -327,8 +328,9 @@ struct FinanceSettings: View {
     }
     /// Ставки для PUT admin/finance/settings — в том же виде, что и раньше. nil — какого-то числа в форме нет или оно
     /// не конечное (вставили «nan», «inf»): такое не сохраняем, а не подставляем 0. Раньше у «Карты: комиссия ЮKassa»
-    /// тип выводился как Double?, приведённый к Any: ?? не срабатывал, в запрос попадал Optional (предупреждения, аудит Q-B4)
-    static func settingsValue(_ d: JSON, categories: [[String: Any]], costs: Any) -> [String: Any]? {
+    /// тип выводился как Double?, приведённый к Any: ?? не срабатывал, в запрос попадал Optional (предупреждения, аудит Q-B4).
+    /// Чистый расчёт без состояния экрана — не на главном акторе, как Shop.price (этап L.2.14)
+    nonisolated static func settingsValue(_ d: JSON, categories: [[String: Any]], costs: Any) -> [String: Any]? {
         func rate(_ k: String) -> Double? { d[k].double.flatMap { $0.isFinite ? $0 : nil } }
         guard let tax = rate("taxRate"), let sbpYk = rate("sbpYk"), let sbpPartner = rate("sbpPartner"), let otherYk = rate("otherYk"),
               let otherPartner = rate("otherPartner"), let partnerMin = rate("partnerMin"), let codFee = rate("codFee") else { return nil }
