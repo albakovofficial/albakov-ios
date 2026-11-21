@@ -61,16 +61,25 @@ final class NetStub: URLProtocol {
         // Ответ отдаётся в потоке клиента (URLSession), как требует URLProtocol: там же вызывается stopLoading,
         // поэтому проверка «запрос отменён» и ответ не разойдутся. Обычный ответ — сразу, здесь же (этап J: передача
         // через perform на поток клиента иногда не срабатывала — первый запрос ждал таймаут 25 с, Intel-Mac, ios.yml)
-        guard let gate = reply.hold else { return deliver(Box(reply)) }
-        let thread = Thread.current
-        var modes = [RunLoop.Mode.default.rawValue, RunLoop.Mode.common.rawValue]
-        if let m = RunLoop.current.currentMode, m != .default { modes.append(m.rawValue) }
-        DispatchQueue.global().async {
-            gate.wait()
-            self.perform(#selector(self.deliver(_:)), on: thread, with: Box(reply), waitUntilDone: false, modes: modes)
-        }
+        guard reply.hold != nil else { return deliver(Box(reply)) }
+        // Придержанный ответ ждёт сигнала теста здесь же, в потоке клиента, не занимая его: таймер в цикле событий потока
+        // проверяет семафор без ожидания (poll). Раньше ждала фоновая очередь и возвращала ответ сюда через perform(on:):
+        // для этого ей нужны были сам NetStub и поток клиента, а они не Sendable (этап L.2.16). Режимы цикла — те же.
+        // Сигнала нет вовсе — таймер опрашивает до конца прогона (раньше до конца прогона ждал фоновый поток): все тесты
+        // с придержанным ответом подают сигнал в defer
+        var modes: [RunLoop.Mode] = [.default, .common]
+        if let m = RunLoop.current.currentMode, m != .default { modes.append(m) }
+        let timer = Timer(timeInterval: 0.005, target: self, selector: #selector(poll(_:)), userInfo: Box(reply), repeats: true)
+        for m in modes { RunLoop.current.add(timer, forMode: m) }
     }
     private final class Box: NSObject { let reply: Reply; init(_ r: Reply) { reply = r } }
+    /// Сигнал теста пришёл — ответ отдаётся (отменённый запрос deliver пропустит). Один сигнал — один ответ. Таймер
+    /// живёт до сигнала и после отмены, как прежнее ожидание в фоне: отменённый запрос тоже забирает свой сигнал
+    @objc private func poll(_ timer: Timer) {
+        guard let box = timer.userInfo as? Box, box.reply.hold?.wait(timeout: .now()) == .success else { return }
+        timer.invalidate()
+        deliver(box)
+    }
     @objc private func deliver(_ object: NSObject) {
         guard !stopped.withLock({ $0 }), let client = self.client, let reply = (object as? Box)?.reply else { return }
         if let e = reply.error { client.urlProtocol(self, didFailWithError: e); return }
@@ -420,12 +429,14 @@ final class APIResponseTests: XCTestCase {
         defer { gate.signal() }
         NetStub.reset { _, _ in NetStub.Reply.json(["ok": true]).held(gate) }
         let api = self.api
-        let t = Task { try await api.json("GET", "orders") }
+        // Задача отдаёт только «данные пришли» (Void) или ошибку: содержимое ответа тест не разбирает — важно, что его нет.
+        // JSON с Any внутри не Sendable и через границу задачи не передаётся (этап L.2.16)
+        let t = Task { _ = try await api.json("GET", "orders") }
         let sent = try await until { NetStub.paths().contains("orders") }
         XCTAssertTrue(sent)
         t.cancel()
         do {
-            _ = try await t.value
+            try await t.value
             XCTFail("Отменённый запрос вернул данные")
         } catch {
             XCTAssertTrue(error.isCancel, "\(error)"); XCTAssertNil(error.userMessage)

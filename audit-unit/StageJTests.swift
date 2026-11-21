@@ -75,7 +75,8 @@ final class ImageKitMeasureTests: XCTestCase {
         (ow >= oh) == (w >= h) && abs(min(ow, oh) - Int((Double(min(w, h)) * Double(max(ow, oh)) / Double(max(w, h))).rounded())) <= 1
     }
     private func mb(_ b: Int64) -> String { String(format: "%.1f", Double(b) / 1_048_576) }
-    private func log(_ line: String) { print(line); XCTContext.runActivity(named: line) { _ in } }
+    /// XCTContext.runActivity — на главном акторе; log вызывают только тесты на главном акторе (этап L.2.16)
+    @MainActor private func log(_ line: String) { print(line); XCTContext.runActivity(named: line) { _ in } }
 
     /// Замер на тех же исходниках, что в этапе J (до исправления): размер, байты, время, пик памяти
     @MainActor
