@@ -441,7 +441,9 @@ struct ImageField: View {
             HStack(spacing: 12) {
                 RemoteImage(path: value).frame(width: 72, height: 72).background(Theme.surface).clipShape(RoundedRectangle(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 8) {
-                    PhotosPicker(selection: $item, matching: .images) { Text(busy ? "Загружаю…" : value.isEmpty ? "Загрузить фото" : "Заменить фото").font(Theme.font(14, .medium)).foregroundStyle(Theme.text) }
+                    // Метка PhotosPicker в SDK — @Sendable: в неё передаются значения busy и value (Bool, String), а не вся View
+                    // (этап L.2.22). Метка не escaping — вызывается сразу, в том же пересчёте body, поэтому значения всегда текущие
+                    PhotosPicker(selection: $item, matching: .images) { [busy, value] in Text(busy ? "Загружаю…" : value.isEmpty ? "Загрузить фото" : "Заменить фото").font(Theme.font(14, .medium)).foregroundStyle(Theme.text) }
                     if !value.isEmpty { Button("Убрать") { value = "" }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
                 }
                 Spacer()
