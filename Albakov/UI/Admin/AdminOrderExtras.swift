@@ -3,7 +3,7 @@ import SwiftUI
 // Карточки заказа в панели, как на сайте: заявка покупателя (обмен/возврат), оплата и возврат денег,
 // отправка СДЭК (создать, наклейка, накладная, статус, отмена), возврат через СДЭК, удаление заказа.
 
-private func act(_ id: String, _ path: String, _ method: String = "POST", _ body: [String: Any] = [:]) async throws -> JSON {
+private func act(_ id: String, _ path: String, _ method: String = "POST", _ body: RequestBody = [:]) async throws -> JSON {
     try await API.shared.json(method, "admin/orders/\(id)/\(path)", body: method == "DELETE" ? nil : body)
 }
 private func dt(_ s: String) -> String { Fmt.date(ISO.date(s), time: true) }
@@ -135,7 +135,7 @@ struct OrderRefundSection: View {
         }
     }
     private func row(_ k: String, _ v: String) -> some View { HStack(alignment: .top) { Text(k).font(Theme.font(13)).foregroundStyle(Theme.muted); Spacer(); Text(v).font(Theme.font(13.5)).multilineTextAlignment(.trailing).textSelection(.enabled) } }
-    private func payload(_ dry: Bool) -> [String: Any] {
+    private func payload(_ dry: Bool) -> RequestBody {
         ["lines": lines.map { ["idx": $0.key, "qty": $0.value] }, "delivery": delivery, "restock": restock && o["status"].str != "canceled", "reason": reason, "dry": dry, "key": key, "deduct": deduct ? retCost : 0]
     }
     private func calc() async {
@@ -294,7 +294,7 @@ struct OrderCdekSection: View {
         do { _ = try await act(o["id"].str, "cdek", "POST", ["pkg": ["weight": w, "length": l, "width": wd, "height": h]]); await admin.load(); Haptic.success(); Toast.shared.show("Отправление создано в СДЭК") }
         catch { self.error = error.userMessage }
     }
-    private func simple(_ path: String, _ method: String, _ ok: String, _ body: [String: Any] = [:]) async {
+    private func simple(_ path: String, _ method: String, _ ok: String, _ body: RequestBody = [:]) async {
         error = nil
         do { _ = try await act(o["id"].str, path, method, body); await admin.load(); Toast.shared.show(ok) } catch { self.error = error.userMessage }
     }

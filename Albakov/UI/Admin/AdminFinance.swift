@@ -239,7 +239,7 @@ struct ExpenseSheet: View {
     }
     private func save() async {
         busy = true; defer { busy = false }
-        let b: [String: Any] = ["date": ISO.ymd.string(from: date), "categoryId": cat, "amount": Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0, "note": note]
+        let b: RequestBody = ["date": ISO.ymd.string(from: date), "categoryId": cat, "amount": Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0, "note": note]
         do {
             if let e = expense { _ = try await API.shared.json("PUT", "admin/finance/expenses/\(e["id"].str)", body: b) } else { _ = try await AdminAPI.post("finance/expenses", b) }
             done(); dismiss()

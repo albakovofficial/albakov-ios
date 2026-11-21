@@ -292,7 +292,7 @@ struct CodeSheet: View {
             let path = step.kind == "login" ? "auth/login-confirm" : step.kind == "reset" ? "auth/reset" : "auth/verify"
             var b: [String: Any] = ["id": step.id, "code": code]
             if step.kind == "reset" { b["password"] = password }
-            let r = try await API.shared.json("POST", path, body: b)
+            let r = try await API.shared.json("POST", path, body: RequestBody(b))
             Haptic.success(); done(r)
         } catch { self.error = error.userMessage; Haptic.error() }
     }
@@ -581,7 +581,7 @@ struct RequestSheet: View {
         var b: [String: Any] = ["kind": kind, "reason": reason, "comment": comment, "lines": lines]
         if let t = OrderTokens.all[order.id] { b["t"] = t }
         do {
-            let r = try await API.shared.json("POST", "orders/\(order.id)/request", body: b)
+            let r = try await API.shared.json("POST", "orders/\(order.id)/request", body: RequestBody(b))
             updated(Order(r["order"])); Haptic.success(); Toast.shared.show("Заявка оформлена — подробности в письме"); dismiss()
         } catch { self.error = error.userMessage; Haptic.error() }
     }

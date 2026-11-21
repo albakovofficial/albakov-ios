@@ -174,7 +174,7 @@ struct GiftView: View {
         // экрана или после перезапуска — вернёт тот же сертификат, а не создаст второй
         do {
             b["idem"] = try CheckoutNonce.idem(CheckoutNonce.loadOrCreate(key: CheckoutNonce.giftKey), b)
-            let r = try await API.shared.json("POST", "gifts", body: b)
+            let r = try await API.shared.json("POST", "gifts", body: RequestBody(b))
             CheckoutNonce.renew(key: CheckoutNonce.giftKey)   // сертификат оформлен: следующая покупка — новая
             let id = r["order"]["id"].str
             OrderTokens.save(id, r["token"].str)

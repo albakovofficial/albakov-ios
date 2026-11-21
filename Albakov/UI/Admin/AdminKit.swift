@@ -70,7 +70,7 @@ enum AdminAPI {
     }
     static func delete(_ col: String, _ id: String) async throws { _ = try await API.shared.raw("DELETE", "admin/\(col)/\(id)") }
     static func saveSettings(_ s: [String: Any]) async throws { _ = try await API.shared.raw("PUT", "admin/settings", body: ["value": s]) }
-    static func post(_ path: String, _ body: [String: Any] = [:]) async throws -> JSON { try await API.shared.json("POST", "admin/" + path, body: body) }
+    static func post(_ path: String, _ body: RequestBody = [:]) async throws -> JSON { try await API.shared.json("POST", "admin/" + path, body: body) }
     /// После сохранения: свежие данные панели и витрины
     @MainActor static func reload() async { await Admin.shared.load(); await Shop.shared.refreshUser() }
 }

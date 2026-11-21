@@ -93,7 +93,8 @@ final class SupportAttachments: ObservableObject {
     typealias Upload = (Data) async throws -> String
     private let upload: Upload
     init(uploadPath: String, upload: Upload? = nil) {
-        self.upload = upload ?? { jpg in
+        // @Sendable — не на главном акторе: base64 и запись JSON фото (до ~1 МБ) — вне главного потока (этап L.2.10)
+        self.upload = upload ?? { @Sendable jpg in
             try await API.shared.json("POST", uploadPath, body: ["dataUrl": "data:image/jpeg;base64," + jpg.base64EncodedString()])["file"].str
         }
     }
@@ -851,7 +852,7 @@ struct AdminTicketView: View {
             if let r = try? await API.shared.json("GET", "admin/support/\(id)") { t = r["ticket"] }
         }
     }
-    private func patch(_ b: [String: Any]) async {
+    private func patch(_ b: RequestBody) async {
         do { _ = try await API.shared.raw("PATCH", "admin/support/\(id)", body: b); await load(); Haptic.success() }
         catch { Toast.shared.show(error.userMessage) }
     }

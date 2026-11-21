@@ -118,7 +118,7 @@ final class APIBodyTests: XCTestCase {
         let small: [String: Any] = ["qty": 2, "name": "Футболка", "ok": true, "price": 1990.5, "none": NSNull(), "tags": ["a"]]
         XCTAssertEqual(String(decoding: try JSONSerialization.checkedData(small, options: [.sortedKeys]), as: UTF8.self),
                        #"{"name":"Футболка","none":null,"ok":true,"price":1990.5,"qty":2,"tags":["a"]}"#)
-        let req = try API.shared.request("POST", "orders", body: order, query: [:])
+        let req = try API.shared.request("POST", "orders", body: RequestBody(order), query: [:])
         XCTAssertEqual(req.httpMethod, "POST")
         XCTAssertEqual(req.value(forHTTPHeaderField: "Content-Type"), "application/json")
         XCTAssertEqual(req.httpBody, try JSONSerialization.data(withJSONObject: order))

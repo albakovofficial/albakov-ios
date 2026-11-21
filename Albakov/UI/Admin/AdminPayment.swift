@@ -361,7 +361,7 @@ private struct CdekShipCard: View {
                                    "pkg": ["weight": weight, "length": 30, "width": 25, "height": 10], "services": ["partDeliv": part, "tryOn": tryOn], "returnTo": ["name": retName, "phone": retPhone]]
         req["shipmentPoint"] = point.map { $0 as Any } ?? NSNull()
         do {
-            _ = try await AdminAPI.post("cdek", req); await Admin.shared.load()
+            _ = try await AdminAPI.post("cdek", RequestBody(req)); await Admin.shared.load()
             state = point != nil ? ("Сохранено", true) : ("Сохранено. Укажите пункт отгрузки — без него отправление не создать", false)
         } catch { state = (error.userMessage ?? "", false) }
     }

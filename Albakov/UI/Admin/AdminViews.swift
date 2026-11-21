@@ -299,7 +299,7 @@ struct AdminOrderView: View {
             ProgressView().task { if !admin.data.exists { await admin.load() } }
         }
     }
-    private func patch(_ b: [String: Any]) async {
+    private func patch(_ b: RequestBody) async {
         busy = true; error = nil; defer { busy = false }
         do { _ = try await API.shared.raw("PATCH", "admin/orders/\(id)", body: b); await admin.load(); Haptic.success(); Toast.shared.show("Сохранено") }
         catch { self.error = error.userMessage; Haptic.error() }

@@ -13,6 +13,18 @@ struct APIError: LocalizedError {
     static let invalidBody = APIError(message: "Не удалось подготовить запрос. Проверьте введённые числа; если не поможет — обновите приложение.", status: -2)
 }
 
+/// Тело запроса к /api/… (этап L.2.10): JSON, записанный один раз — там, где тело собрано. Data — Sendable, поэтому тело
+/// передаётся в сетевой слой из любого контекста. Словарь [String: Any] не Sendable: если он связан с состоянием главного
+/// актора (вычисляемое свойство экрана, корзина магазина), Swift 6 не пропускает его в неизолированный API — не может доказать,
+/// что словарь больше никому не доступен. Пишется как словарь — body: ["id": id] — или RequestBody(словарь).
+/// Записать нельзя (дата, NaN, свой тип) — ошибка сохраняется и выбрасывается при подготовке запроса: запрос не уходит,
+/// ошибка та же (APIError.invalidBody), как раньше
+struct RequestBody: Sendable, ExpressibleByDictionaryLiteral {
+    fileprivate let encoded: Result<Data, any Error>
+    init(_ object: [String: Any]) { encoded = Result { try JSONSerialization.checkedData(object) } }
+    init(dictionaryLiteral elements: (String, Any)...) { self.init(Dictionary(uniqueKeysWithValues: elements)) }
+}
+
 extension JSONSerialization {
     /// data(withJSONObject:) с проверкой. Без неё недопустимое значение не становится ошибкой Swift,
     /// а роняет приложение исключением Objective-C — try и catch его не ловят (аудит Q-B8)
@@ -63,7 +75,7 @@ final class API: Sendable {
     }
 
     /// Запрос к /api/…: ответ сервера { ok: true, … } разбирается в T, { ok: false, error } — в APIError.
-    func call<T: Decodable>(_ method: String = "GET", _ path: String, body: [String: Any]? = nil, query: [String: String] = [:], as type: T.Type = T.self) async throws -> T {
+    func call<T: Decodable>(_ method: String = "GET", _ path: String, body: RequestBody? = nil, query: [String: String] = [:], as type: T.Type = T.self) async throws -> T {
         let data = try await raw(method, path, body: body, query: query)
         do { return try decoder.decode(T.self, from: data) }
         catch {
@@ -77,7 +89,7 @@ final class API: Sendable {
     /// Ответ как свободный JSON — для разделов панели, где поля меняются от настроек.
     /// Не JSON (страница вместо ответа магазина, пустой ответ) — ошибка, а не пустые данные (DEF-I1, этап I): иначе
     /// Shop.load принимал её за пустой каталог и выход покупателя. Файлы (CSV, PDF) берутся через raw
-    func json(_ method: String = "GET", _ path: String, body: [String: Any]? = nil, query: [String: String] = [:]) async throws -> JSON {
+    func json(_ method: String = "GET", _ path: String, body: RequestBody? = nil, query: [String: String] = [:]) async throws -> JSON {
         let data = try await raw(method, path, body: body, query: query)
         guard let value = try? JSONSerialization.jsonObject(with: data) else {
             throw APIError(message: "Не удалось прочитать ответ магазина. Обновите приложение или попробуйте позже.", status: -1)
@@ -85,7 +97,7 @@ final class API: Sendable {
         return JSON(value)
     }
 
-    func raw(_ method: String, _ path: String, body: [String: Any]? = nil, query: [String: String] = [:]) async throws -> Data {
+    func raw(_ method: String, _ path: String, body: RequestBody? = nil, query: [String: String] = [:]) async throws -> Data {
         #if DEBUG
         if Demo.on, let d = try await Demo.answer(method, path, real: { try await send(method, path, body: body, query: query) }) { return d }
         #endif
@@ -94,19 +106,19 @@ final class API: Sendable {
 
     /// Запрос к /api/…: без тела (body == nil) — без тела и без Content-Type, как раньше.
     /// Тело, которое нельзя записать в JSON, — ошибка APIError.invalidBody, запрос не уходит
-    func request(_ method: String, _ path: String, body: [String: Any]?, query: [String: String]) throws -> URLRequest {
+    func request(_ method: String, _ path: String, body: RequestBody?, query: [String: String]) throws -> URLRequest {
         var comps = URLComponents(url: base.appendingPathComponent("api/" + path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) } }
         var req = URLRequest(url: comps.url!)
         req.httpMethod = method
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try JSONSerialization.checkedData(body)
+            req.httpBody = try body.encoded.get()
         }
         return req
     }
 
-    private func send(_ method: String, _ path: String, body: [String: Any]?, query: [String: String]) async throws -> Data {
+    private func send(_ method: String, _ path: String, body: RequestBody?, query: [String: String]) async throws -> Data {
         let req = try request(method, path, body: body, query: query)
         let data: Data, resp: URLResponse
         do { (data, resp) = try await session.data(for: req) }

@@ -316,7 +316,7 @@ struct CheckoutView: View {
     }
     private func recalc() async {
         do {
-            let q = try await API.shared.json("POST", "quote", body: body0)["quote"]
+            let q = try await API.shared.json("POST", "quote", body: RequestBody(body0))["quote"]
             quoteError = nil
             withAnimation { quote = q }
         } catch {
@@ -349,7 +349,7 @@ struct CheckoutView: View {
         if m.isDoor || !(shop.cdekReady && m.isPvz) { b["address"] = address; b["city"] = city?.city ?? cityText }
         do {
             b["idem"] = try CheckoutNonce.idem(CheckoutNonce.loadOrCreate(), b)
-            let r = try await API.shared.json("POST", "orders", body: b)
+            let r = try await API.shared.json("POST", "orders", body: RequestBody(b))
             CheckoutNonce.renew()   // заказ оформлен: следующий будет новым
             comment = ""; saveDraft()     // доставку и контакты помним для следующего заказа, комментарий — нет
             let id = r["order"]["id"].str, token = r["token"].str

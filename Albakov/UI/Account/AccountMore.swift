@@ -102,7 +102,7 @@ struct ProfileView: View {
         var b: [String: Any] = ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email]
         if !newPassword.isEmpty { b["newPassword"] = newPassword }
         if !current.isEmpty { b["currentPassword"] = current }
-        do { _ = try await API.shared.raw("PUT", "me", body: b); await shop.refreshUser(); current = ""; newPassword = ""; Haptic.success(); Toast.shared.show("Сохранено") }
+        do { _ = try await API.shared.raw("PUT", "me", body: RequestBody(b)); await shop.refreshUser(); current = ""; newPassword = ""; Haptic.success(); Toast.shared.show("Сохранено") }
         catch { self.error = error.userMessage; Haptic.error() }
     }
 }
