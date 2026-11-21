@@ -59,7 +59,9 @@ enum Theme {
         return .custom(name, size: size, relativeTo: size >= 22 ? .title2 : size >= 17 ? .body : .subheadline)
     }
 
-    static func setupAppearance() {
+    /// Вид навигации, прокрутки и переключателей во всём приложении. API UIKit — на главном акторе; вызывается один раз,
+    /// синхронно из AlbakovApp.init (App — на главном акторе), до первого экрана (этап L.2.20)
+    @MainActor static func setupAppearance() {
         let ink = UIColor(red: 0.07, green: 0.08, blue: 0.09, alpha: 1)
         let nav = UINavigationBarAppearance(); nav.configureWithOpaqueBackground()
         nav.backgroundColor = .white
