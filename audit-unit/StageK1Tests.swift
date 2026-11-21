@@ -257,24 +257,24 @@ final class LogoOrientationTests: XCTestCase {
         let hits = corners.filter { $0.1 }.map { $0.0 }
         return (hits.isEmpty ? "нигде" : hits.joined(separator: " + "), w, h)
     }
-    private func check(_ orientation: Int, _ corner: String, _ size: [Int], line: UInt = #line) throws {
+    private func check(_ orientation: Int, _ corner: String, _ size: [Int], line: UInt = #line) async throws {
         let src = try XCTUnwrap(photo(orientation: orientation), "Нет исходника", line: line)
-        let r = try LogoKit.process(src, removeBg: false, recolor: false)
+        let r = try await LogoKit.process(src, removeBg: false, recolor: false)
         let got = try XCTUnwrap(redCorner(r.png), "PNG логотипа не читается", line: line)
         XCTAssertEqual([r.w, r.h], size, "EXIF \(orientation): размер логотипа", line: line)
         XCTAssertEqual([got.w, got.h], size, "EXIF \(orientation): размер PNG", line: line)
         XCTAssertEqual(got.corner, corner, "EXIF \(orientation): красный угол не на месте", line: line)
     }
 
-    func test01_Normal() throws { try check(1, "вверху слева", [300, 200]) }
-    func test02_Rotated90() throws { try check(6, "вверху справа", [200, 300]) }
-    func test03_Rotated180() throws { try check(3, "внизу справа", [300, 200]) }
-    func test04_Rotated270() throws { try check(8, "внизу слева", [200, 300]) }
+    func test01_Normal() async throws { try await check(1, "вверху слева", [300, 200]) }
+    func test02_Rotated90() async throws { try await check(6, "вверху справа", [200, 300]) }
+    func test03_Rotated180() async throws { try await check(3, "внизу справа", [300, 200]) }
+    func test04_Rotated270() async throws { try await check(8, "внизу слева", [200, 300]) }
     /// Зеркальные отметки (фронтальная камера, редакторы): 2 — по горизонтали, 4 — по вертикали, 5 и 7 — с поворотом
-    func test05_Mirrored() throws {
-        try check(2, "вверху справа", [300, 200])
-        try check(4, "внизу слева", [300, 200])
-        try check(5, "вверху слева", [200, 300])
-        try check(7, "внизу справа", [200, 300])
+    func test05_Mirrored() async throws {
+        try await check(2, "вверху справа", [300, 200])
+        try await check(4, "внизу слева", [300, 200])
+        try await check(5, "вверху слева", [200, 300])
+        try await check(7, "внизу справа", [200, 300])
     }
 }

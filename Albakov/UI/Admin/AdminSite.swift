@@ -358,7 +358,7 @@ private struct LogoSlot: View {
         guard let it else { return }
         busy = true; defer { busy = false; item = nil }
         do {
-            let r = try LogoKit.process(try await ImageKit.load(it), removeBg: removeBg, recolor: recolor)
+            let r = try await LogoKit.process(try await ImageKit.load(it), removeBg: removeBg, recolor: recolor)
             let url = try await API.shared.upload(r.png, mime: "image/png")
             set(["src": url, "w": r.w, "h": r.h])
             if let n = r.note { Toast.shared.show(n) }
@@ -369,7 +369,10 @@ private struct LogoSlot: View {
 /// Обработка логотипа как processLogo на сайте: однотонный фон → прозрачный, цвет → светлый #ece6dc, обрезка пустых полей
 enum LogoKit {
     struct Fail: LocalizedError { let errorDescription: String? }
-    static func process(_ data: Data, removeBg: Bool, recolor: Bool) throws -> (png: Data, w: Int, h: Int, note: String?) {
+    /// Работа с пикселями (до 2400 px, несколько проходов) — вне главного актора: @concurrent выполняется на общем
+    /// исполнителе, а экран ждёт результат через await и не стоит (этап L.2.25; раньше функция была синхронной и шла
+    /// на главном акторе вызывающего LogoSlot). На входе и выходе — только Sendable: Data, Bool, (Data, Int, Int, String?)
+    @concurrent static func process(_ data: Data, removeBg: Bool, recolor: Bool) async throws -> (png: Data, w: Int, h: Int, note: String?) {
         // Не крупнее 2400 px и с поворотом из EXIF (включая зеркальные): снимок с камеры раньше ложился боком —
         // UIImage(data:).cgImage отдаёт пиксели без поворота (аудит K, K-L9). Поворот применяется один раз, здесь
         guard let img = ImageKit.downsample(data, maxPixel: 2400)?.cgImage else { throw Fail(errorDescription: "Файл не похож на изображение. Подойдут PNG, JPG или WebP.") }
