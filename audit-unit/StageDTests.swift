@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import os
 @testable import Albakov
 
 /// Юнит-тесты этапа D. Только проверка, в приложение не входят. Собираются целью AlbakovUnit (audit.yml).
@@ -8,19 +9,19 @@ import UIKit
 
 /// Подставной сервер картинок: считает запросы по адресу, отвечает с задержкой (чтобы запросы успели пересечься).
 /// Ответ не кладётся в URLCache — каждый запрос, дошедший до сети, виден здесь.
+/// Общее состояние — под OSAllocatedUnfairLock (этап L.2.13): Swift 6 проверяет, что оно Sendable и доступно только под замком
 final class ImageStub: URLProtocol {
-    private static let lock = NSLock()
-    private static var hits: [String: Int] = [:]
-    private static var broken: Set<String> = []
+    private struct State: Sendable { var hits: [String: Int] = [:], broken: Set<String> = [] }
+    private static let state = OSAllocatedUnfairLock(initialState: State())
     static let png = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).pngData { $0.cgContext.setFillColor(UIColor.red.cgColor); $0.fill(CGRect(x: 0, y: 0, width: 4, height: 4)) }
-    static func count(_ u: URL) -> Int { lock.lock(); defer { lock.unlock() }; return hits[u.path] ?? 0 }
-    static func setBroken(_ u: URL, _ on: Bool) { lock.lock(); defer { lock.unlock() }; if on { broken.insert(u.path) } else { broken.remove(u.path) } }
+    static func count(_ u: URL) -> Int { state.withLock { $0.hits[u.path] ?? 0 } }
+    static func setBroken(_ u: URL, _ on: Bool) { state.withLock { s in if on { _ = s.broken.insert(u.path) } else { _ = s.broken.remove(u.path) } } }
 
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "stub.test" }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         guard let url = request.url, let resp = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil) else { return }
-        Self.lock.lock(); Self.hits[url.path, default: 0] += 1; let bad = Self.broken.contains(url.path); Self.lock.unlock()
+        let bad = Self.state.withLock { s in s.hits[url.path, default: 0] += 1; return s.broken.contains(url.path) }
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) {
             self.client?.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
             self.client?.urlProtocol(self, didLoad: bad ? Data("не картинка".utf8) : Self.png)

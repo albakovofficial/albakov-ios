@@ -101,7 +101,7 @@ final class PushOrderTests: XCTestCase {
     private func drain() async { await push.sync?.value }
 
     /// Витрина и подписка — через NetStub, витрина загружена, покупателя нет, адрес устройства есть
-    private func stubbed(_ reply: @escaping (String, String) -> NetStub.Reply = { _, _ in .ok },
+    private func stubbed(_ reply: @escaping NetStub.Handler = { _, _ in .ok },
                          _ body: () async throws -> Void) async throws {
         let ready = try await until(30) { Shop.shared.loaded || Shop.shared.loadError != nil }
         XCTAssertTrue(ready, "Хост не закончил первую загрузку витрины")

@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import os
 @testable import Albakov
 
 /// Юнит-тесты этапа I: ссылки (Router), витрина и покупатель (Shop), модели, ответы сервера (API).
@@ -23,15 +24,17 @@ final class NetStub: URLProtocol {
         func held(_ gate: DispatchSemaphore) -> Reply { var r = self; r.hold = gate; return r }
     }
     struct Seen { let method: String, path: String, query: String?, headers: [String: String], body: Data? }
+    typealias Handler = @Sendable (_ method: String, _ path: String) -> Reply
 
-    private static let lock = NSLock()
-    private static var handler: (String, String) -> Reply = { _, _ in .json(["ok": true]) }
-    private static var log: [Seen] = []
+    /// Обработчик ответов и журнал запросов — под OSAllocatedUnfairLock (этап L.2.13): Swift 6 проверяет, что состояние
+    /// Sendable и доступно только под замком. Обработчик вызывается после снятия замка: он сам может читать журнал
+    private struct State: Sendable { var handler: Handler = { _, _ in .json(["ok": true]) }, log: [Seen] = [] }
+    private static let state = OSAllocatedUnfairLock(initialState: State())
 
     /// Новый обработчик ответов; журнал запросов очищается
-    static func reset(_ h: @escaping (_ method: String, _ path: String) -> Reply) { lock.lock(); handler = h; log = []; lock.unlock() }
-    static func clearSeen() { lock.lock(); log = []; lock.unlock() }
-    static var seen: [Seen] { lock.lock(); defer { lock.unlock() }; return log }
+    static func reset(_ h: @escaping Handler) { state.withLock { $0 = State(handler: h) } }
+    static func clearSeen() { state.withLock { $0.log = [] } }
+    static var seen: [Seen] { state.withLock { $0.log } }
     static func paths(_ method: String? = nil) -> [String] { seen.filter { method == nil || $0.method == method }.map(\.path) }
 
     /// API, ответы которого подменяет NetStub; настройка сессии — та же, что у API.shared
@@ -41,7 +44,7 @@ final class NetStub: URLProtocol {
         return API(base: URL(string: "https://stub.albakov.test")!, configuration: c)
     }
 
-    private var stopped = false   // под NetStub.lock
+    private let stopped = OSAllocatedUnfairLock(initialState: false)   // запрос отменён (stopLoading) — ответ не отдаём
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -52,11 +55,9 @@ final class NetStub: URLProtocol {
         if path.hasPrefix("/api/") { path.removeFirst(5) }
         let method = req.httpMethod ?? "GET"
         let body = req.httpBody ?? req.httpBodyStream.map(NetStub.read)
-        NetStub.lock.lock()
-        NetStub.log.append(Seen(method: method, path: path, query: req.url?.query, headers: req.allHTTPHeaderFields ?? [:], body: body))
-        let h = NetStub.handler
-        NetStub.lock.unlock()
-        let reply = h(method, path)
+        let seen = Seen(method: method, path: path, query: req.url?.query, headers: req.allHTTPHeaderFields ?? [:], body: body)
+        let h = NetStub.state.withLock { s in s.log.append(seen); return s.handler }
+        let reply = h(method, path)   // вне замка
         // Ответ отдаётся в потоке клиента (URLSession), как требует URLProtocol: там же вызывается stopLoading,
         // поэтому проверка «запрос отменён» и ответ не разойдутся. Обычный ответ — сразу, здесь же (этап J: передача
         // через perform на поток клиента иногда не срабатывала — первый запрос ждал таймаут 25 с, Intel-Mac, ios.yml)
@@ -71,8 +72,7 @@ final class NetStub: URLProtocol {
     }
     private final class Box: NSObject { let reply: Reply; init(_ r: Reply) { reply = r } }
     @objc private func deliver(_ object: NSObject) {
-        NetStub.lock.lock(); let stop = stopped; NetStub.lock.unlock()
-        guard !stop, let client = self.client, let reply = (object as? Box)?.reply else { return }
+        guard !stopped.withLock({ $0 }), let client = self.client, let reply = (object as? Box)?.reply else { return }
         if let e = reply.error { client.urlProtocol(self, didFailWithError: e); return }
         guard let url = request.url, let resp = HTTPURLResponse(url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: nil) else {
             client.urlProtocol(self, didFailWithError: URLError(.badURL)); return
@@ -81,7 +81,7 @@ final class NetStub: URLProtocol {
         client.urlProtocol(self, didLoad: reply.body)
         client.urlProtocolDidFinishLoading(self)
     }
-    override func stopLoading() { NetStub.lock.lock(); stopped = true; NetStub.lock.unlock() }
+    override func stopLoading() { stopped.withLock { $0 = true } }
 
     private static func read(_ s: InputStream) -> Data {
         s.open(); defer { s.close() }
@@ -468,9 +468,10 @@ final class ShopStateTests: XCTestCase {
         try await stubbed {
             let b = CartLine(productId: "p2", colorId: "c1", size: "L", qty: 1)
             shop.cart = [line]; shop.favorites = ["p1"]
-            var inAccount = line.dict; inAccount["qty"] = 5
+            var acc = line; acc.qty = 5
+            let inAccount = acc   // обработчик — @Sendable: захватывает позицию корзины (Sendable), словарь строит сам
             NetStub.reset { _, p in p == "state" ? stateReply(products: [productJSON("p1", 1000), productJSON("p2", 1500)],
-                                                               user: ["id": "u1", "cart": [inAccount, b.dict], "favorites": ["p2", "p1"]]) : .json(["ok": true]) }
+                                                               user: ["id": "u1", "cart": [inAccount.dict, b.dict], "favorites": ["p2", "p1"]]) : .json(["ok": true]) }
             await shop.load()
             XCTAssertEqual(shop.user?.id, "u1"); XCTAssertFalse(shop.isStaff)
             XCTAssertEqual(shop.products.map(\.id), ["p1", "p2"])
@@ -490,8 +491,8 @@ final class ShopStateTests: XCTestCase {
         try await stubbed {
             let gate = DispatchSemaphore(value: 0)
             defer { gate.signal() }
-            let inAccount = line.dict
-            NetStub.reset { _, p in p == "state" ? stateReply(user: ["id": "u1", "cart": [inAccount], "favorites": ["p9"]], staff: true).held(gate) : .json(["ok": true]) }
+            let inAccount = line   // обработчик — @Sendable: захватывает позицию корзины (Sendable), словарь строит сам
+            NetStub.reset { _, p in p == "state" ? stateReply(user: ["id": "u1", "cart": [inAccount.dict], "favorites": ["p9"]], staff: true).held(gate) : .json(["ok": true]) }
             let load = Task { await shop.load() }
             let sent = try await until { NetStub.paths().contains("state") }
             XCTAssertTrue(sent)
