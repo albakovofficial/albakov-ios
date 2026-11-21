@@ -22,11 +22,20 @@ final class ImageStub: URLProtocol {
     override func startLoading() {
         guard let url = request.url, let resp = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil) else { return }
         let bad = Self.state.withLock { s in s.hits[url.path, default: 0] += 1; return s.broken.contains(url.path) }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) {
-            self.client?.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
-            self.client?.urlProtocol(self, didLoad: bad ? Data("не картинка".utf8) : Self.png)
-            self.client?.urlProtocolDidFinishLoading(self)
-        }
+        // Этап L.2.19: ответ — через 0,3 с таймером в цикле событий потока клиента (как придержанный ответ NetStub, L.2.16).
+        // Раньше его отдавала глобальная очередь: замыкание захватывало сам ImageStub (не Sendable), а клиент получал
+        // ответ не в своём потоке, хотя URLProtocol этого требует. Ответ, задержка и счёт — прежние
+        var modes: [RunLoop.Mode] = [.default, .common]
+        if let m = RunLoop.current.currentMode, m != .default { modes.append(m) }
+        let timer = Timer(timeInterval: 0.3, target: self, selector: #selector(reply(_:)), userInfo: Reply(resp: resp, bad: bad), repeats: false)
+        for m in modes { RunLoop.current.add(timer, forMode: m) }
+    }
+    private final class Reply: NSObject { let resp: HTTPURLResponse, bad: Bool; init(resp: HTTPURLResponse, bad: Bool) { self.resp = resp; self.bad = bad } }
+    @objc private func reply(_ timer: Timer) {
+        guard let r = timer.userInfo as? Reply else { return }
+        client?.urlProtocol(self, didReceive: r.resp, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: r.bad ? Data("не картинка".utf8) : Self.png)
+        client?.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() {}
 }
