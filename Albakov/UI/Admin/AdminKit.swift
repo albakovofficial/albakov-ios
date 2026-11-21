@@ -434,7 +434,7 @@ struct ImageField: View {
     let label: String
     @Binding var value: String
     @State private var item: PhotosPickerItem?
-    @State private var busy = false
+    @StateObject private var upload = PhotoUpload()
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(Theme.font(14)).foregroundStyle(Theme.muted)
@@ -443,19 +443,53 @@ struct ImageField: View {
                 VStack(alignment: .leading, spacing: 8) {
                     // Метка PhotosPicker в SDK — @Sendable: в неё передаются значения busy и value (Bool, String), а не вся View
                     // (этап L.2.22). Метка не escaping — вызывается сразу, в том же пересчёте body, поэтому значения всегда текущие
-                    PhotosPicker(selection: $item, matching: .images) { [busy, value] in Text(busy ? "Загружаю…" : value.isEmpty ? "Загрузить фото" : "Заменить фото").font(Theme.font(14, .medium)).foregroundStyle(Theme.text) }
-                    if !value.isEmpty { Button("Убрать") { value = "" }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
+                    PhotosPicker(selection: $item, matching: .images) { [busy = upload.busy, value] in Text(busy ? "Загружаю…" : value.isEmpty ? "Загрузить фото" : "Заменить фото").font(Theme.font(14, .medium)).foregroundStyle(Theme.text) }
+                    // «Убрать» — новое действие: начатая загрузка устаревает и своё фото в поле уже не запишет (этап L.2.27)
+                    if !value.isEmpty { Button("Убрать") { upload.cancel(); value = "" }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
                 }
                 Spacer()
             }
         }
-        .onChange(of: item) { it in Task { await upload(it) } }
+        .onChange(of: item) { it in
+            guard let it else { return }
+            item = nil   // выбор принят; следующий выбор (и то же фото ещё раз) — новое действие
+            upload.start({ () async throws -> String in
+                let jpeg = try await ImageKit.jpeg(try await ImageKit.load(it))
+                try Task.checkCancellation()   // за время обработки выбрали другое фото или нажали «Убрать» — на сервер не отправляем
+                return try await API.shared.upload(jpeg)
+            }, apply: { value = $0 }, fail: { Toast.shared.show($0.userMessage) })
+        }
     }
-    private func upload(_ it: PhotosPickerItem?) async {
-        guard let it else { return }
-        busy = true; defer { busy = false; item = nil }
-        do { value = try await API.shared.upload(try await ImageKit.jpeg(try await ImageKit.load(it))) } catch { Toast.shared.show(error.userMessage) }
+}
+
+/// Загрузка фото в одно поле панели — фото (ImageField) или логотип (LogoSlot) (этапы L.2.26, L.2.27). Актуально только
+/// последнее действие пользователя — новое фото или «Убрать»: прежняя загрузка отменяется, а её результат, ошибка и сброс
+/// «Загружаю…» больше не применяются, даже если она дойдёт до конца (обработка фото отмену не проверяет, а ответ сервера
+/// мог прийти раньше отмены). Отмена и проверка «не отменена ли» — на главном акторе, без промежутка между проверкой
+/// и записью результата. Отмена не отзывает файл, уже принятый сервером: он просто не попадает в форму, а форма уходит
+/// на сервер только кнопкой «Сохранить»
+@MainActor final class PhotoUpload: ObservableObject {
+    @Published private(set) var busy = false
+    private var task: Task<Void, Never>?
+    /// work — получить, обработать и отправить фото (тяжёлая часть — вне главного актора: ImageKit.jpeg, LogoKit.process);
+    /// apply — записать результат, fail — показать ошибку. Оба — только для актуальной загрузки
+    func start<T>(_ work: @escaping @MainActor () async throws -> T, apply: @escaping @MainActor (T) -> Void, fail: @escaping @MainActor (any Error) -> Void) {
+        task?.cancel()
+        busy = true
+        task = Task {
+            do {
+                let r = try await work()
+                guard !Task.isCancelled else { return }
+                apply(r)
+            } catch {
+                guard !Task.isCancelled else { return }
+                fail(error)
+            }
+            self.busy = false; self.task = nil
+        }
     }
+    /// «Убрать»: начатая загрузка устарела
+    func cancel() { task?.cancel(); task = nil; busy = false }
 }
 
 enum ImageKit {

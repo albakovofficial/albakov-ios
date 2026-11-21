@@ -337,7 +337,7 @@ private struct LogoSlot: View {
     let removeBg: Bool, recolor: Bool
     let set: ([String: Any]?) -> Void
     @State private var item: PhotosPickerItem?
-    @StateObject private var upload = LogoUpload()
+    @StateObject private var upload = PhotoUpload()
     var body: some View {
         HStack(spacing: 12) {
             Group { if src.isEmpty { Text("Не загружен").font(Theme.font(11)).foregroundStyle(.white.opacity(0.6)) } else { RemoteImage(path: src, contentMode: .fit).padding(8) } }
@@ -366,35 +366,6 @@ private struct LogoSlot: View {
             }, fail: { Toast.shared.show($0.userMessage) })
         }
     }
-}
-
-/// Загрузка в одно место логотипа (этап L.2.26). Актуально только последнее действие пользователя — новое фото или
-/// «Убрать»: прежняя загрузка отменяется, а её результат, ошибка и сброс «Загружаю…» больше не применяются, даже если
-/// она дойдёт до конца (LogoKit.process отмену не проверяет, а ответ сервера мог прийти раньше отмены). Отмена и проверка
-/// «не отменена ли» — на главном акторе, без промежутка между проверкой и записью результата. Отмена не отзывает файл,
-/// уже принятый сервером: он просто не попадает в настройки (их сохраняет кнопка «Сохранить»)
-@MainActor final class LogoUpload: ObservableObject {
-    @Published private(set) var busy = false
-    private var task: Task<Void, Never>?
-    /// work — получить, обработать и отправить фото (тяжёлая часть — вне главного актора, в LogoKit.process);
-    /// apply — записать результат, fail — показать ошибку. Оба — только для актуальной загрузки
-    func start<T>(_ work: @escaping @MainActor () async throws -> T, apply: @escaping @MainActor (T) -> Void, fail: @escaping @MainActor (any Error) -> Void) {
-        task?.cancel()
-        busy = true
-        task = Task {
-            do {
-                let r = try await work()
-                guard !Task.isCancelled else { return }
-                apply(r)
-            } catch {
-                guard !Task.isCancelled else { return }
-                fail(error)
-            }
-            self.busy = false; self.task = nil
-        }
-    }
-    /// «Убрать»: начатая загрузка устарела
-    func cancel() { task?.cancel(); task = nil; busy = false }
 }
 
 /// Обработка логотипа как processLogo на сайте: однотонный фон → прозрачный, цвет → светлый #ece6dc, обрезка пустых полей
