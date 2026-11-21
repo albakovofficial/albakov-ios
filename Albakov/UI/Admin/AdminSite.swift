@@ -353,6 +353,9 @@ private struct LogoSlot: View {
                 }
             }
         }
+        // пока логотип грузится, «Сохранить» недоступна (этап L.2.29, как ImageField в L.2.28): иначе сохранился бы прежний
+        // логотип, а новый появился бы уже после «Логотип сохранён». busy гаснет в одном шаге с записью логотипа
+        .preference(key: PhotoUploadingKey.self, value: upload.busy)
         .onChange(of: item) { it in
             guard let it else { return }
             item = nil   // выбор принят; следующий выбор (и то же фото ещё раз) — новое действие

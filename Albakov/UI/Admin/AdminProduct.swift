@@ -242,7 +242,7 @@ struct ColorPhotos: View {
     /// выбранных у цвета оставалось только последнее, остальные лежали на сервере ни к чему не привязанными (аудит M-1)
     let add: (String) -> Void
     @State private var picks: [PhotosPickerItem] = []
-    @State private var busy = false
+    @StateObject private var uploads = PhotoBatchUpload()
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -259,22 +259,48 @@ struct ColorPhotos: View {
                 // Метка PhotosPicker в SDK — @Sendable, вложенный VStack наследует её неизолированность: в метку передаётся значение
                 // busy (Bool), а не вся View (этап L.2.24, как в L.2.22–L.2.23). Метка не escaping — вызывается сразу, в том же
                 // пересчёте body, поэтому значение всегда текущее
-                PhotosPicker(selection: $picks, maxSelectionCount: 10, matching: .images) { [busy] in
+                PhotosPicker(selection: $picks, maxSelectionCount: 10, matching: .images) { [busy = uploads.busy] in
                     VStack(spacing: 6) { if busy { ProgressView() } else { Image(systemName: "plus") }; Text("Фото этого цвета").font(Theme.font(10.5)).multilineTextAlignment(.center) }
                         .foregroundStyle(Theme.muted).frame(width: 78, height: 104).background(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                 }
             }
         }
-        .onChange(of: picks) { items in Task { await upload(items) } }
+        // пока фото цвета грузятся, «Сохранить» недоступна (этап L.2.29, как ImageField в L.2.28): иначе карточка товара
+        // сохранилась бы без них. busy держится, пока идёт хоть одна загрузка этого цвета
+        .preference(key: PhotoUploadingKey.self, value: uploads.busy)
+        .onChange(of: picks) { items in
+            guard !items.isEmpty else { return }
+            // выбор принят сразу: следующий выбор во время загрузки — новые фото, а не этот же выбор ещё раз
+            // (раньше выбор очищался только в конце загрузки и открытый снова PhotosPicker показывал его отмеченным)
+            picks = []
+            uploads.start(items, { try await API.shared.upload(try await ImageKit.jpeg(try await ImageKit.load($0))) },
+                          add: { add($0) }, fail: { Toast.shared.show($0.userMessage) })
+        }
     }
     private func mini(_ i: String, _ a: @escaping () -> Void) -> some View {
         Button(action: a) { Image(systemName: i).font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.text).frame(width: 22, height: 22).background(Circle().fill(.white)) }.buttonStyle(.plain)
     }
-    private func upload(_ items: [PhotosPickerItem]) async {
+}
+
+/// Загрузка фото цвета (ColorPhotos, этап L.2.29). Выбранные фото загружаются по очереди и каждое добавляется к фото цвета,
+/// ошибка одного не останавливает остальные. Пока выбор не догрузился, можно выбрать ещё — это отдельная загрузка, она идёт
+/// параллельно и тоже добавляет фото (здесь все выбранные фото нужны, устаревших нет — не как в PhotoUpload). busy
+/// («Загружаю…» и блокировка «Сохранить») держится, пока идёт хоть одна: раньше один флаг на все загрузки, и конец первой
+/// гасил его, хотя вторая ещё шла. Последнее фото добавляется и счётчик уменьшается в одном шаге главного актора —
+/// «Сохранить» становится доступна, когда все фото уже в карточке
+@MainActor final class PhotoBatchUpload: ObservableObject {
+    @Published private(set) var running = 0
+    var busy: Bool { running > 0 }
+    /// work — получить, обработать и отправить одно фото (тяжёлая часть — вне главного актора, в ImageKit.jpeg);
+    /// add — добавить загруженное, fail — показать ошибку этого фото
+    func start<T: Sendable>(_ items: [T], _ work: @escaping @MainActor (T) async throws -> String, add: @escaping @MainActor (String) -> Void, fail: @escaping @MainActor (any Error) -> Void) {
         guard !items.isEmpty else { return }
-        busy = true; defer { busy = false; picks = [] }
-        for it in items {
-            do { add(try await API.shared.upload(try await ImageKit.jpeg(try await ImageKit.load(it)))) } catch { Toast.shared.show(error.userMessage) }
+        running += 1
+        Task {
+            for it in items {
+                do { add(try await work(it)) } catch { fail(error) }
+            }
+            self.running -= 1
         }
     }
 }
