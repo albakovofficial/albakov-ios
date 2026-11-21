@@ -27,6 +27,10 @@ struct FDef {
 
 // MARK: - Изменяемый документ: словарь JSON с доступом по ключу
 
+/// Состояние формы панели: его создают и читают только экраны SwiftUI — на главном акторе (этап L.2.21). Замыкания
+/// Binding полей (в SDK — @isolated(any) @Sendable) создаются в методах Doc и наследуют их изоляцию, как и Binding в телах
+/// экранов: захватывается Sendable-ссылка на Doc главного актора, а само поле читать и менять можно только с главного актора
+@MainActor
 final class Doc: ObservableObject {
     @Published var v: [String: Any]
     init(_ v: [String: Any]) { self.v = v }

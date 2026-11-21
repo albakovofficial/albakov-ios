@@ -173,7 +173,9 @@ final class FinanceValuesTests: XCTestCase {
         XCTAssertEqual(FinanceCosts.value(JSON(NSNumber(value: 12345.67)).numberText) as? Double, 12345.67, "Сохранение без правки меняет сумму")
     }
 
-    /// Числовое поле панели (налог, ставки, цены): огромное или бесконечное число не роняет приложение (Int(1e19) — падение)
+    /// Числовое поле панели (налог, ставки, цены): огромное или бесконечное число не роняет приложение (Int(1e19) — падение).
+    /// Doc и его поля — на главном акторе, как и экраны панели (этап L.2.21)
+    @MainActor
     func test06_NumberFieldHugeValueNoCrash() {
         let doc = Doc([:]), field = doc.number("taxRate")
         field.wrappedValue = "9999999999999999999"
