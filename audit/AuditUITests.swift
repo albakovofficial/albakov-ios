@@ -1,28 +1,35 @@
 import XCTest
 import UIKit
 import Network
+import os
 
 /// Аудит приложения на GitHub (только проверка, в приложение не входит).
 /// Приложение собрано в Debug и ходит в копию магазина на этом же Mac (через посредника ci/audit-proxy.js),
 /// поэтому заказы настоящие, но боевого сайта они не касаются. Каждый шаг — снимок экрана во вложениях.
+/// Класс — на главном акторе: тесты работают с XCUIApplication и XCUIElement, а они в SDK изолированы на главном акторе
+/// (XCTest и так вызывает синхронные тесты на главном потоке). Вне главного актора — только то, что интерфейса не касается:
+/// setUp/tearDown (так они объявлены в XCTestCase) и HTTP к посреднику (этап L.2.15)
+@MainActor
 final class AuditUITests: XCTestCase {
     var app: XCUIApplication!
 
-    override func setUp() { continueAfterFailure = true }
-    override func tearDown() { ctl("on?scope=all") }
+    nonisolated override func setUp() { continueAfterFailure = true }
+    nonisolated override func tearDown() { ctl("on?scope=all") }
 
     // MARK: - помощники
 
-    /// HTTP к посреднику напрямую через сокет (Network.framework): правила ATS на него не действуют
+    /// HTTP к посреднику напрямую через сокет (Network.framework): правила ATS на него не действуют.
+    /// Тест ждёт ответа, держа свой поток на семафоре, поэтому обработчики соединения идут на очереди .global(), а не через
+    /// главный актор (там они ждали бы освобождения главного потока, который ждёт их). Ответ они дописывают под замком
     @discardableResult
-    func http(_ path: String) -> [String: Any] {
+    nonisolated func http(_ path: String) -> [String: Any] {
         var out: [String: Any] = [:]
         let sem = DispatchSemaphore(value: 0)
         let conn = NWConnection(host: "127.0.0.1", port: 3998, using: .tcp)
-        var buf = Data()
-        func receive() {
+        let received = OSAllocatedUnfairLock(initialState: Data())
+        @Sendable func receive() {
             conn.receive(minimumIncompleteLength: 1, maximumLength: 65536) { d, _, done, err in
-                if let d { buf.append(d) }
+                if let d { received.withLock { $0.append(d) } }
                 if done || err != nil { conn.cancel(); sem.signal() } else { receive() }
             }
         }
@@ -36,6 +43,7 @@ final class AuditUITests: XCTestCase {
         }
         conn.start(queue: .global())
         _ = sem.wait(timeout: .now() + 20)
+        let buf = received.withLock { $0 }
         if let r = buf.range(of: Data("\r\n\r\n".utf8)) {
             // посредник передаёт заголовки магазина: большие ответы (витрина) идут частями — chunked (этап J)
             let chunked = String(decoding: buf[..<r.lowerBound], as: UTF8.self).lowercased().contains("transfer-encoding: chunked")
@@ -45,7 +53,7 @@ final class AuditUITests: XCTestCase {
         return out
     }
     /// Тело ответа, переданного частями: «размер в hex\r\nданные\r\n» … «0\r\n\r\n»
-    func dechunk(_ d: Data) -> Data {
+    nonisolated func dechunk(_ d: Data) -> Data {
         var out = Data(), i = d.startIndex
         let crlf = Data("\r\n".utf8)
         while let r = d.range(of: crlf, in: i..<d.endIndex),
@@ -56,7 +64,7 @@ final class AuditUITests: XCTestCase {
         }
         return out
     }
-    @discardableResult func ctl(_ cmd: String) -> [String: Any] { http("/__ctl/" + cmd) }
+    @discardableResult nonisolated func ctl(_ cmd: String) -> [String: Any] { http("/__ctl/" + cmd) }
     func ordersFor(_ phone: String) -> Int { (ctl("stats?phone=" + phone)["orders"] as? Int) ?? -1 }
 
     func launch(_ screen: String, fresh: Bool = false) {
@@ -421,16 +429,16 @@ final class AuditUITests: XCTestCase {
         // признак «без года» должен различать снимки: если года нет ни в одной подписи, свои от стандартных не отличить —
         // молча взять первые попавшиеся значило бы проверять не те фото
         guard all.contains(where: { $0.label.range(of: year, options: .regularExpression) != nil }) else {
-            XCTFail("\(step): по подписям не отличить снимки audit.yml от стандартных: " + all.map(\.label).joined(separator: " | ")); return false
+            XCTFail("\(step): по подписям не отличить снимки audit.yml от стандартных: " + all.map { $0.label }.joined(separator: " | ")); return false
         }
         let usable = Array(ours(all).filter { $0.frame.minY >= 0 && $0.frame.maxY <= barTop }.prefix(n))
-        note("\(step): снимков в окне \(all.count), своих \(ours(all).count), нижняя панель с \(Int(barTop)) pt; выбираем: " + usable.map(\.label).joined(separator: " | "))
-        guard usable.count == n else { XCTFail("\(step): в окне выбора видно своих снимков \(usable.count) из \(n); подписи: " + all.map(\.label).joined(separator: " | ")); return false }
+        note("\(step): снимков в окне \(all.count), своих \(ours(all).count), нижняя панель с \(Int(barTop)) pt; выбираем: " + usable.map { $0.label }.joined(separator: " | "))
+        guard usable.count == n else { XCTFail("\(step): в окне выбора видно своих снимков \(usable.count) из \(n); подписи: " + all.map { $0.label }.joined(separator: " | ")); return false }
         let origin = app.coordinate(withNormalizedOffset: .zero)
         for c in usable { origin.withOffset(CGVector(dx: c.frame.midX, dy: c.frame.midY)).tap(); usleep(400_000) }
-        let marked = cells().filter(\.isSelected), selected = marked.count
+        let marked = cells().filter { $0.isSelected }, selected = marked.count
         // где отметки видны — все отмеченные должны быть своими (сетка могла сдвинуться после первого нажатия)
-        guard ours(marked).count == marked.count else { XCTFail("\(step): отмечены не те снимки: " + marked.map(\.label).joined(separator: " | ")); return false }
+        guard ours(marked).count == marked.count else { XCTFail("\(step): отмечены не те снимки: " + marked.map { $0.label }.joined(separator: " | ")); return false }
         let counter = app.descendants(matching: .any).matching(NSPredicate(format: "label MATCHES %@",
             ".*(\\(\(n)\\)|[Вв]ыбран[оаы]*:? \(n)\\b|\\b\(n) (фото |снимк[аов]* )?выбран|[Ss]elected:? \(n)\\b|\\b\(n) ([Pp]hotos? )?[Ss]elected).*")).firstMatch
         let counted = selected == n || counter.exists
