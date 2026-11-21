@@ -16,12 +16,21 @@ enum AgeCheck {
     static func needed() async -> Bool {
         if UserDefaults.standard.bool(forKey: adultKey) { return false }
         #if canImport(DeclaredAgeRange)
-        if #available(iOS 26.2, *) {
-            return (try? await AgeRangeService.shared.isEligibleForAgeFeatures) ?? false
-        }
+        if #available(iOS 26.2, *) { return await eligibleForAgeFeatures() }
         #endif
         return false
     }
+
+    #if canImport(DeclaredAgeRange)
+    /// Требует ли закон проверки возраста для этого человека (решает Apple). Ошибка сервиса (notAvailable и др.) — «не требует».
+    /// Неизолирована (этап L.2.12): свойство isEligibleForAgeFeatures в SDK неизолированное, а AgeRangeService в SDK
+    /// Xcode 26.3 не Sendable — сервис берётся и опрашивается здесь же, вне главного актора (пока NonisolatedNonsendingByDefault
+    /// выключен), через границу уходит только Bool
+    @available(iOS 26.2, *)
+    nonisolated private static func eligibleForAgeFeatures() async -> Bool {
+        (try? await AgeRangeService.shared.isEligibleForAgeFeatures) ?? false
+    }
+    #endif
 
     /// Системное окно Apple «Поделиться возрастной категорией». Узнаём только «до 18» или «18+».
     static func request() async -> Outcome {
