@@ -65,11 +65,18 @@ func translit(_ s: String) -> String {
 // MARK: - Запросы панели
 
 enum AdminAPI {
-    static func upsert(_ col: String, _ item: [String: Any]) async throws -> JSON {
-        try await API.shared.json("PUT", "admin/\(col)/\(item["id"] as? String ?? "")", body: ["value": item])
+    // upsert и saveSettings: элемент коллекции (из формы) и настройки сайта (из Admin) экраны панели собирают на главном
+    // акторе. Там же, до передачи в сеть, они записываются в тело запроса (RequestBody — JSON, Sendable): словарь
+    // [String: Any] не может уйти в неизолированный API (этап L.2.11). Словарь связан с состоянием главного актора — читать
+    // его можно только там, поэтому запись — одна, на главном потоке; это килобайты. Отправка и разбор ответа — вне главного
+    // потока, как раньше. api — для тестов (подставной сервер)
+    @MainActor static func upsert(_ col: String, _ item: [String: Any], api: API = .shared) async throws -> JSON {
+        try await api.json("PUT", "admin/\(col)/\(item["id"] as? String ?? "")", body: ["value": item])
+    }
+    @MainActor static func saveSettings(_ s: [String: Any], api: API = .shared) async throws {
+        _ = try await api.raw("PUT", "admin/settings", body: ["value": s])
     }
     static func delete(_ col: String, _ id: String) async throws { _ = try await API.shared.raw("DELETE", "admin/\(col)/\(id)") }
-    static func saveSettings(_ s: [String: Any]) async throws { _ = try await API.shared.raw("PUT", "admin/settings", body: ["value": s]) }
     static func post(_ path: String, _ body: RequestBody = [:]) async throws -> JSON { try await API.shared.json("POST", "admin/" + path, body: body) }
     /// После сохранения: свежие данные панели и витрины
     @MainActor static func reload() async { await Admin.shared.load(); await Shop.shared.refreshUser() }
