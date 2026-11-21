@@ -61,14 +61,17 @@ final class ImageKitMeasureTests: XCTestCase {
     }
     /// Пик памяти: опрос в фоне раз в 2 мс, пока идёт замеряемое
     private final class Peak: @unchecked Sendable { let lock = NSLock(); var value: Int64 = 0; var running = true }
-    private func sampling(_ body: () async throws -> Void) async rethrows -> Int64 {
+    /// Результат операции и пик памяти за время её выполнения. На главном акторе, как и вызывающие тесты (этап L.2.17):
+    /// замыкание и раньше шло на главном акторе, а тяжёлая обработка — вне его, в самом ImageKit.jpeg (Task.detached).
+    /// Память опрашивает свой фоновый поток; phys_footprint — память всего процесса, от потока замера не зависит
+    @MainActor private func sampling<T>(_ body: () async throws -> T) async rethrows -> (value: T, peak: Int64) {
         let peak = Peak(), base = Self.footprint()
         Thread {
             while peak.lock.withLock({ peak.running }) { let f = Self.footprint(); peak.lock.withLock { peak.value = max(peak.value, f) }; usleep(2000) }
         }.start()
         defer { peak.lock.withLock { peak.running = false } }
-        try await body()
-        return max(0, peak.lock.withLock { peak.value } - base)
+        let value = try await body()
+        return (value, max(0, peak.lock.withLock { peak.value } - base))
     }
     /// Пропорции те же: ориентация (стоя/лёжа) сохранена, короткая сторона — с точностью до пикселя (ImageIO округляет)
     private func sameShape(_ w: Int, _ h: Int, _ ow: Int, _ oh: Int) -> Bool {
@@ -85,9 +88,8 @@ final class ImageKitMeasureTests: XCTestCase {
         for (w, h) in [(4032, 3024), (8064, 6048)] {
             for t in [Texture.smooth, .grain, .noise] {
                 guard let src = autoreleasepool(invoking: { source(w, h, t) }) else { XCTFail("Не получилось создать исходник \(w)×\(h)"); continue }
-                var out = Data()
                 let t0 = Date()
-                let grow = try await sampling { out = try await ImageKit.jpeg(src) }
+                let (out, grow) = try await sampling { try await ImageKit.jpeg(src) }
                 let ms = Int(Date().timeIntervalSince(t0) * 1000)
                 let (ow, oh, _) = pixels(out)
                 log("DEF1 \(w)×\(h) \(t.rawValue): исходник \(mb(Int64(src.count))) МБ → \(ow)×\(oh) px, \(mb(Int64(out.count))) МБ, "
@@ -173,9 +175,10 @@ final class ImageKitMeasureTests: XCTestCase {
     func test05_TenPhotosMemory() async throws {
         guard let src = autoreleasepool(invoking: { source(8064, 6048, .grain) }) else { return XCTFail("Нет исходника") }
         let before = Self.footprint()
-        var sizes: [Int] = []
-        let grow = try await sampling {
-            for _ in 0..<10 { sizes.append(try await ImageKit.jpeg(src).count) }
+        let (sizes, grow) = try await sampling { () async throws -> [Int] in
+            var acc: [Int] = []
+            for _ in 0..<10 { acc.append(try await ImageKit.jpeg(src).count) }
+            return acc
         }
         let left = max(0, Self.footprint() - before)
         log("DEF1 десять снимков 48 Мп: пик памяти +\(mb(grow)) МБ, после обработки +\(mb(left)) МБ, файлы \(sizes.map { mb(Int64($0)) }.joined(separator: ", ")) МБ")
