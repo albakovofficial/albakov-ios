@@ -263,6 +263,7 @@ struct ColorPhotos: View {
                     VStack(spacing: 6) { if busy { ProgressView() } else { Image(systemName: "plus") }; Text("Фото этого цвета").font(Theme.font(10.5)).multilineTextAlignment(.center) }
                         .foregroundStyle(Theme.muted).frame(width: 78, height: 104).background(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                 }
+                .photoPickingLockedWhileSaving()
             }
         }
         // пока фото цвета грузятся, «Сохранить» недоступна (этап L.2.29, как ImageField в L.2.28): иначе карточка товара

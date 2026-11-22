@@ -348,6 +348,7 @@ private struct LogoSlot: View {
                     // Метка PhotosPicker в SDK — @Sendable: в неё передаётся значение busy (Bool), а не вся View (этап L.2.23,
                     // как в ImageField). Метка не escaping — вызывается сразу, в том же пересчёте body, поэтому значение всегда текущее
                     PhotosPicker(selection: $item, matching: .images) { [busy = upload.busy] in Text(busy ? "Загружаю…" : "Загрузить").font(Theme.font(13.5, .medium)).foregroundStyle(Theme.ink) }
+                        .photoPickingLockedWhileSaving()
                     // «Убрать» — новое действие: начатая загрузка устаревает и свой результат уже не запишет (этап L.2.26)
                     if !src.isEmpty { Button("Убрать") { upload.cancel(); set(nil) }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
                 }

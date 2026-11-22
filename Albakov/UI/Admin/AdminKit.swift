@@ -444,6 +444,7 @@ struct ImageField: View {
                     // Метка PhotosPicker в SDK — @Sendable: в неё передаются значения busy и value (Bool, String), а не вся View
                     // (этап L.2.22). Метка не escaping — вызывается сразу, в том же пересчёте body, поэтому значения всегда текущие
                     PhotosPicker(selection: $item, matching: .images) { [busy = upload.busy, value] in Text(busy ? "Загружаю…" : value.isEmpty ? "Загрузить фото" : "Заменить фото").font(Theme.font(14, .medium)).foregroundStyle(Theme.text) }
+                        .photoPickingLockedWhileSaving()
                     // «Убрать» — новое действие: начатая загрузка устаревает и своё фото в поле уже не запишет (этап L.2.27)
                     if !value.isEmpty { Button("Убрать") { upload.cancel(); value = "" }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
                 }
@@ -634,6 +635,27 @@ struct PhotoUploadingKey: PreferenceKey {
     static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() || value }
 }
 
+/// Форма сохраняется — AdminPage.busy, передаётся полям формы (этап L.2.30)
+private struct AdminSavingKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var adminSaving: Bool {
+        get { self[AdminSavingKey.self] }
+        set { self[AdminSavingKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Выбор фото недоступен, пока форма сохраняется (этап L.2.30): сохранение уже отправило копию формы, и фото,
+    /// выбранное в это время, в неё не попало бы — а экран после ответа сервера может закрыться или заменить форму
+    /// отправленной копией. После сохранения (успешного или нет) выбор снова доступен
+    func photoPickingLockedWhileSaving() -> some View { modifier(PhotoPickingLock()) }
+}
+
+private struct PhotoPickingLock: ViewModifier {
+    @Environment(\.adminSaving) private var saving
+    func body(content: Content) -> some View { content.disabled(saving) }
+}
+
 struct AdminPage<C: View>: View {
     let title: String
     var sub = ""
@@ -649,7 +671,7 @@ struct AdminPage<C: View>: View {
             VStack(alignment: .leading, spacing: 18) {
                 DotTitle(text: title, size: 30)
                 if !sub.isEmpty { Text(sub).font(Theme.font(14)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true) }
-                content()
+                content().environment(\.adminSaving, busy)
                 if let onSave {
                     ErrorText(text: error)
                     PrimaryButton(title: saveTitle ?? "Сохранить", busy: busy, disabled: uploading, action: onSave).padding(.top, 6)
