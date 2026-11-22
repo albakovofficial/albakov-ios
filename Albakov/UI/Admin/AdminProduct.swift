@@ -242,7 +242,13 @@ struct ColorPhotos: View {
     /// выбранных у цвета оставалось только последнее, остальные лежали на сервере ни к чему не привязанными (аудит M-1)
     let add: (String) -> Void
     @State private var picks: [PhotosPickerItem] = []
-    @StateObject private var uploads = PhotoBatchUpload()
+    @StateObject private var uploads: PhotoBatchUpload
+    /// uploads — только для тестов (этап L.2.34): чтобы показать плитку во время загрузки; экран передаёт images и add
+    init(images: Binding<[String]>, add: @escaping (String) -> Void, uploads: PhotoBatchUpload? = nil) {
+        _images = images
+        self.add = add
+        _uploads = StateObject(wrappedValue: uploads ?? PhotoBatchUpload())
+    }
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -259,13 +265,24 @@ struct ColorPhotos: View {
                 // Метка PhotosPicker в SDK — @Sendable, вложенный VStack наследует её неизолированность: в метку передаётся значение
                 // busy (Bool), а не вся View (этап L.2.24, как в L.2.22–L.2.23). Метка не escaping — вызывается сразу, в том же
                 // пересчёте body, поэтому значение всегда текущее
-                PhotosPicker(selection: $picks, maxSelectionCount: 10, matching: .images) { [busy = uploads.busy] in
-                    VStack(spacing: 6) { if busy { ProgressView() } else { Image(systemName: "plus") }; Text("Фото этого цвета").font(Theme.font(10.5)).multilineTextAlignment(.center) }
-                        .foregroundStyle(Theme.muted).frame(width: 78, height: 104).background(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                ZStack(alignment: .topTrailing) {
+                    PhotosPicker(selection: $picks, maxSelectionCount: 10, matching: .images) { [busy = uploads.busy] in
+                        VStack(spacing: 6) { if busy { ProgressView() } else { Image(systemName: "plus") }; Text("Фото этого цвета").font(Theme.font(10.5)).multilineTextAlignment(.center) }
+                            .foregroundStyle(Theme.muted).frame(width: 78, height: 104).background(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                    }
+                    .photoPickingLockedWhileSaving()
+                    // Во время загрузки — ✕ (как у фото): отменить незагруженные фото этого цвета, добавленные остаются (этап L.2.33).
+                    // Отдельная кнопка поверх плитки, а не часть PhotosPicker (этап L.2.34): VoiceOver видит её как «Отмена, кнопка»,
+                    // а нажатие в углу 44×44 pt отменяет загрузку, а не открывает галерею. Кружок прежний — 22 pt, отступ 4 pt.
+                    // Замок выбора фото (L.2.30) ✕ не нужен: во время сохранения закрыто всё содержимое формы (L.2.31)
+                    if uploads.busy {
+                        Button { uploads.cancel() } label: {
+                            miniCircle("xmark").padding(4).frame(width: 44, height: 44, alignment: .topTrailing).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Отмена")
+                    }
                 }
-                // во время загрузки — ✕ (как у фото): отменить незагруженные фото этого цвета, добавленные остаются (этап L.2.33)
-                .overlay(alignment: .topTrailing) { if uploads.busy { mini("xmark") { uploads.cancel() }.padding(4) } }
-                .photoPickingLockedWhileSaving()
             }
         }
         // пока фото цвета грузятся, «Сохранить» недоступна (этап L.2.29, как ImageField в L.2.28): иначе карточка товара
@@ -284,7 +301,11 @@ struct ColorPhotos: View {
         }
     }
     private func mini(_ i: String, _ a: @escaping () -> Void) -> some View {
-        Button(action: a) { Image(systemName: i).font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.text).frame(width: 22, height: 22).background(Circle().fill(.white)) }.buttonStyle(.plain)
+        Button(action: a) { miniCircle(i) }.buttonStyle(.plain)
+    }
+    /// Белый кружок 22 pt со значком — кнопки на фото цвета и ✕ отмены на плитке
+    private func miniCircle(_ i: String) -> some View {
+        Image(systemName: i).font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.text).frame(width: 22, height: 22).background(Circle().fill(.white))
     }
 }
 

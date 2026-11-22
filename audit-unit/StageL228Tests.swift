@@ -96,12 +96,12 @@ final class SaveDuringPhotoUploadTests: XCTestCase {
         XCTAssertEqual(doc.str("hero"), "old-hero.jpg"); XCTAssertEqual(doc.str("editorial"), "E.jpg"); XCTAssertEqual(shown, ["H"])
     }
 
-    /// «Убрать» во время загрузки: сохранить можно сразу, поле пустое, поздний ответ сервера его не меняет
+    /// «Отмена», затем «Убрать» во время загрузки (с L.2.33 — две кнопки по очереди): сохранить можно сразу, поле пустое, поздний ответ сервера его не меняет
     func test05_RemoveDuringUploadUnblocksSave() async throws {
         let hero = field()
         try await pick(hero, "hero", "A")
-        hero.cancel(); doc.text("hero").wrappedValue = ""   // как кнопка «Убрать» в ImageField
-        XCTAssertTrue(canSave([hero]), "После «Убрать» форму нельзя сохранить")
+        hero.cancel(); doc.text("hero").wrappedValue = ""   // как «Отмена», затем «Убрать» в ImageField
+        XCTAssertTrue(canSave([hero]), "После «Отмена» и «Убрать» форму нельзя сохранить")
         XCTAssertEqual(doc.str("hero"), "")
         try await answer("A")
         XCTAssertTrue(canSave([hero])); XCTAssertEqual(doc.str("hero"), "", "Поздний ответ вернул убранное фото"); XCTAssertEqual(shown, [])

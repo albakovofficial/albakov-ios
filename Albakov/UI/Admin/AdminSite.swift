@@ -364,7 +364,7 @@ private struct LogoSlot: View {
             item = nil   // выбор принят; следующий выбор (и то же фото ещё раз) — новое действие
             upload.start({ [removeBg, recolor] () async throws -> (src: String, w: Int, h: Int, note: String?) in
                 let r = try await LogoKit.process(try await ImageKit.load(it), removeBg: removeBg, recolor: recolor)
-                try Task.checkCancellation()   // за время обработки выбрали другое фото или нажали «Убрать» — на сервер не отправляем
+                try Task.checkCancellation()   // за время обработки выбрали другое фото или нажали «Отмена» — на сервер не отправляем
                 return (src: try await API.shared.upload(r.png, mime: "image/png"), w: r.w, h: r.h, note: r.note)
             }, apply: { r in
                 set(["src": r.src, "w": r.w, "h": r.h])

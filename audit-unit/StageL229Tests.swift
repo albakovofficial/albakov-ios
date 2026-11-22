@@ -99,12 +99,12 @@ final class SaveDuringLogoAndColorUploadTests: XCTestCase {
         XCTAssertTrue(canSave([mark.busy, word.busy])); XCTAssertEqual(brand["mark"], "M.jpg")
     }
 
-    /// 5. «Убрать» во время загрузки знака разблокирует сохранение; поздний ответ не возвращает убранный логотип
+    /// 5. «Отмена», затем «Убрать» во время загрузки знака (с L.2.33 — две кнопки по очереди) разблокирует сохранение; поздний ответ не возвращает убранный логотип
     func test03_LogoRemoveUnblocksSave() async throws {
         let mark = logoSlot()
         try await pickLogo(mark, "mark", "M")
-        mark.cancel(); brand["mark"] = ""   // как «Убрать» в LogoSlot: upload.cancel(), set(nil)
-        XCTAssertTrue(canSave([mark.busy]), "После «Убрать» форму нельзя сохранить")
+        mark.cancel(); brand["mark"] = ""   // как «Отмена» (upload.cancel()), затем «Убрать» (set(nil)) в LogoSlot
+        XCTAssertTrue(canSave([mark.busy]), "После «Отмена» и «Убрать» форму нельзя сохранить")
         try await answer("M")
         XCTAssertTrue(canSave([mark.busy])); XCTAssertEqual(brand["mark"], "", "Поздний ответ вернул убранный логотип"); XCTAssertEqual(shown, [])
     }

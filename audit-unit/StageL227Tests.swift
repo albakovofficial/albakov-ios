@@ -109,7 +109,7 @@ final class ImageFieldUploadTests: XCTestCase {
         XCTAssertEqual(shown, ["A"]); XCTAssertEqual(sent, []); XCTAssertEqual(value.wrappedValue, "old.jpg"); XCTAssertFalse(u.busy)
     }
 
-    /// «Убрать» во время загрузки (как кнопка в ImageField: upload.cancel(), затем пустое поле) — поле остаётся пустым,
+    /// «Отмена» и «Убрать» во время загрузки (с L.2.33 в ImageField это две кнопки по очереди: upload.cancel(), затем пустое поле) — поле остаётся пустым,
     /// ответ сервера фото не возвращает, ошибки нет; следующее фото загружается как обычно
     func test06_RemoveDuringUpload() async throws {
         let u = PhotoUpload()

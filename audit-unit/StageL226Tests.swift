@@ -2,7 +2,7 @@ import XCTest
 @testable import Albakov
 
 /// Этап L.2.26: загрузка логотипа в одно место (PhotoUpload, до L.2.27 — LogoUpload). Актуально только последнее действие —
-/// новое фото или «Убрать». Каждая «загрузка» здесь ждёт, пока тест её завершит (успехом или ошибкой), — порядок завершения
+/// новое фото, «Отмена» или «Убрать». Каждая «загрузка» здесь ждёт, пока тест её завершит (успехом или ошибкой), — порядок завершения
 /// задаёт тест, без пауз и таймингов. Проверяется, что устаревшая загрузка не перезаписывает новый выбор, не гасит
 /// «Загружаю…» актуальной, не показывает свою ошибку и отменяется (в LogoSlot отменённая загрузка после обработки
 /// на сервер не отправляется — Task.checkCancellation перед API.upload)
@@ -56,7 +56,7 @@ final class LogoUploadTests: XCTestCase {
         XCTAssertEqual(applied, ["B"], "Актуальная загрузка не записала результат"); XCTAssertFalse(u.busy)
     }
 
-    /// «Убрать» во время загрузки A: «Загружаю…» гаснет сразу, A отменена, её результат потом не возвращает логотип;
+    /// Отмена загрузки A (с L.2.33 — «Отмена», затем «Убрать»; до него — «Убрать» во время загрузки): «Загружаю…» гаснет сразу, A отменена, её результат потом не возвращает логотип;
     /// следующее фото загружается как обычно
     func test03_RemoveDuringUpload() async throws {
         let u = PhotoUpload()
@@ -81,7 +81,7 @@ final class LogoUploadTests: XCTestCase {
         XCTAssertEqual(applied, ["B"]); XCTAssertEqual(failed, []); XCTAssertFalse(u.busy)
     }
 
-    /// A, затем B; A завершилась; затем «Убрать» — отменяется именно B (устаревшая A не потеряла ссылку на неё),
+    /// A, затем B; A завершилась; затем отмена («Отмена», с L.2.33) — отменяется именно B (устаревшая A не потеряла ссылку на неё),
     /// результат B не записывается
     func test06_RemoveAfterStaleFinished() async throws {
         let u = PhotoUpload()
@@ -90,7 +90,7 @@ final class LogoUploadTests: XCTestCase {
         u.cancel()
         XCTAssertFalse(u.busy)
         try await finish("B")
-        XCTAssertEqual(applied, [], "«Убрать» не отменило актуальную загрузку"); XCTAssertEqual(cancelledAtEnd["B"], true); XCTAssertFalse(u.busy)
+        XCTAssertEqual(applied, [], "Отмена не отменила актуальную загрузку"); XCTAssertEqual(cancelledAtEnd["B"], true); XCTAssertFalse(u.busy)
     }
 
     /// Ошибка актуальной загрузки показывается, результат не записывается, «Загружаю…» гаснет
