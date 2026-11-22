@@ -10,14 +10,14 @@ s["targets"]["AlbakovAudit"] = {
   "sources" => [{ "path" => "audit" }],
   "dependencies" => [{ "target" => "Albakov" }],
   "settings" => { "base" => { "PRODUCT_BUNDLE_IDENTIFIER" => "ru.albakovofficial.audit", "GENERATE_INFOPLIST_FILE" => "YES",
-                              "TEST_TARGET_NAME" => "Albakov", "SWIFT_VERSION" => "5.0" } } }
+                              "TEST_TARGET_NAME" => "Albakov", "SWIFT_VERSION" => "6.0" } } }
 s["targets"]["AlbakovUnit"] = {
   "type" => "bundle.unit-test", "platform" => "iOS",
   "sources" => [{ "path" => "audit-unit" }],
   "dependencies" => [{ "target" => "Albakov" }],
   "settings" => { "base" => { "PRODUCT_BUNDLE_IDENTIFIER" => "ru.albakovofficial.unit", "GENERATE_INFOPLIST_FILE" => "YES",
                               "TEST_HOST" => "$(BUILT_PRODUCTS_DIR)/Albakov.app/Albakov", "BUNDLE_LOADER" => "$(TEST_HOST)",
-                              "SWIFT_VERSION" => "5.0" } } }
+                              "SWIFT_VERSION" => "6.0" } } }
 s["schemes"] = { "AlbakovAudit" => { "build" => { "targets" => { "Albakov" => "all", "AlbakovAudit" => ["test"], "AlbakovUnit" => ["test"] } },
                                      "test" => { "config" => "Debug", "targets" => ["AlbakovUnit", "AlbakovAudit"] } } }
 File.write("audit-project.yml", s.to_yaml)
