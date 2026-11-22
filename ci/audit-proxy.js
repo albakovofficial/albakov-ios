@@ -14,6 +14,15 @@
      прежний выбор приходит позже ответа на новый).
    GET /__ctl/uploads — фото, загруженные в панели (POST /api/admin/upload), по порядку: адрес на сервере, код ответа,
      размер JPEG в байтах, ширина и высота в пикселях, время загрузки (этап J: M-1 — лишние загрузки, DEF-1 — размеры).
+   hold — подходящие запросы (этап L.2.36: scope=admin/upload — загрузки фото панели) не уходят в магазин, пока тест их
+     не отпустит: GET /__ctl/held — { held: сколько держится сейчас, aborted: сколько из них приложение само оборвало,
+     received: сколько всего пришло в hold, abortedTotal: сколько всего оборвало приложение };
+     GET /__ctl/release?n=…&forward=1 — отпустить n первых удержанных (без n — все): forward=1 — отправить в магазин
+     (тело запроса уже получено целиком, поэтому и после обрыва приложением — так файл попадает на сервер «поздно»),
+     иначе — оборвать соединение. Любая смена режима (в том числе on из tearDown UI-тестов) обрывает все удержанные:
+     после теста, даже упавшего, ничего не уходит в магазин само. Таймеров у hold нет.
+     Обрыв приложением — событие close у ответа (res), пока ответ не отправлен и соединение не закрыл сам посредник.
+     Событие close у запроса (req) им не считается: в Node 16+ оно приходит сразу после получения тела запроса
    Запросы поддержки (/api/…support…) пишутся в журнал для диагностики фото (этап A.1): номер запроса посредника,
    метод, путь без параметров, размер тела, код ответа, время и текст ошибки магазина. Куки, токены, тело запроса
    (фото), имена файлов и личные данные не записываются. */
@@ -25,6 +34,8 @@ let seq = 0;                 // номер запроса посредника �
 const uploads = [];          // фото панели: { url, status, bytes, w, h, ms }
 let delayed = 0;             // сколько запросов задержал режим slow-once — тест проверяет, что задержка была
 let adminData = 0;           // сколько раз загружались данные панели (GET /api/admin/data)
+const held = [];             // удержанные режимом hold: { go, drop, aborted, own, path } — по порядку прихода
+let received = 0, abortedTotal = 0;   // hold: сколько всего пришло; сколько всего оборвало приложение
 /** Ширина и высота JPEG — из заголовка кадра (SOF0–SOF15, кроме DHT/JPG/DAC), без раскодирования */
 function jpegSize(b) {
   let i = 2;
@@ -46,6 +57,17 @@ http.createServer((req, res) => {
       const ids = [...created].filter(([, p]) => !ph || p === ph).map(([id]) => id);
       return res.end(JSON.stringify({ orders: ids.length, ids, delayed, adminData }));
     }
+    if (m === 'held') return res.end(JSON.stringify({ held: held.length, aborted: held.filter((h) => h.aborted).length, received, abortedTotal }));
+    if (m === 'release') {
+      const fwd = u.searchParams.get('forward') === '1';
+      const n = u.searchParams.has('n') ? Math.max(0, Number(u.searchParams.get('n')) || 0) : held.length;
+      const out = held.splice(0, n);
+      out.forEach((h) => (fwd ? h.go() : h.drop()));
+      console.log(new Date().toISOString(), 'отпущено', out.length, fwd ? 'в магазин' : 'с обрывом', '; держится', held.length);
+      return res.end(JSON.stringify({ released: out.length, forwarded: fwd, held: held.length }));
+    }
+    // новый режим: удержанные прежним hold обрываются — ничего не уходит в магазин после теста само
+    if (held.length) { const n = held.length; held.splice(0).forEach((h) => h.drop()); console.log(new Date().toISOString(), 'оборвано удержанных при смене режима:', n); }
     mode = m; scope = u.searchParams.get('scope') || 'orders'; ms = Number(u.searchParams.get('ms') || 0);
     console.log(new Date().toISOString(), 'режим', mode, scope, ms);
     return res.end('{"ok":true}');
@@ -95,6 +117,17 @@ http.createServer((req, res) => {
       r2.on('error', (e) => { logSupport(502, 'магазин недоступен: ' + e.code); res.writeHead(502); res.end(); });
       r2.end(body);
     };
+    if (hit && mode === 'hold') {
+      received++;
+      const h = { go, aborted: false, path: u.pathname, own: false };
+      // посредник сам закрывает соединение (release без forward, смена режима) — это не обрыв приложением
+      h.drop = () => { h.own = true; req.socket.destroy(); };
+      // приложение закрыло соединение, пока ответа ещё нет, — отмена загрузки (URLSession). Считается один раз
+      res.on('close', () => { if (!res.writableEnded && !h.own && !h.aborted) { h.aborted = true; abortedTotal++; console.log(new Date().toISOString(), 'приложение оборвало удержанный', h.path); } });
+      res.on('error', () => {});   // ответ в уже закрытое соединение (forward после обрыва) — не ошибка посредника
+      held.push(h); console.log(new Date().toISOString(), 'удержан', req.method, u.pathname, '; держится', held.length);
+      return;
+    }
     if (hit && mode === 'slow-once') { mode = 'on'; delayed++; console.log(new Date().toISOString(), 'задержка', ms, 'мс один раз:', req.method, u.pathname); setTimeout(go, ms); }
     else if (hit && mode === 'slow') setTimeout(go, ms); else go();
   });

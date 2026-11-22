@@ -1325,4 +1325,164 @@ final class AuditUITests: XCTestCase {
         // AdminViews.swift:99). Экран массовых изменений, загрузи он данные заново, дал бы вторую
         XCTAssertLessThanOrEqual(loads() - again, 1, "Повторно открытый экран снова загрузил данные панели (кроме главной)")
     }
+
+    // MARK: - 24. Этап L.2.36: отмена загрузки фото цвета — реальное нажатие на ✕ «Отмена» во время загрузки
+
+    /// Дождаться условия: проверка раз в 0,1 с до срока. Синхронизация — по состоянию посредника или экрана, срок —
+    /// только предел ожидания (тест падает с понятным текстом). Пауза между проверками — XCTWaiter (крутит цикл событий),
+    /// не sleep
+    func waitUntil(_ timeout: TimeInterval, _ ready: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while true {
+            if ready() { return true }
+            if Date() >= deadline { return false }
+            _ = XCTWaiter.wait(for: [XCTestExpectation(description: "опрос")], timeout: 0.1)
+        }
+    }
+    /// Удержанные посредником загрузки (режим hold): сейчас держится, из них оборвало приложение, всего пришло, всего оборвано
+    func held() -> (held: Int, aborted: Int, received: Int, abortedTotal: Int) {
+        let j = ctl("held")
+        return (j["held"] as? Int ?? -1, j["aborted"] as? Int ?? -1, j["received"] as? Int ?? -1, j["abortedTotal"] as? Int ?? -1)
+    }
+    /// Приметы окна выбора фото (как в pickPhotos): подписи его нижней панели и кнопки подтверждения выбора. В карточке
+    /// товара есть свои «Добавить» (строки списков) — поэтому сравнивается число примет до нажатия и после, а не их наличие
+    func photoPickerMarks() -> Int {
+        let bar = ["Выбрать фото", "Choose Photos", "Select Photos", "Показать выбранные", "Show Selected"]
+        return app.descendants(matching: .any).matching(NSPredicate(format: "label IN %@", bar)).count
+            + app.buttons.matching(NSPredicate(format: "label IN %@", ["Добавить", "Add", "Готово", "Done"])).count
+    }
+    /// Ряд фото цвета — горизонтальная лента: плитка в её конце может уйти за правый край экрана (у товара уже много фото).
+    /// Листаем ленту влево, пока элемент целиком не окажется на экране, — иначе нажатие по координате придётся мимо
+    func revealInRow(_ e: XCUIElement) -> Bool {
+        let screen = app.windows.firstMatch.frame.insetBy(dx: 4, dy: 0)
+        var n = 0
+        while e.exists && !screen.contains(e.frame) && n < 8 {
+            let y = e.frame.midY / max(app.frame.height, 1)
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: y)), to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: y))
+            from.press(forDuration: 0.05, thenDragTo: to)
+            n += 1
+        }
+        return e.exists && screen.contains(e.frame)
+    }
+    /// Кнопки «Отмена» на плитке «Фото этого цвета»
+    func cancelsOn(_ tile: XCUIElement) -> [XCUIElement] {
+        app.buttons.matching(NSPredicate(format: "label == 'Отмена'")).allElementsBoundByIndex.filter { $0.exists && $0.frame.intersects(tile.frame) }
+    }
+
+    /// Три фото цвета: первое загружается, второе посредник держит — нажатие на ✕ «Отмена» (в её зоне 44×44, но мимо
+    /// видимого кружка) отменяет загрузку, галерея не открывается, «Сохранить» снова доступна; приложение само обрывает
+    /// запрос второго фото, третье не отправляется; файл второго фото, дошедший до магазина поздно, к цвету не привязан.
+    /// Каждый шаг ждёт подтверждения посредника (hold, ci/audit-proxy.js) или экрана, а не времени. Режим hold снимает
+    /// tearDown (on?scope=all обрывает всё удержанное) — и при падении теста
+    func test24_ColorPhotosCancelUpload() {
+        signInOwner()
+        ctl("on?scope=all")
+        let before = colorImages("p1"), sent = uploads().count
+        ctl("hold?scope=admin/upload")
+        let h0 = held()   // счётчики посредника накопительные — дальше сравниваются приросты от этого состояния
+        XCTAssertEqual(h0.held, 0, "Посредник уже держит загрузки до начала теста")
+        launch("/admin?s=products&id=p1")
+        XCTAssertTrue(text("Цвета, фото и остатки").waitForExistence(timeout: 25), "Карточка товара не открылась")
+        let tile = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Фото этого цвета'")).firstMatch
+        scrollTo(tile)
+        guard tile.exists, revealInRow(tile) else { XCTFail("Нет плитки «Фото этого цвета» на экране: \(tile.frame)"); shot("24 нет плитки"); return }
+        tile.tap()
+        guard pickPhotos(3, "24") else { return }
+
+        // 1. Первое фото: посредник его держит → отпускаем в магазин → оно загружено до отмены
+        guard waitUntil(60, { self.held().held == 1 }) else { XCTFail("Запрос первого фото не дошёл до посредника: \(held())"); shot("24 нет первого запроса"); return }
+        let released = Date()
+        ctl("release?n=1&forward=1")
+        guard waitUntil(25, { self.uploads().count == sent + 1 }) else { XCTFail("Первое фото не загрузилось: \(uploads().dropFirst(sent))"); return }
+        let first = uploads()[sent]
+        XCTAssertEqual(first["status"] as? Int, 200, "Первое фото не принято магазином: \(first)")
+        let firstURL = first["url"] as? String ?? ""
+
+        // 2. Второе фото посредник держит — загрузка идёт, приложение ждёт ответа
+        guard waitUntil(60, { let h = self.held(); return h.held == 1 && h.received - h0.received == 2 }) else { XCTFail("Запрос второго фото не дошёл до посредника: \(held())"); shot("24 нет второго запроса"); return }
+        let heldAt = Date(), photoTime = heldAt.timeIntervalSince(released)   // ответ на первое фото + обработка второго на этой машине
+        XCTAssertEqual(held().aborted, 0, "Запрос второго фото оборван ещё до нажатия «Отмена»")
+        // первое фото добавилось в ленту — плитка сдвинулась вправо; листаем ленту, пока «Отмена» целиком не на экране
+        let shown = cancelsOn(tile).first.map { revealInRow($0) } ?? false
+        XCTAssertTrue(shown, "«Отмена» не удалось вывести на экран: \(cancelsOn(tile).first?.frame ?? .zero)")
+
+        // 3–5. «Отмена» видна, зона не меньше 44×44, в правом верхнем углу плитки; «Сохранить» недоступна
+        let cancels = cancelsOn(tile)
+        guard cancels.count == 1, let cancel = cancels.first else {
+            XCTFail("Во время загрузки на плитке не одна кнопка «Отмена», а \(cancels.count)"); shot("24 нет отмены"); return
+        }
+        let f = cancel.frame, t = tile.frame
+        note("24: «Отмена» \(f), плитка \(t), ответ на первое фото и обработка второго — \(Int(photoTime * 1000)) мс")
+        XCTAssertTrue(cancel.isHittable, "«Отмена» не нажимается")
+        XCTAssertGreaterThanOrEqual(f.width, 44, "Зона «Отмена» уже 44 pt: \(f)")
+        XCTAssertGreaterThanOrEqual(f.height, 44, "Зона «Отмена» ниже 44 pt: \(f)")
+        XCTAssertEqual(f.maxX, t.maxX, accuracy: 1.5, "«Отмена» не у правого края плитки: \(f) / \(t)")
+        XCTAssertEqual(f.minY, t.minY, accuracy: 1.5, "«Отмена» не у верхнего края плитки: \(f) / \(t)")
+        let save = button("Сохранить")
+        XCTAssertTrue(save.exists, "Нет кнопки «Сохранить»")
+        XCTAssertFalse(save.isEnabled, "Во время загрузки фото «Сохранить» доступна")
+        let marks = photoPickerMarks()   // приметы окна выбора до нажатия (свои «Добавить» карточки товара)
+
+        // 6. Нажатие в зоне «Отмена», но мимо видимого кружка: кружок 22 pt с отступом 4 pt от угла — центр в 15 pt от правого
+        // и верхнего краёв зоны, радиус 11 pt; точка — в 30 pt от краёв: внутри зоны, в ≈21 pt от центра кружка
+        let center = CGPoint(x: f.maxX - 15, y: f.minY + 15), point = CGPoint(x: f.maxX - 30, y: f.minY + 30)
+        let distance = hypot(point.x - center.x, point.y - center.y)
+        XCTAssertTrue(f.contains(point), "Точка нажатия \(point) вне зоны «Отмена» \(f)")
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(point), "Точка нажатия \(point) за краем экрана")
+        XCTAssertGreaterThan(distance, 11 + 4, "Точка нажатия \(point) слишком близко к кружку (\(distance) pt)")
+        // приложение ждёт ответа не дольше 25 с (URLSession), после — ошибка «нет связи» и следующее фото: нажимаем раньше,
+        // пока второе фото по-прежнему держится и не оборвано
+        let waited = Date().timeIntervalSince(heldAt)
+        XCTAssertLessThan(waited, 20, "От удержания второго фото до нажатия прошло \(Int(waited)) с — близко к 25 с ожидания приложения")
+        XCTAssertEqual(held().aborted, 0, "Запрос второго фото оборван до нажатия «Отмена» (истекло ожидание приложения?)")
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
+
+        // 7–9. Нажатие отменило загрузку: «Отмена» исчезла, галерея не открылась, плитка на месте, «Сохранить» доступна
+        XCTAssertTrue(waitUntil(10, { self.cancelsOn(tile).isEmpty }), "После нажатия «Отмена» осталась — загрузка не отменена")
+        // окно выбора открывается с анимацией (в отдельном процессе) — ждём его появления с запасом, его не должно быть
+        XCTAssertFalse(waitUntil(3, { self.photoPickerMarks() != marks }), "Нажатие в зоне «Отмена» открыло окно выбора фото")
+        XCTAssertTrue(tile.exists && tile.isHittable, "Плитка «Фото этого цвета» закрыта или пропала после нажатия")
+        XCTAssertTrue(waitUntil(10, { save.isEnabled }), "После отмены «Сохранить» недоступна")
+        shot("24 после отмены")
+
+        // 10. Посредник подтверждает: приложение само закрыло соединение второго фото (отмена URLSession)
+        XCTAssertTrue(waitUntil(10, { let h = self.held(); return h.aborted == 1 && h.abortedTotal - h0.abortedTotal == 1 }), "Посредник не видит обрыва запроса второго фото приложением: \(held())")
+        // 11. Третье фото не отправлено. Отменённая очередь в приложении останавливается на втором фото (модульные тесты
+        // L.2.33); снаружи её конец не виден, поэтому — ожидание запроса третьего фото с запасом: втрое дольше, чем на этой
+        // машине заняли ответ на первое фото и обработка второго, и не меньше 10 с. Запрос, если бы он был, посредник
+        // держал бы — received не пропустит его
+        let window = min(60, max(10, photoTime * 3))
+        XCTAssertFalse(waitUntil(window, { self.held().received - h0.received > 2 }), "После отмены приложение отправило третье фото: \(held())")
+        note("24: третьего запроса нет за \(Int(window)) с; посредник: \(held())")
+
+        // 12. Поздний файл: второе фото всё же доходит до магазина (тело запроса посредник уже получил) и остаётся там
+        // непривязанным. Ответ приложению не придёт — соединение закрыто, поэтому со стороны приложения привязать его нечем;
+        // проверяется итог на сервере: после сохранения карточки этого файла у цвета нет
+        ctl("release?forward=1")
+        guard waitUntil(25, { self.uploads().count == sent + 2 }) else { XCTFail("Поздний файл второго фото не дошёл до магазина: \(uploads().dropFirst(sent))"); return }
+        let lateURL = uploads()[sent + 1]["url"] as? String ?? ""
+        XCTAssertFalse(lateURL.isEmpty, "Магазин не вернул адрес позднего файла")
+        XCTAssertEqual(held().held, 0)
+
+        scrollTo(save)
+        guard save.exists, save.isEnabled else { XCTFail("«Сохранить» недоступна"); return }
+        save.tap()
+        guard waitUntil(30, { self.colorImages("p1") != before }) else { XCTFail("Товар не сохранился: \(colorImages("p1"))"); shot("24 не сохранён"); return }
+        let after = colorImages("p1")
+        shot("24 товар сохранён")
+        XCTAssertEqual(after, before + [firstURL], "У цвета не прежние фото и первое загруженное: было \(before), стало \(after)")
+        XCTAssertFalse(after.contains(lateURL), "Поздний файл отменённого второго фото привязан к цвету: \(lateURL)")
+
+        // 13. Повторно: экран товара открыт заново (данные панели загружаются снова) — новых загрузок от этого нет; данные
+        // цвета ещё раз прочитаны с сервера (/api/state) — позднего файла нет
+        launch("/admin?s=products&id=p1")
+        XCTAssertTrue(text("Цвета, фото и остатки").waitForExistence(timeout: 25), "Карточка товара не открылась повторно")
+        let again = colorImages("p1")
+        XCTAssertEqual(again, before + [firstURL], "После повторной загрузки у цвета другие фото: \(again)")
+        XCTAssertFalse(again.contains(lateURL), "После повторной загрузки поздний файл привязан к цвету")
+        XCTAssertEqual(uploads().count, sent + 2, "Появились лишние загрузки: \(uploads().dropFirst(sent))")
+        let h = held()
+        XCTAssertEqual(h.received - h0.received, 2, "Посредник получил не два запроса загрузки: \(h)")
+        XCTAssertEqual(h.held, 0)
+    }
 }
