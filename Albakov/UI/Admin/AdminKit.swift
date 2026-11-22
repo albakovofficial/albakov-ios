@@ -671,7 +671,11 @@ struct AdminPage<C: View>: View {
             VStack(alignment: .leading, spacing: 18) {
                 DotTitle(text: title, size: 30)
                 if !sub.isEmpty { Text(sub).font(Theme.font(14)).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true) }
-                content().environment(\.adminSaving, busy)
+                // пока форма сохраняется, её содержимое недоступно (этап L.2.31): сохранение уже отправило копию формы, и правка
+                // в это время в неё не попала бы — а после ответа сервера экран может закрыться или заменить форму отправленной
+                // копией. Закрыто только содержимое: «Сохранить» с индикатором, прокрутка, «Назад» и кнопки панели навигации
+                // снаружи и работают как раньше. После сохранения (успешного или нет) busy = false — всё снова доступно
+                content().environment(\.adminSaving, busy).disabled(busy)
                 if let onSave {
                     ErrorText(text: error)
                     PrimaryButton(title: saveTitle ?? "Сохранить", busy: busy, disabled: uploading, action: onSave).padding(.top, 6)
@@ -679,6 +683,11 @@ struct AdminPage<C: View>: View {
             }.padding(Theme.gutter).padding(.bottom, 40)
         }
         .onPreferenceChange(PhotoUploadingKey.self) { uploading = $0 }
+        // началось сохранение — поле, в котором открыта клавиатура, отпускает её (этап L.2.31): иначе ввод в недоступное
+        // поле мог бы продолжиться и пропасть. Копия формы для сервера к этому моменту уже снята — набранное в неё попало
+        .onChange(of: busy) { saving in
+            if saving { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        }
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
     }

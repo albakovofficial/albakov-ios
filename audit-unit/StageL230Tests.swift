@@ -158,21 +158,21 @@ final class PhotoPickingDuringSaveTests: XCTestCase {
         _ = try await probes(colors, enabled: true)
     }
 
-    /// 7. Формы без фото не меняются: обычные поля во время сохранения остаются доступными, как раньше
-    func test07_FieldsWithoutPhotosUnaffected() async throws {
+    /// 7. Обычные поля: с этапа L.2.31 во время сохранения закрыто всё содержимое формы (AdminPage .disabled(busy)),
+    /// не только выбор фото, — поля без фото тоже недоступны, а после сохранения снова доступны
+    func test07_FieldsWithoutPhotosLockedToo() async throws {
         defer { hide() }
         let form = SaveForm()
         try show(form, photos: [], plain: ["name", "price"])
         _ = try await probes(["name", "price"], enabled: true)
         try await startSave(form)
-        // свидетель: поле формы уже отрисовано с «идёт сохранение» — значит, и обычные поля получили это состояние
         let rendered = try await until { SavingWitness.seen.last == true }
         XCTAssertTrue(rendered, "Форма не перерисовалась с сохранением")
-        XCTAssertEqual(PickerProbe.enabled["name"], true, "Сохранение закрыло поле без фото")
-        XCTAssertEqual(PickerProbe.enabled["price"], true)
+        let locked = try await probes(["name", "price"], enabled: false)
+        XCTAssertTrue(locked, "Во время сохранения поле без фото доступно: \(PickerProbe.enabled)")
         try answer()
-        _ = try await until { SavingWitness.seen.last == false }
-        XCTAssertEqual(PickerProbe.enabled["name"], true)
+        let unlocked = try await probes(["name", "price"], enabled: true)
+        XCTAssertTrue(unlocked, "После сохранения поле без фото недоступно: \(PickerProbe.enabled)")
     }
 }
 
