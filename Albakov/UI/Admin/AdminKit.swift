@@ -445,8 +445,10 @@ struct ImageField: View {
                     // (этап L.2.22). Метка не escaping — вызывается сразу, в том же пересчёте body, поэтому значения всегда текущие
                     PhotosPicker(selection: $item, matching: .images) { [busy = upload.busy, value] in Text(busy ? "Загружаю…" : value.isEmpty ? "Загрузить фото" : "Заменить фото").font(Theme.font(14, .medium)).foregroundStyle(Theme.text) }
                         .photoPickingLockedWhileSaving()
-                    // «Убрать» — новое действие: начатая загрузка устаревает и своё фото в поле уже не запишет (этап L.2.27)
-                    if !value.isEmpty { Button("Убрать") { upload.cancel(); value = "" }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
+                    // Во время загрузки — «Отмена» (этап L.2.33): загрузка отменяется, поле остаётся как было — с прежним фото
+                    // или пустым; поздний результат и ошибка в поле не попадают. Иначе — «Убрать» (этап L.2.27). Одна кнопка
+                    if upload.busy { Button("Отмена") { upload.cancel() }.font(Theme.font(13.5)).foregroundStyle(Theme.muted) }
+                    else if !value.isEmpty { Button("Убрать") { upload.cancel(); value = "" }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
                 }
                 Spacer()
             }
@@ -492,7 +494,7 @@ struct ImageField: View {
             self.busy = false; self.task = nil
         }
     }
-    /// «Убрать»: начатая загрузка устарела
+    /// «Отмена» или «Убрать»: начатая загрузка устарела
     func cancel() { task?.cancel(); task = nil; busy = false }
 }
 

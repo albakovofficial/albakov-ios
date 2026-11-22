@@ -349,8 +349,10 @@ private struct LogoSlot: View {
                     // как в ImageField). Метка не escaping — вызывается сразу, в том же пересчёте body, поэтому значение всегда текущее
                     PhotosPicker(selection: $item, matching: .images) { [busy = upload.busy] in Text(busy ? "Загружаю…" : "Загрузить").font(Theme.font(13.5, .medium)).foregroundStyle(Theme.ink) }
                         .photoPickingLockedWhileSaving()
-                    // «Убрать» — новое действие: начатая загрузка устаревает и свой результат уже не запишет (этап L.2.26)
-                    if !src.isEmpty { Button("Убрать") { upload.cancel(); set(nil) }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
+                    // Во время загрузки — «Отмена» (этап L.2.33): загрузка отменяется, место остаётся как было — с прежним
+                    // логотипом или пустым; поздний результат и ошибка не применяются. Иначе — «Убрать» (этап L.2.26). Одна кнопка
+                    if upload.busy { Button("Отмена") { upload.cancel() }.font(Theme.font(13.5)).foregroundStyle(Theme.muted) }
+                    else if !src.isEmpty { Button("Убрать") { upload.cancel(); set(nil) }.font(Theme.font(13.5)).foregroundStyle(Theme.danger) }
                 }
             }
         }

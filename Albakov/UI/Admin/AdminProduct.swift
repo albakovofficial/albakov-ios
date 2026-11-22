@@ -263,6 +263,8 @@ struct ColorPhotos: View {
                     VStack(spacing: 6) { if busy { ProgressView() } else { Image(systemName: "plus") }; Text("Фото этого цвета").font(Theme.font(10.5)).multilineTextAlignment(.center) }
                         .foregroundStyle(Theme.muted).frame(width: 78, height: 104).background(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                 }
+                // во время загрузки — ✕ (как у фото): отменить незагруженные фото этого цвета, добавленные остаются (этап L.2.33)
+                .overlay(alignment: .topTrailing) { if uploads.busy { mini("xmark") { uploads.cancel() }.padding(4) } }
                 .photoPickingLockedWhileSaving()
             }
         }
@@ -274,8 +276,11 @@ struct ColorPhotos: View {
             // выбор принят сразу: следующий выбор во время загрузки — новые фото, а не этот же выбор ещё раз
             // (раньше выбор очищался только в конце загрузки и открытый снова PhotosPicker показывал его отмеченным)
             picks = []
-            uploads.start(items, { try await API.shared.upload(try await ImageKit.jpeg(try await ImageKit.load($0))) },
-                          add: { add($0) }, fail: { Toast.shared.show($0.userMessage) })
+            uploads.start(items, { (item: PhotosPickerItem) async throws -> String in
+                let jpeg = try await ImageKit.jpeg(try await ImageKit.load(item))
+                try Task.checkCancellation()   // нажали ✕, пока фото готовилось, — на сервер не отправляем (этап L.2.33)
+                return try await API.shared.upload(jpeg)
+            }, add: { add($0) }, fail: { Toast.shared.show($0.userMessage) })
         }
     }
     private func mini(_ i: String, _ a: @escaping () -> Void) -> some View {
@@ -292,17 +297,39 @@ struct ColorPhotos: View {
 @MainActor final class PhotoBatchUpload: ObservableObject {
     @Published private(set) var running = 0
     var busy: Bool { running > 0 }
+    /// Идущие загрузки (выборы) по номеру — чтобы ✕ мог их отменить (этап L.2.33). Номер не повторяется, и счётчик
+    /// уменьшает только та задача, которая сама нашла себя здесь: отменённая задача, доработав, себя уже не найдёт
+    /// и не уменьшит счётчик новой загрузки, начатой после отмены
+    private var tasks: [Int: Task<Void, Never>] = [:]
+    private var nextID = 0
     /// work — получить, обработать и отправить одно фото (тяжёлая часть — вне главного актора, в ImageKit.jpeg);
     /// add — добавить загруженное, fail — показать ошибку этого фото
     func start<T: Sendable>(_ items: [T], _ work: @escaping @MainActor (T) async throws -> String, add: @escaping @MainActor (String) -> Void, fail: @escaping @MainActor (any Error) -> Void) {
         guard !items.isEmpty else { return }
+        let id = nextID; nextID += 1
         running += 1
-        Task {
+        tasks[id] = Task {
             for it in items {
-                do { add(try await work(it)) } catch { fail(error) }
+                if Task.isCancelled { break }   // отменили — оставшиеся фото выбора не загружаем
+                do {
+                    let url = try await work(it)
+                    if Task.isCancelled { break }   // отменили, пока фото грузилось, — не добавляем
+                    add(url)
+                } catch {
+                    if Task.isCancelled { break }   // отмена — не ошибка, и поздняя ошибка отменённой загрузки не показывается
+                    fail(error)
+                }
             }
-            self.running -= 1
+            if self.tasks.removeValue(forKey: id) != nil { self.running -= 1 }
         }
+    }
+    /// ✕ на плитке «Фото этого цвета»: все незавершённые загрузки этого цвета отменяются, busy гаснет сразу. Уже добавленные
+    /// фото остаются; фото, которое грузилось, и фото в очереди не добавляются (отправленное до отмены может остаться
+    /// на сервере непривязанным — API его не удаляет)
+    func cancel() {
+        for t in tasks.values { t.cancel() }
+        tasks = [:]
+        running = 0
     }
 }
 
