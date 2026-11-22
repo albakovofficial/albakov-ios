@@ -129,10 +129,22 @@ enum AdminSections {
                        FDef(k: "startsAt", label: "Начало", kind: .date), FDef(k: "endsAt", label: "Окончание", kind: .date, hint: "Пусто — без срока"),
                        FDef(k: "active", label: "Акция включена", kind: .bool)] },
             validate: { a, _ in
-                let v = (a["value"] as? NSNumber)?.doubleValue ?? 0
                 if (a["title"] as? String ?? "").isEmpty { return "Укажите название" }
-                if v == 0 { return "Укажите размер скидки" }
-                if a["type"] as? String == "percent" && v >= 100 { return "Процент должен быть меньше 100" }
+                // Не число из поля «Размер скидки» (NaN, бесконечность) раньше проходило часть сравнений (этап L.8.2, L8-01)
+                guard let v = (a["value"] as? NSNumber)?.doubleValue, v.isFinite, v != 0 else { return "Укажите размер скидки" }
+                if v < 0 { return "Скидка должна быть больше нуля" }
+                // Сервер (pricing.js) считает фиксированной только type == "fixed", остальное — процентом
+                if a["type"] as? String != "fixed" { return v < 100 ? "" : "Процент должен быть меньше 100" }
+                // Фиксированная сумма не меньше цены товара давала цену 0 ₽ (сервер обрезает её до нуля) — проверяется
+                // каждый товар, к которому акция применяется сейчас. Цена со скидкой — не меньше 1 ₽: дробный остаток
+                // (3990 − 3989,6 = 0,4) сайт показывает как 0 ₽. Без данных панели или цены товара проверить нельзя
+                let products = Admin.shared.data["products"]
+                guard products.raw is [Any] else { return "Не удалось проверить цены товаров — обновите панель и попробуйте ещё раз" }
+                let promo = Promotion(JSON(a))
+                for p in products.array.map(Product.init) where promo.applies(to: p) {
+                    if p.price <= 0 { return "У товара «\(p.name)» не указана цена — фиксированную скидку проверить нельзя" }
+                    if Double(p.price) - v < 1 { return "Скидка должна быть меньше цены каждого товара акции хотя бы на 1 ₽: «\(p.name)» стоит \(Fmt.rub(p.price))" }
+                }
                 return ""
             })
     }
