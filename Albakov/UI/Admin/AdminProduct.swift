@@ -651,7 +651,9 @@ struct ProductsBulkView: View {
             // кнопка недоступна: повторные нажатия на неё не дают параллельных запросов admin/data
             if let e = admin.error {
                 if admin.data.exists { ErrorRetry(text: e) { Task { await admin.load() } }.disabled(admin.loading) }
-                else { EmptyState.loadFailed(e) { Task { await admin.load() } }.disabled(admin.loading).listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden) }
+                // EmptyState сам отступает от краёв экрана на Theme.gutter, а строка списка уже стоит с отступами:
+                // без компенсации заголовок «Не удалось загрузить» не помещался (как в «Моих заказах», AccountViews)
+                else { EmptyState.loadFailed(e) { Task { await admin.load() } }.padding(.horizontal, -Theme.gutter).disabled(admin.loading).listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden) }
             }
             Section("Остатки в Excel") {
                 Text("Выгрузите остатки, поменяйте числа в Excel и загрузите файл обратно — сначала покажем, что изменится.").font(Theme.font(13)).foregroundStyle(Theme.muted)
