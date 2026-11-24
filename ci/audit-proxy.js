@@ -93,6 +93,9 @@ http.createServer((req, res) => {
         pr.on('data', (c) => out.push(c));
         pr.on('end', () => {
           const buf = Buffer.concat(out);
+          // Этап L.9, только ветка measure/audit-stage-l9: длительность и размер ответа admin/data (байты тела; магазин API не
+          // сжимает). Ни тела, ни параметров, ни заголовков — только числа
+          if (req.method === 'GET' && u.pathname === '/api/admin/data') console.log(new Date().toISOString(), 'L9 admin/data', buf.length, 'Б', (Date.now() - t0), 'мс');
           if (isOrder) {
             try { const j = JSON.parse(buf); if (j.ok && j.order) created.set(j.order.id, String((j.order.customer || {}).phone || '')); } catch (e) { /* не JSON */ }
             console.log(new Date().toISOString(), 'POST /api/orders →', pr.statusCode, buf.toString().slice(0, 160));

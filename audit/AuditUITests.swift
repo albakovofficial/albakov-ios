@@ -13,8 +13,8 @@ import os
 final class AuditUITests: XCTestCase {
     var app: XCUIApplication!
 
-    nonisolated override func setUp() { continueAfterFailure = true }
-    nonisolated override func tearDown() { ctl("on?scope=all") }
+    nonisolated override func setUp() { continueAfterFailure = true; l9mark(name, "start") }   // l9mark — замер L.9 (L9Measure.swift)
+    nonisolated override func tearDown() { ctl("on?scope=all"); l9mark(name, "end") }
 
     // MARK: - помощники
 
@@ -74,6 +74,7 @@ final class AuditUITests: XCTestCase {
         // передаём ему настройки отчётов, иначе его отчёты о гонках никуда не попадут
         if let t = ProcessInfo.processInfo.environment["TSAN_OPTIONS"] { app.launchEnvironment["TSAN_OPTIONS"] = t }
         app.launch()
+        l9mark(name, "launched")   // замер L.9: окно памяти теста — от его первого запуска приложения
         _ = app.wait(for: .runningForeground, timeout: 30)
         sleep(4)
     }
