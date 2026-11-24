@@ -124,7 +124,8 @@ final class API: Sendable {
         do { (data, resp) = try await session.data(for: req) }
         // «Нет связи» (APIError.offline): понятный текст, а на оформлении — подсказка «нажмите ещё раз, второго заказа не будет».
         // Кроме обрыва и недоступного сервера (L8-09, аудит IOS-12): сотовые данные выключены для приложения, роуминг выключен,
-        // защищённое соединение не установилось (нестабильная сеть, Wi-Fi со страницей входа), ответ есть только в сети, а её нет.
+        // защищённое соединение не установилось (нестабильная сеть, Wi-Fi со страницей входа), загрузка из сети запрещена
+        // правилом кэша (при нашей настройке не возникает, оставлен по аудиту IOS-12).
         // Недоверенный сертификат сервера (.serverCertificate…) — не связь: остаётся текст системы
         catch let e as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed,
                                        .dataNotAllowed, .internationalRoamingOff, .secureConnectionFailed, .cannotLoadFromNetwork].contains(e.code) { throw APIError.offline }

@@ -403,7 +403,9 @@ final class APIResponseTests: XCTestCase {
     }
 
     func test04_NetworkErrors() async {
-        let offline: [URLError.Code] = [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed]
+        // последние четыре до L8-09 давали текст системы, а оформление — не подсказку безопасного повтора
+        let offline: [URLError.Code] = [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed,
+                                        .dataNotAllowed, .internationalRoamingOff, .secureConnectionFailed, .cannotLoadFromNetwork]
         for code in offline {
             NetStub.reset { _, _ in .fail(code) }
             do {
@@ -415,7 +417,7 @@ final class APIResponseTests: XCTestCase {
             }
         }
         // остальные ошибки связи (например, сертификат) — как есть, с текстом системы. Прежде здесь была
-        // .secureConnectionFailed — это сбой соединения, теперь он «нет связи» (L8-09, StageL84Tests)
+        // .secureConnectionFailed — это сбой соединения, теперь он «нет связи» (L8-09, выше)
         NetStub.reset { _, _ in .fail(.serverCertificateUntrusted) }
         do {
             _ = try await api.raw("GET", "state"); XCTFail("нет ошибки")

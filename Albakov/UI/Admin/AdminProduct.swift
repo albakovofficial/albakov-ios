@@ -646,9 +646,9 @@ struct ProductsBulkView: View {
     var body: some View {
         let prods = admin.data["products"].array
         List {
-            // Данные панели не загрузились (L8-03): причина и «Повторить», а не пустой список «Выбрать все (0)».
+            // Данные панели не загрузились (L8-03): причина и «Повторить», а не список без товаров и без объяснения.
             // Данных нет — карточка ошибки; есть (не удалось обновить) — строка ошибки над ними. Пока загрузка идёт,
-            // кнопка недоступна: повторные нажатия не дают параллельных запросов admin/data
+            // кнопка недоступна: повторные нажатия на неё не дают параллельных запросов admin/data
             if let e = admin.error {
                 if admin.data.exists { ErrorRetry(text: e) { Task { await admin.load() } }.disabled(admin.loading) }
                 else { EmptyState.loadFailed(e) { Task { await admin.load() } }.disabled(admin.loading).listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden) }

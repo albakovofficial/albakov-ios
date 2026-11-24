@@ -1,35 +1,9 @@
 import XCTest
 @testable import Albakov
 
-/// Этап L.8.4: стабильность приложения.
-/// L8-09 — все виды «нет связи» дают APIError.offline (понятный текст и подсказка повтора на оформлении).
+/// Этап L.8.4: стабильность приложения. L8-09 (коды «нет связи») проверяет APIResponseTests.test04 (StageITests).
 /// L8-12 — выход и удаление аккаунта отменяют запланированную отправку корзины и избранного: после выхода она не уходит.
 /// Сеть не используется: ответы сервера подменяет NetStub (этап I)
-
-// MARK: - L8-09
-
-final class OfflineCodesTests: XCTestCase {
-    private let api = NetStub.api()
-
-    /// До L8-09 эти четыре ошибки URLSession показывали покупателю текст системы, а оформление — не подсказку повтора
-    func test01_MoreNoConnectionCodesAreOffline() async throws {
-        let codes: [URLError.Code] = [.dataNotAllowed, .internationalRoamingOff, .secureConnectionFailed, .cannotLoadFromNetwork]
-        for code in codes {
-            NetStub.reset { _, _ in .fail(code) }
-            do {
-                _ = try await api.raw("GET", "state"); XCTFail("\(code): нет ошибки")
-            } catch let e as APIError {
-                XCTAssertEqual(e.status, 0, "\(code)"); XCTAssertEqual(e.message, APIError.offline.message, "\(code)")
-            } catch {
-                XCTFail("\(code): ошибка не стала «нет связи» — \(error)")
-            }
-        }
-        // связь вернулась — тот же запрос проходит: «нет связи» не остаётся в состоянии API
-        NetStub.reset { _, _ in .json(["ok": true]) }
-        let d = try await api.raw("GET", "state")
-        XCTAssertFalse(d.isEmpty)
-    }
-}
 
 // MARK: - L8-12
 
@@ -125,8 +99,7 @@ final class LogoutSyncTests: XCTestCase {
             await shop.cartSync?.value
             XCTAssertEqual(puts(), ["me/cart"], "Неудачное удаление аккаунта отменило отправку корзины")
 
-            NetStub.reset { _, _ in .json(["ok": true]) }
-            NetStub.clearSeen()
+            NetStub.reset { _, _ in .json(["ok": true]) }   // и журнал запросов с чистого листа
             shop.toggleFavorite("p1")
             try await shop.deleteAccount(password: "1")
             await shop.cartSync?.value; await shop.favSync?.value
