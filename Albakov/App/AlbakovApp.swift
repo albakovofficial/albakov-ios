@@ -8,7 +8,10 @@ struct AlbakovApp: App {
     @StateObject private var router = Router.shared
     @StateObject private var shop = Shop.shared
 
-    init() { Theme.setupAppearance() }
+    init() {
+        Theme.setupAppearance()
+        OrderTokens.migrate()   // ключи гостевых заказов прежней версии — в список не длиннее 50 (L8-08)
+    }
 
     var body: some Scene {
         WindowGroup {
