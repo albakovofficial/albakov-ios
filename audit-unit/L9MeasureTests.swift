@@ -21,7 +21,10 @@ private struct L9Probe: View {
 /// история заказа, статусы и способы оплаты приложения, от старых к новым. Без картинок: экраны рисуют заглушки, сеть не
 /// нужна. Экраны — только те, что при наличии данных панели в сеть не ходят (AdminOverview, AdminOrdersView); главная
 /// панели (загрузка без условия) не показывается. Данные панели приложения-хоста возвращаются после теста.
-/// Итоги — строки «L9ORDERS …» в журнале. Сборка Debug и симулятор: смысл имеет рост с числом заказов, а не миллисекунды
+/// Итоги — строки «DEF1 L9ORDERS …»: префикс DEF1 ios.yml выводит в журнал прогона (этап J), артефакт отсюда недоступен.
+/// Сборка Debug и симулятор: смысл имеет рост с числом заказов, а не миллисекунды. Чтобы уложиться в лимит шага (30 мин,
+/// первый прогон 45472002218 его превысил), объём дальше не растёт, если медиана одного Admin.orders больше 1 с, а замер
+/// экранов останавливается после 8 мин — пропуск печатается
 @MainActor
 final class L9OrdersMeasureTests: XCTestCase {
     private let sizes = [10, 100, 500, 1000, 2000, 5000]
@@ -59,7 +62,7 @@ final class L9OrdersMeasureTests: XCTestCase {
         let s = v.sorted()
         return String(format: "median_ms=%.3f min_ms=%.3f max_ms=%.3f reps=%ld", s[s.count / 2], s.first ?? 0, s.last ?? 0, s.count)
     }
-    private func log(_ s: String) { print("L9ORDERS " + s) }
+    private func log(_ s: String) { print("DEF1 L9ORDERS " + s) }
 
     /// Одно обращение к Admin.orders и типичные обращения экранов: фильтр новых, поиск заказа по номеру (экран заказа)
     func test01_OrdersComputeTime() throws {
@@ -67,10 +70,11 @@ final class L9OrdersMeasureTests: XCTestCase {
         defer { admin.data = was }
         for n in sizes {
             admin.data = try parse(synthData(n))
-            _ = admin.orders   // прогрев
+            let warm = ms { _ = admin.orders }   // прогрев и проба
+            if warm > 3000 { log("compute n=\(n) skipped: одно вычисление \(Int(warm)) мс"); break }
             var one: [Double] = [], newOnes: [Double] = [], find: [Double] = []
             let id = admin.orders[n / 2].id
-            for _ in 0..<15 {
+            for _ in 0..<9 {
                 one.append(ms { _ = admin.orders.count })
                 newOnes.append(ms { _ = admin.orders.filter { $0.status == "new" }.count })
                 find.append(ms { _ = admin.orders.first { $0.id == id } })
@@ -78,6 +82,7 @@ final class L9OrdersMeasureTests: XCTestCase {
             log("compute n=\(n) what=orders \(stats(one))")
             log("compute n=\(n) what=filter_new \(stats(newOnes))")
             log("compute n=\(n) what=find_by_id \(stats(find))")
+            if one.sorted()[one.count / 2] > 1000 { log("compute: дальше n не растёт — медиана больше 1 с"); break }
         }
     }
 
@@ -99,12 +104,16 @@ final class L9OrdersMeasureTests: XCTestCase {
             ("overview", { AnyView(NavigationStack { AdminOverview().background(L9Probe()) }.environmentObject(Router())) }),
             ("orders_list", { AnyView(NavigationStack { AdminOrdersView().background(L9Probe()) }.environmentObject(Router())) }),
         ]
-        for n in sizes {
+        let start = Date()
+        sizes: for n in sizes {
             let raw = try synthData(n)
             admin.data = try parse(raw)
+            let probe = ms { _ = admin.orders }
+            if probe > 1000 { log("render n=\(n) skipped: одно Admin.orders \(Int(probe)) мс"); break }
             for (name, make) in screens {
+                if Date().timeIntervalSince(start) > 480 { log("render n=\(n) screen=\(name) skipped: замер экранов дольше 8 мин"); break sizes }
                 var first: [Double] = [], update: [Double] = [], caught = 0
-                for _ in 0..<5 {
+                for _ in 0..<3 {
                     w.rootViewController = nil; w.isHidden = true
                     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
                     first.append(ms {
@@ -122,7 +131,7 @@ final class L9OrdersMeasureTests: XCTestCase {
                     if L9Probe.count != c0 { caught += 1 }
                 }
                 log("render n=\(n) screen=\(name) phase=first \(stats(first))")
-                log("render n=\(n) screen=\(name) phase=update \(stats(update)) caught=\(caught)/5")
+                log("render n=\(n) screen=\(name) phase=update \(stats(update)) caught=\(caught)/3")
             }
         }
     }
