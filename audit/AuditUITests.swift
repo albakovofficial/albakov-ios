@@ -1003,6 +1003,37 @@ final class AuditUITests: XCTestCase {
         sleep(3)
         XCTAssertFalse(shipErr.exists, "После «Повторить» ошибка срока доставки осталась или вернулась")
         shot("16г срок доставки — после «Повторить»")
+        // д) массовые изменения по прямой ссылке (L8-03): раньше при сбое загрузки данных панели — пустой список
+        // «Выбрать все (0)» без причины и без повтора. Повтор, пока связи нет, ошибку не убирает; после восстановления —
+        // загружает товары. Второй запуск: то же через «потянуть вниз». Элементы ищутся заново после каждого запуска
+        func all() -> XCUIElement { app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Выбрать все ('")).firstMatch }
+        func goods() -> Int { Int(all().label.filter(\.isNumber)) ?? 0 }
+        ctl("off?scope=admin/data")
+        launch("/admin?s=productsBulk")
+        var bulkErr = text("Не удалось загрузить")
+        XCTAssertTrue(bulkErr.waitForExistence(timeout: 25), "Ошибка загрузки данных панели в массовых изменениях не показана")
+        shot("16д массовые изменения — нет связи")
+        tap("Повторить")
+        sleep(3)
+        XCTAssertTrue(bulkErr.exists, "Повтор без связи убрал ошибку, хотя данные не загрузились")
+        XCTAssertEqual(goods(), 0, "Без связи в массовых изменениях появились товары")
+        ctl("on?scope=all")
+        tap("Повторить")
+        XCTAssertTrue(waitGone(bulkErr, 20), "После «Повторить» ошибка массовых изменений не ушла")
+        XCTAssertTrue(all().waitForExistence(timeout: 10), "Список массовых изменений не показан")
+        XCTAssertGreaterThan(goods(), 0, "После «Повторить» товаров нет: \(all().label)")
+        shot("16д массовые изменения — после «Повторить»")
+        ctl("off?scope=admin/data")
+        launch("/admin?s=productsBulk")
+        bulkErr = text("Не удалось загрузить")
+        XCTAssertTrue(bulkErr.waitForExistence(timeout: 25), "Ошибка загрузки данных панели не показана (второй запуск)")
+        ctl("on?scope=all")
+        // потянуть вниз от строк списка, ниже карточки ошибки: нажатие на «Повторить» здесь не должно случиться
+        let w = app.windows.firstMatch
+        w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)).press(forDuration: 0.05, thenDragTo: w.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
+        XCTAssertTrue(waitGone(bulkErr, 20), "Потянуть вниз — ошибка массовых изменений не ушла")
+        XCTAssertGreaterThan(goods(), 0, "Потянуть вниз — товаров нет: \(all().label)")
+        shot("16д массовые изменения — после «потянуть вниз»")
         ctl("on?scope=all")
     }
 

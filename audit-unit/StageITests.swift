@@ -414,12 +414,13 @@ final class APIResponseTests: XCTestCase {
                 XCTFail("\(code): \(error)")
             }
         }
-        // остальные ошибки связи (например, сертификат) — как есть, с текстом системы
-        NetStub.reset { _, _ in .fail(.secureConnectionFailed) }
+        // остальные ошибки связи (например, сертификат) — как есть, с текстом системы. Прежде здесь была
+        // .secureConnectionFailed — это сбой соединения, теперь он «нет связи» (L8-09, StageL84Tests)
+        NetStub.reset { _, _ in .fail(.serverCertificateUntrusted) }
         do {
             _ = try await api.raw("GET", "state"); XCTFail("нет ошибки")
         } catch {
-            XCTAssertEqual((error as? URLError)?.code, .secureConnectionFailed); XCTAssertNotNil(error.userMessage)
+            XCTAssertEqual((error as? URLError)?.code, .serverCertificateUntrusted); XCTAssertNotNil(error.userMessage)
         }
     }
 
@@ -470,8 +471,9 @@ final class ShopStateTests: XCTestCase {
             shop.api = was.api   // отложенные отправки корзины уже взяли NetStub — на сервер не уходят
         }
         try await body()
-        // отложенная отправка из теста доходит до NetStub здесь, а не в следующем тесте: при выходе (user = nil)
-        // saveCart новую отправку не создаёт, а уже запланированную не отменяет (этап J.2)
+        // отложенная отправка из теста доходит до NetStub здесь, а не в следующем тесте: setUser(nil) без выхода
+        // (как в начале этого метода) новую отправку не создаёт, а уже запланированную не отменяет (этап J.2; выход
+        // и удаление аккаунта отменяют её сами — L8-12)
         await shop.cartSync?.value; await shop.favSync?.value
     }
 

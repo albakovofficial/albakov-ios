@@ -122,7 +122,12 @@ final class API: Sendable {
         let req = try request(method, path, body: body, query: query)
         let data: Data, resp: URLResponse
         do { (data, resp) = try await session.data(for: req) }
-        catch let e as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed].contains(e.code) { throw APIError.offline }
+        // «Нет связи» (APIError.offline): понятный текст, а на оформлении — подсказка «нажмите ещё раз, второго заказа не будет».
+        // Кроме обрыва и недоступного сервера (L8-09, аудит IOS-12): сотовые данные выключены для приложения, роуминг выключен,
+        // защищённое соединение не установилось (нестабильная сеть, Wi-Fi со страницей входа), ответ есть только в сети, а её нет.
+        // Недоверенный сертификат сервера (.serverCertificate…) — не связь: остаётся текст системы
+        catch let e as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed,
+                                       .dataNotAllowed, .internationalRoamingOff, .secureConnectionFailed, .cannotLoadFromNetwork].contains(e.code) { throw APIError.offline }
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if let d = (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Date") { ServerClock.sync(d) }
         // Панель ответила 401 — сеанс сотрудника истёк или доступ к панели отозван (аудит SEC-1): витрина перепроверяет,

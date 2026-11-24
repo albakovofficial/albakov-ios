@@ -646,6 +646,13 @@ struct ProductsBulkView: View {
     var body: some View {
         let prods = admin.data["products"].array
         List {
+            // Данные панели не загрузились (L8-03): причина и «Повторить», а не пустой список «Выбрать все (0)».
+            // Данных нет — карточка ошибки; есть (не удалось обновить) — строка ошибки над ними. Пока загрузка идёт,
+            // кнопка недоступна: повторные нажатия не дают параллельных запросов admin/data
+            if let e = admin.error {
+                if admin.data.exists { ErrorRetry(text: e) { Task { await admin.load() } }.disabled(admin.loading) }
+                else { EmptyState.loadFailed(e) { Task { await admin.load() } }.disabled(admin.loading).listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden) }
+            }
             Section("Остатки в Excel") {
                 Text("Выгрузите остатки, поменяйте числа в Excel и загрузите файл обратно — сначала покажем, что изменится.").font(Theme.font(13)).foregroundStyle(Theme.muted)
                 if let u = exportURL { ShareLink(item: u) { Label("Поделиться файлом остатков", systemImage: "square.and.arrow.up") } }
@@ -676,6 +683,7 @@ struct ProductsBulkView: View {
         }
         .navigationTitle("Массовые изменения").navigationBarTitleDisplayMode(.inline)
         .task { if !admin.data.exists { await admin.load() } }   // открыт сразу по ссылке — минуя список товаров (этап K.2)
+        .refreshable { await admin.load() }   // как на соседних экранах панели (L8-03)
         .confirmationDialog("Удалить \(picked.count) \(Fmt.plural(picked.count, "товар", "товара", "товаров"))?", isPresented: $confirmDelete, titleVisibility: .visible) { Button("Удалить", role: .destructive) { Task { await deleteMany() } } }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.commaSeparatedText, .plainText, .text]) { r in Task { await importCsv(r) } }
     }

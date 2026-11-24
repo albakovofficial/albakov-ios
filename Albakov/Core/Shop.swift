@@ -244,6 +244,9 @@ final class Shop: ObservableObject {
         PushManager.shared.resend()
     }
     func logout() async {
+        // Запланированная отправка корзины и избранного (L8-12) — отменяется сразу: пока ждём ответа на выход, она уйти
+        // не должна — ни с прежним входом, ни после него. Выход на телефоне завершается при любом ответе сервера
+        stopSync()
         _ = try? await api.raw("POST", "auth/logout")
         api.clearSession()
         forgetUser()
@@ -259,11 +262,15 @@ final class Shop: ObservableObject {
     /// Свои заказы покупатель найдёт после входа, по ссылке из письма или по номеру и телефону
     private func forgetUser() {
         userEpoch += 1
+        // отправка, запланированная до выхода (удаление аккаунта) или во время ожидания ответа на выход: при user == nil
+        // saveCart и saveFavorites новых отправок не создают, но и прежние сами не отменяют (L8-12)
+        stopSync()
         user = nil; isStaff = false
         favorites = []; clearCart(); buyNow = nil
         UserDefaults.standard.removeObject(forKey: CheckoutView.draftStore)
         OrderTokens.clear()
     }
+    private func stopSync() { cartSync?.cancel(); favSync?.cancel() }
 }
 
 /// Тактильный отклик: генераторы UIKit работают на главном акторе (этап L.2.3); вызывают его экраны и Shop.
