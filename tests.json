@@ -1,0 +1,269 @@
+{
+  "devices" : [
+    {
+      "architecture" : "arm64",
+      "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+      "deviceName" : "iPhone SE (3rd generation)",
+      "modelName" : "iPhone SE (3rd generation)",
+      "osBuildNumber" : "22F77",
+      "osVersion" : "18.5",
+      "platform" : "iOS Simulator"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "duration" : "4m 2s",
+                  "durationInSeconds" : 242.1830929517746,
+                  "name" : "test00_FirstOrderReopenRetryNoDuplicate()",
+                  "nodeIdentifier" : "AuditUITests/test00_FirstOrderReopenRetryNoDuplicate()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test00_FirstOrderReopenRetryNoDuplicate",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 6s",
+                  "durationInSeconds" : 66.25482594966888,
+                  "name" : "test01_ProductEdgeCases()",
+                  "nodeIdentifier" : "AuditUITests/test01_ProductEdgeCases()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test01_ProductEdgeCases",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 18s",
+                  "durationInSeconds" : 138.6526939868927,
+                  "name" : "test02_Cart()",
+                  "nodeIdentifier" : "AuditUITests/test02_Cart()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test02_Cart",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 59s",
+                  "durationInSeconds" : 179.6433539390564,
+                  "name" : "test03_CheckoutValidationAndDoubleTap()",
+                  "nodeIdentifier" : "AuditUITests/test03_CheckoutValidationAndDoubleTap()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test03_CheckoutValidationAndDoubleTap",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 9s",
+                  "durationInSeconds" : 129.93676209449768,
+                  "name" : "test04_NetworkFailuresNoDuplicate()",
+                  "nodeIdentifier" : "AuditUITests/test04_NetworkFailuresNoDuplicate()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test04_NetworkFailuresNoDuplicate",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 12s",
+                  "durationInSeconds" : 132.84712707996368,
+                  "name" : "test05_SlowNetworkManyTaps()",
+                  "nodeIdentifier" : "AuditUITests/test05_SlowNetworkManyTaps()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test05_SlowNetworkManyTaps",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 55s",
+                  "durationInSeconds" : 115.11901390552521,
+                  "name" : "test06_RelaunchKeepsCartAndDraft()",
+                  "nodeIdentifier" : "AuditUITests/test06_RelaunchKeepsCartAndDraft()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test06_RelaunchKeepsCartAndDraft",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "44s",
+                  "durationInSeconds" : 44.796398997306824,
+                  "name" : "test07_OfflineLaunchAndRecovery()",
+                  "nodeIdentifier" : "AuditUITests/test07_OfflineLaunchAndRecovery()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test07_OfflineLaunchAndRecovery",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "53s",
+                  "durationInSeconds" : 53.23291802406311,
+                  "name" : "test08_Search()",
+                  "nodeIdentifier" : "AuditUITests/test08_Search()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test08_Search",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 53s",
+                  "durationInSeconds" : 113.35092604160309,
+                  "name" : "test09_FastNavigation()",
+                  "nodeIdentifier" : "AuditUITests/test09_FastNavigation()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test09_FastNavigation",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 29s",
+                  "durationInSeconds" : 149.768031001091,
+                  "name" : "test10_SpecialInputs()",
+                  "nodeIdentifier" : "AuditUITests/test10_SpecialInputs()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test10_SpecialInputs",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 46s",
+                  "durationInSeconds" : 106.50048995018005,
+                  "name" : "test11_AdminRowsDeleteWhileEditing()",
+                  "nodeIdentifier" : "AuditUITests/test11_AdminRowsDeleteWhileEditing()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test11_AdminRowsDeleteWhileEditing",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 51s",
+                  "durationInSeconds" : 111.926638007164,
+                  "name" : "test12_AdminPacksDeleteWhileEditing()",
+                  "nodeIdentifier" : "AuditUITests/test12_AdminPacksDeleteWhileEditing()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test12_AdminPacksDeleteWhileEditing",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 29s",
+                  "durationInSeconds" : 89.18522298336029,
+                  "name" : "test13_FiveLargePhotosInSupport()",
+                  "nodeIdentifier" : "AuditUITests/test13_FiveLargePhotosInSupport()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test13_FiveLargePhotosInSupport",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "5m 8s",
+                  "durationInSeconds" : 308.4421330690384,
+                  "name" : "test14_AdminSizesAndDeliveryDelete()",
+                  "nodeIdentifier" : "AuditUITests/test14_AdminSizesAndDeliveryDelete()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test14_AdminSizesAndDeliveryDelete",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "3m 11s",
+                  "durationInSeconds" : 191.66670298576355,
+                  "name" : "test15_NetworkErrorsVisible()",
+                  "nodeIdentifier" : "AuditUITests/test15_NetworkErrorsVisible()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test15_NetworkErrorsVisible",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 42s",
+                  "durationInSeconds" : 162.45666098594666,
+                  "name" : "test16_AdminLoadErrorsVisible()",
+                  "nodeIdentifier" : "AuditUITests/test16_AdminLoadErrorsVisible()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test16_AdminLoadErrorsVisible",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "5m 18s",
+                  "durationInSeconds" : 318.5832430124283,
+                  "name" : "test17_LogoutClearsPersonalData()",
+                  "nodeIdentifier" : "AuditUITests/test17_LogoutClearsPersonalData()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test17_LogoutClearsPersonalData",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 26s",
+                  "durationInSeconds" : 146.4308980703354,
+                  "name" : "test18_StaffLogoutAdminLinkShowsNoData()",
+                  "nodeIdentifier" : "AuditUITests/test18_StaffLogoutAdminLinkShowsNoData()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test18_StaffLogoutAdminLinkShowsNoData",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 52s",
+                  "durationInSeconds" : 112.81210601329803,
+                  "name" : "test19_StaffColdStartAdminLink()",
+                  "nodeIdentifier" : "AuditUITests/test19_StaffColdStartAdminLink()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test19_StaffColdStartAdminLink",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 50s",
+                  "durationInSeconds" : 110.04325008392334,
+                  "name" : "test20_ColorPhotosAllAttached()",
+                  "nodeIdentifier" : "AuditUITests/test20_ColorPhotosAllAttached()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test20_ColorPhotosAllAttached",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1m 28s",
+                  "durationInSeconds" : 88.99511301517487,
+                  "name" : "test21_RefundSumFollowsSelection()",
+                  "nodeIdentifier" : "AuditUITests/test21_RefundSumFollowsSelection()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test21_RefundSumFollowsSelection",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "42s",
+                  "durationInSeconds" : 42.114462018013,
+                  "name" : "test21a_BulkDeepLinkLoadsData()",
+                  "nodeIdentifier" : "AuditUITests/test21a_BulkDeepLinkLoadsData()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test21a_BulkDeepLinkLoadsData",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "46s",
+                  "durationInSeconds" : 46.10559809207916,
+                  "name" : "test22_StockFileRefreshedAfterDelete()",
+                  "nodeIdentifier" : "AuditUITests/test22_StockFileRefreshedAfterDelete()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test22_StockFileRefreshedAfterDelete",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 29s",
+                  "durationInSeconds" : 149.12704503536224,
+                  "name" : "test24_ColorPhotosCancelUpload()",
+                  "nodeIdentifier" : "AuditUITests/test24_ColorPhotosCancelUpload()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test24_ColorPhotosCancelUpload",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "AuditUITests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            }
+          ],
+          "name" : "AlbakovAudit",
+          "nodeIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit",
+          "nodeType" : "UI test bundle",
+          "result" : "Passed"
+        }
+      ],
+      "name" : "AlbakovAudit",
+      "nodeType" : "Test Plan",
+      "result" : "Passed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}

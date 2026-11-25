@@ -1,0 +1,1367 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "8672B428-BD9C-420A-89B5-BACE2C9F2D80.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "00д заказ открыт_0_4367626F-5FCD-4F35-AAA8-604FDFF7389A.png",
+        "timestamp" : 1795570030.658
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "4165A785-6832-467D-B614-BE3E11599593.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "00г после перезапуска — перед повтором_0_6CD862B5-CE9E-4AD4-92F3-3D62817C4BB7.png",
+        "timestamp" : 1795570027.969
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "444AECBE-BF58-4C8F-B4CB-B5DD3A357473.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "00в ответ потерян_0_12E94FDA-CA22-4C4D-A456-60867597A2F3.png",
+        "timestamp" : 1795569988.252
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "B2D51577-4389-4739-B5AD-328879C04E19.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "00б оформление открыто заново_0_8CDC9E0F-4ABB-409E-B6C7-05B6F7B509B4.png",
+        "timestamp" : 1795569961.554
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "003C33B6-1263-4909-B688-5DBEAB6D1475.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "00а первое оформление — обрыв связи_0_47110900-EBD6-4D52-B625-1F5756969C87.png",
+        "timestamp" : 1795569943.994
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test00_FirstOrderReopenRetryNoDuplicate()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test00_FirstOrderReopenRetryNoDuplicate"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "DFB43004-09B7-474F-B43C-BFA753FE8A94.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01 последняя штука в корзине_0_EFF50A59-6766-469B-8FF3-2A0C065F6576.png",
+        "timestamp" : 1795570097.174
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "3C7066E1-5918-47B2-A7C6-4F620731C7FD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01 размер L — нет в наличии_0_6B505609-777D-4D10-8A28-D3D37FD75039.png",
+        "timestamp" : 1795570080.428
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "26DC9647-B9FA-453C-AF8E-0C6FCEED1A74.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01 добавить без размера_0_A53E8537-6DBE-4971-A9E3-32CB536966E7.png",
+        "timestamp" : 1795570073.318
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "9A0FCD0C-1BF6-4909-86C9-5CB88C91019E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01 карточка товара_0_8DF4019C-FA89-4D1A-9BB5-FD04CCA76FE0.png",
+        "timestamp" : 1795570059.125
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test01_ProductEdgeCases()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test01_ProductEdgeCases"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "89E2B7C3-407D-4DFD-B724-00882CB22FB7.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "02 пустая корзина_0_B8EC0EBF-7BAE-4592-9BD5-0AEA9700B344.png",
+        "timestamp" : 1795570237.658
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "407166A7-2E9C-478E-9C6D-BED8E0818562.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "02 корзина одна строка M × 2_0_85373570-4EF9-4A02-942D-3C885FA54830.png",
+        "timestamp" : 1795570234.58
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test02_Cart()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test02_Cart"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "70CDA4A9-5D5B-4981-AF42-68AB7ADE7AC6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "03 заказ оформлен_0_F1A1DA6C-930B-4E7B-8DED-916B9FBA168D.png",
+        "timestamp" : 1795570415.337
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "EC08F9D9-6549-4393-8FAE-DCB1EFFD81F0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "03 перед двойным нажатием_0_884AB5FB-F300-47A9-8057-F69EB6D2DBA2.png",
+        "timestamp" : 1795570412.549
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "6F23F0C8-8F5C-42B6-9346-0992648288AF.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "03 пустые поля — ошибка_0_19D98F41-930A-4A05-BAA3-60CDDB9708FF.png",
+        "timestamp" : 1795570357.257
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A266CFFB-79FB-4C21-B24F-FA5EBBDBDF5D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "03 оформление — пустая форма_0_C6E1C4B4-722A-4287-A47D-399F5C987849.png",
+        "timestamp" : 1795570338.107
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test03_CheckoutValidationAndDoubleTap()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test03_CheckoutValidationAndDoubleTap"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "2F310840-CFEE-4B87-AC5A-BF2B85D87ED9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "04г связь восстановлена — открылся заказ_0_653791AA-1E75-482B-B48F-D8F3DF5B3255.png",
+        "timestamp" : 1795570545.222
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "35B9C911-4985-4746-BD42-43963EEE9F73.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "04в ответ потерян после оформления_0_E6831E8C-5A54-47D9-88F2-327EEDECE8F7.png",
+        "timestamp" : 1795570540.194
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "E3ED55E6-99E7-4E53-9AA0-8F840C09AA21.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "04б 502 Bad Gateway_0_D88DE77D-55F3-4921-B1C4-34B83FF7FADC.png",
+        "timestamp" : 1795570534.24
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "ED93B16B-A605-4964-B66E-DBE6459D1BDE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "04а нет связи_0_2A2768CF-0A6D-46F5-915C-AF0F13CE9F8A.png",
+        "timestamp" : 1795570528.869
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test04_NetworkFailuresNoDuplicate()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test04_NetworkFailuresNoDuplicate"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "D8B12CCD-9B29-46BE-BA9D-5DFFEC033DD6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "05 медленная связь — после 5 нажатий_0_0BE7CA4C-7B40-438C-85DC-ACA79A50DE60.png",
+        "timestamp" : 1795570672.494
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test05_SlowNetworkManyTaps()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test05_SlowNetworkManyTaps"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "9375B77C-ACB3-4DCA-970B-D133AFE3633F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "06 после перезапуска — корзина_0_F7A50DA5-ABBD-42E3-BCBE-32D548E1FDCF.png",
+        "timestamp" : 1795570793.999
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "809C3133-33CE-4356-B84B-64AD5533F215.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "06 после перезапуска — оформление_0_347A4506-0738-490F-8C1E-C0E6A4665CC3.png",
+        "timestamp" : 1795570784.192
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test06_RelaunchKeepsCartAndDraft()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test06_RelaunchKeepsCartAndDraft"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "52010729-F474-463F-9C8B-790F9D7148C8.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "07 связь вернулась_0_CA7515BD-76FB-4350-935C-43709DC291B6.png",
+        "timestamp" : 1795570840.081
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "9D3AE063-1F3E-41C3-8DDE-2CCD43AFF4C3.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "07 запуск без интернета_0_35872029-D137-4610-89D5-9F6229A394AA.png",
+        "timestamp" : 1795570830.082
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test07_OfflineLaunchAndRecovery()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test07_OfflineLaunchAndRecovery"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "334208B6-19F0-4BFB-96CE-9F8B09E5BE8C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "08 поиск 7 очень длинный запрос_0_50108878-104C-4B89-BE30-5941EED925AF.png",
+        "timestamp" : 1795570893.279
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "6789F3F1-C0FC-4B1A-8A4B-3B4B0C60DE5A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "08 поиск 6 ыыыыыыы_0_0658C9A9-E71C-4CC5-9721-E3B7298A4C9C.png",
+        "timestamp" : 1795570884.758
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "6FA1CE10-F2F0-45D6-B306-1C2578DDCABB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "08 поиск 5 😀😀_0_6241F097-9BE5-4F77-BBD6-15756D4D304E.png",
+        "timestamp" : 1795570880.722
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "936BF7B5-AC7A-4A92-A31E-B896BC2A10A4.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "08 поиск 4 <script>alert(1)<sc_0_EBBE98EF-1F65-4969-A77F-BC95332369CB.png",
+        "timestamp" : 1795570875.38
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "1BDCB5A5-1015-4F93-8963-CD7E760518D8.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "08 поиск 3 Футб_0_EBACCFFD-E7EC-453C-AF54-4A2AD84D4786.png",
+        "timestamp" : 1795570869.878
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "2376518A-3D8C-4F27-A75B-A6CD9453579A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "08 поиск 2   ПАЛЬТО  _0_49238756-9205-48E7-B69A-F617CAAA5250.png",
+        "timestamp" : 1795570865.245
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A0E3DC73-87FB-4349-BBC4-6530091EF747.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "08 поиск 1 пальто_0_8FE21A61-B321-4A41-968C-4604E25B49D2.png",
+        "timestamp" : 1795570860.274
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test08_Search()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test08_Search"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "C363B43B-7241-4F12-95D6-81064748B157.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "09 назад с карточки товара_0_3C7249DD-6FC2-4079-A407-84FBAAF5CD26.png",
+        "timestamp" : 1795571006.648
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "EC71220F-C00E-4463-ACDC-871DA998726A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "09 после быстрых переходов_0_EC925E79-F147-4DA2-B9C0-FEA64A0D88B3.png",
+        "timestamp" : 1795570992.568
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test09_FastNavigation()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test09_FastNavigation"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "EDDAA874-38BD-4EB4-8827-724F9024421C.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_8345FEA8-0A50-42D9-B66B-E28CACF16A6A.txt",
+        "timestamp" : 1795571156.211
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "D3EEE7D7-BD9B-4D00-BF0E-961AA391D42F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "10 заказ с необычными данными_0_589C016E-6C35-4A80-A499-A37803BD6DF4.png",
+        "timestamp" : 1795571156.21
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "3E01E56D-3A76-4E6A-A1FC-5C5B89A94424.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "10 длинные и необычные данные_0_5708C3A1-3631-49ED-BED2-3B8FDA916DDF.png",
+        "timestamp" : 1795571147.457
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test10_SpecialInputs()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test10_SpecialInputs"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "BE9A0336-D466-4C5A-BCF7-E54EB9E2FCDD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "11.3 после удаления и правки соседней строки_0_831BC224-2A03-4733-9D04-EC67E15AC6B9.png",
+        "timestamp" : 1795571261.871
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "7EB30675-576C-421F-AB91-CA683D4790F4.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "11.3 поле новой строки в фокусе_0_D6E5EAEB-031C-4136-8234-257BE225CD2D.png",
+        "timestamp" : 1795571254.423
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "F4F64B07-4889-425F-8787-5361CE3FA2B1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "11.2 после удаления и правки соседней строки_0_EA61DBAF-8A8E-4614-83EF-5D2B8F1612A6.png",
+        "timestamp" : 1795571247.289
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "0C92CBF5-BDB9-4667-8315-8605444FBC63.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "11.2 поле новой строки в фокусе_0_9ADEA99E-D828-439E-A506-9AC2BBD07047.png",
+        "timestamp" : 1795571239.844
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "F097C5F4-610D-43E1-A08C-875D30D5F138.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "11.1 после удаления и правки соседней строки_0_B5BBE8C8-C2D7-4311-9314-B258D20E25DA.png",
+        "timestamp" : 1795571229.932
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "1B136189-2B06-405F-882B-14A493BB678D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "11.1 поле новой строки в фокусе_0_CD8DCD14-24A6-4AD0-A98B-51A6530CC970.png",
+        "timestamp" : 1795571222.368
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "48E53B0A-DD71-4CCB-80EC-19BB87FC9D54.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_695651EC-2081-4BDA-9CC8-E186DB0C49BE.png",
+        "timestamp" : 1795571185.913
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "1CAB63C6-5CE8-4ACE-8C28-AA3DC9FC4B3D.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_F63E4597-33DB-4175-A3CE-2C67F66E0475.txt",
+        "timestamp" : 1795571176.588
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test11_AdminRowsDeleteWhileEditing()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test11_AdminRowsDeleteWhileEditing"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "08CBE8A2-7C32-4828-8437-304EB608AE4F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "12.2 после удаления и правки соседней упаковки_0_B08F3147-117E-4B8B-AEBB-77604C981325.png",
+        "timestamp" : 1795571373.613
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "99CABD85-67C0-4C74-9458-E7926BAD664D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "12.2 поле новой упаковки в фокусе_0_592D9E84-9A94-4AA9-AA61-2C72AD3F7697.png",
+        "timestamp" : 1795571361.559
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A1A12613-3022-45CC-9F9F-46BD3D644D20.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "12.1 после удаления и правки соседней упаковки_0_77360DF9-6DCC-4039-B478-348A60E63947.png",
+        "timestamp" : 1795571354.099
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "66E9FE2B-6A62-45D8-A066-5D0584656F22.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "12.1 поле новой упаковки в фокусе_0_BB2D1E89-2EA9-4582-BA7F-9C867B61BE1B.png",
+        "timestamp" : 1795571340.753
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "95186354-D06A-4B7E-8329-703759C908BE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_7B548C84-55D9-4042-A29D-4592E854CA0B.png",
+        "timestamp" : 1795571285.196
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test12_AdminPacksDeleteWhileEditing()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test12_AdminPacksDeleteWhileEditing"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "6ADC3B6C-ABC6-4868-A4E7-D10B37DACBA2.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_F6A12613-2C61-4120-8869-C8ED18798D1C.txt",
+        "timestamp" : 1795571463.906
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "F6C4FB72-CF80-4D5F-B10E-47954726CBAC.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "13 фото убраны_0_4FC6A4E7-5269-425B-BE5B-0739515398E9.png",
+        "timestamp" : 1795571455.707
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A30D1513-F186-477D-A68E-8EFD001E52D9.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_B8628800-54F7-4869-9B9F-BE683ACB12E0.txt",
+        "timestamp" : 1795571455.52
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "12E2FF42-67C8-4262-A823-B7354D834F37.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "13 пять фото в обращении_0_078D94E6-05B1-4841-BBDF-6D58BA3FABB0.png",
+        "timestamp" : 1795571445.187
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "87C6B518-791C-40C9-83AD-AE2BD2D990A3.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_DBBDD600-1EC2-4277-9E3A-6220FA5C9FB9.txt",
+        "timestamp" : 1795571445.008
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "E21983AB-A940-4D34-879C-714EC0DA3D40.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_D0E11F83-1D63-46B2-95DC-3F75E3B55133.txt",
+        "timestamp" : 1795571445.007
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "07D2E549-4704-463A-B43F-3DD330AE77CA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "13 выбрано 5 фото_0_67F71C79-EE55-481D-8579-7DB9149F0278.png",
+        "timestamp" : 1795571436.769
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "2812B1A5-42BF-4F30-944C-4F241A9A02F3.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_7E9C7BD8-364A-4632-A174-7299CA852401.txt",
+        "timestamp" : 1795571436.244
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "4B85440A-22D7-42E7-88D4-12BDE34EA181.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_758E5E0E-3983-4827-811F-026E25ECAC4B.txt",
+        "timestamp" : 1795571418.961
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "AD1FD68F-D960-46CE-93B3-D46E90B01EE7.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "13 окно выбора фото_0_48558FD0-5730-485C-9B3B-6BB6040148C0.png",
+        "timestamp" : 1795571414.167
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "6349D24C-4519-4A98-8C84-20D09ACD15F3.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_736AD7D5-B693-4401-BFD4-992326F85C11.txt",
+        "timestamp" : 1795571405.686
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A4A5F9E9-5907-485A-B5B3-2C22552FABAA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_D0B5254E-F538-4B0D-B672-2346B48493D4.png",
+        "timestamp" : 1795571392.987
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test13_FiveLargePhotosInSupport()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test13_FiveLargePhotosInSupport"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "6F35337B-457B-462C-AB73-3D47F967E4CD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "14.2 после удаления верхнего способа и правки нижнего_0_7206425E-9D28-4EE3-BE0D-613777FC1425.png",
+        "timestamp" : 1795571771.23
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A7216CE2-AF3D-4B38-9069-644C0FA0B6F2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "14.2 два новых способа доставки, курсор в нижнем_0_0F9E28AC-D790-4584-BAD0-4064A65E5317.png",
+        "timestamp" : 1795571712.147
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "5025B238-529E-4C9A-B12A-AC3A2220148B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "14.1 после удаления верхнего размера и правки среднего_0_BAAB8FE3-0F24-4D5F-9C7B-A6F26FAE0806.png",
+        "timestamp" : 1795571609.608
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "27C0B37D-19D1-4DBA-8F12-3C81A897D61C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "14.1 три новых размера, курсор в среднем_0_0A014063-3881-4A6C-AF3F-92D37F9C3CD8.png",
+        "timestamp" : 1795571585.567
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "7C39E08D-53B2-40F2-B969-2186D66D3017.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_B65ABBCE-C0D1-4C66-9153-A422F29A0A7E.png",
+        "timestamp" : 1795571481.81
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test14_AdminSizesAndDeliveryDelete()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test14_AdminSizesAndDeliveryDelete"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "232B42C6-FF50-44B3-A66E-E9EDAE3B1D83.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_5A2A76D7-E440-4165-8DFB-BEB574191086.txt",
+        "timestamp" : 1795571964.084
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "03B1372A-4886-4227-983F-9D13413DE0E1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "тост при открытой клавиатуре_0_4F590DD3-6D57-46F6-AF34-539ACB1BB7BE.png",
+        "timestamp" : 1795571961.612
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "CAA1C3DE-B0D1-4409-8F04-490F203FA078.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_54F01E38-EFD8-40E2-BEE9-D76727612389.txt",
+        "timestamp" : 1795571923.151
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "BC16949D-AA0F-4DD8-8F74-00328A3F326F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "тост поверх листа_0_DAA13ECB-5B83-4CC2-AD7F-82E45FEEE276.png",
+        "timestamp" : 1795571920.749
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "3B1473D8-8E7D-4FA8-AD83-20FFF8222B6C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "15в выбрано 1 фото_0_7311B21C-02CF-40E2-8D98-A590380AE3E0.png",
+        "timestamp" : 1795571913.036
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "735B7079-6163-4920-B0EA-D7787A96EA1E.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_4DC52DBB-FFD1-47A2-87EE-E0AC29425DAB.txt",
+        "timestamp" : 1795571912.678
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "E3DF7BEA-52F7-4B3D-AF69-7B635A96FEB1.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_5B278DB4-954E-49C8-A68B-C04F4DFE7093.txt",
+        "timestamp" : 1795571907.368
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "96415C15-FE1F-4A16-B77C-AE5D21B3906E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "15б корзина — сумма посчитана_0_027F7CAD-0E06-4358-8351-4C86AE37F3C1.png",
+        "timestamp" : 1795571879.889
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "17880AE4-4290-4F2A-B59D-EF394218F5EA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "15б корзина — сумма не посчиталась_0_05E1D10C-4E2D-4358-8411-1D5E58036161.png",
+        "timestamp" : 1795571872.806
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A3AA4682-BA87-4F67-81F7-A4950BBB5B4C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "15а обращения — после «Повторить»_0_BCFE480E-5D04-48D8-86C0-494D408FF2A3.png",
+        "timestamp" : 1795571807.359
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "D366BCAE-5816-4F73-90D1-602CD54EC6FA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "15а обращения — нет связи_0_F38CBE59-9EF2-42C0-B3DC-2429D01F2F70.png",
+        "timestamp" : 1795571802.484
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "8E61B0BE-A9D2-4F11-B4C1-F4FAC44E0BD6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_D4E02F72-A5A0-41E9-BB33-6CDDF843E560.png",
+        "timestamp" : 1795571792.392
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test15_NetworkErrorsVisible()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test15_NetworkErrorsVisible"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "C3BB3CD3-9C3D-4D19-8916-4264588F9745.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16д массовые изменения — после «потянуть вниз»_0_3694F253-FAF4-4FA9-B119-E4FBF67A8C31.png",
+        "timestamp" : 1795572126.547
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "0DDDEB88-5D01-4AAC-BF2E-0808DD5C54F2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16д массовые изменения — после «Повторить»_0_4137CAC5-232F-4694-A8C1-E542EA88834C.png",
+        "timestamp" : 1795572107.351
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "747E8B8B-0CFC-45E5-9464-BADD7E653A10.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16д массовые изменения — нет связи_0_AE7CC99A-AB16-4CE9-B545-6E8CEA6CA965.png",
+        "timestamp" : 1795572094.152
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "17A992DC-C7CD-4D21-A874-8B496CA1DC40.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16г срок доставки — после «Повторить»_0_64B81C67-2275-4173-97AB-F41C15DA09CA.png",
+        "timestamp" : 1795572082.063
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "277FC75C-951A-4D59-82E1-E66143655DB9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16г срок доставки — нет связи_0_4D56D48B-1522-4B5B-B425-D4543F612600.png",
+        "timestamp" : 1795572065.626
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "E5E40641-22AA-4B4D-9618-CFB991A5531B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16в состояние магазина — после «Повторить»_0_DA0FE0E8-48BE-493A-9528-01358D471D3A.png",
+        "timestamp" : 1795572054.548
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "84A6D654-3D25-4093-9FAA-A200F5B8A5D0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16в состояние магазина — нет связи_0_69178C7F-BDF4-4392-9C69-780E360FA08C.png",
+        "timestamp" : 1795572048.681
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "025D896E-D1F8-4F29-AF09-EF08D3ADAE1B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16б ключ оплаты — после «Повторить»_0_0023A893-4790-467E-A245-3D4650C78A3C.png",
+        "timestamp" : 1795572030.495
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "9C23002E-DF00-4EA7-BE29-DB2A6C21072A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16б ключ оплаты — нет связи_0_1210745E-9F76-40F9-B7F5-12D2203BD492.png",
+        "timestamp" : 1795572021.567
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A2AA847A-BEE1-4882-A10B-4A245D2A1D97.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16а журнал — после «Повторить»_0_37AE2F3F-29C0-4137-A084-18841F59C291.png",
+        "timestamp" : 1795572000.385
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "C4E3B2E2-1F28-48EC-98A8-8D90946E8242.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "16а журнал — нет связи_0_3E11E98F-CDAE-4D90-8A7B-E03517FF28A5.png",
+        "timestamp" : 1795571994.348
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "07B9E294-86FF-45E4-9F83-D76983221DE9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_52381744-5E3A-491D-BF5A-BAC51729ADDC.png",
+        "timestamp" : 1795571983.006
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test16_AdminLoadErrorsVisible()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test16_AdminLoadErrorsVisible"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "0711C822-BC00-4E3B-8B93-21DCA1A0712F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "17г корзина после повторного входа_0_5EF07F9B-D949-4661-A430-8C9529F6ECD4.png",
+        "timestamp" : 1795572428.453
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "BF2D6907-F60D-4B4A-B258-9F85DEC8DD45.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_2B8A40A5-8ED6-4EAC-86E8-8663BA823D60.png",
+        "timestamp" : 1795572419.525
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "F38794A3-2409-41BF-B76C-07610C0F9560.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_07E08740-4B5A-46B5-8994-19CA1917F60D.txt",
+        "timestamp" : 1795572411.747
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "3A27147E-A0F2-4C8E-81E5-2AD58FFC13AE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "17в оформление гостя после выхода_0_A8BF9EC7-E207-4E27-9D48-1A8A356C54AF.png",
+        "timestamp" : 1795572398.019
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "286F8296-796F-4685-A808-C0E2CD6954D3.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "17б2 заказы гостя после выхода_0_BED63CB4-49BD-4C1C-BFD8-643107BF8EC8.png",
+        "timestamp" : 1795572359.273
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "53E8C274-FF04-4982-BA66-1F58ED83DB63.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "17б корзина после выхода_0_EF8AF59B-2833-45C8-85DD-8B83A3A66027.png",
+        "timestamp" : 1795572347.984
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A2A06945-4E8B-4468-9023-1F2D290C3DC0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "17а2 главная после выхода_0_561F8D4A-3DB1-46C9-B952-AC47B874BD6E.png",
+        "timestamp" : 1795572338.794
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "A86AEAC6-D4E0-4C0A-985F-36D1CCCF7056.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "17а оформление владельца заполнено_0_9F472F52-7059-46E0-81C4-6D618DFE57FB.png",
+        "timestamp" : 1795572253.075
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "9B38E920-DF8F-4FA6-BC22-00626618AFE2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_3F5556EC-AE61-4610-8C76-7D5DE4A0D853.png",
+        "timestamp" : 1795572144.968
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test17_LogoutClearsPersonalData()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test17_LogoutClearsPersonalData"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "57729AB2-4CD0-49F0-886F-BA823F8BD8D2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "18б ссылка в панель после выхода_0_949099EE-2856-4E72-A699-D448BE82AFC1.png",
+        "timestamp" : 1795572591.577
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "E1DB516C-5218-44BA-877E-F08C7E72A18B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "18а заказы в панели у сотрудника_0_3E4BE9DA-50F0-4EE8-AD83-A86B23575964.png",
+        "timestamp" : 1795572553.444
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "D97B317F-E43F-4356-AB9E-8DF0AD4DC54A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_B0593DEE-683C-454A-BCC8-37784D39FA55.png",
+        "timestamp" : 1795572461.408
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test18_StaffLogoutAdminLinkShowsNoData()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test18_StaffLogoutAdminLinkShowsNoData"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "3E1D49A4-0688-474C-BD31-80535F1C716F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "19 запуск по ссылке — заказы панели_0_A91CA30E-460B-4A74-897C-6E0C451BDDF4.png",
+        "timestamp" : 1795572704.436
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "6B84E55A-A936-4DE2-960E-283A693272C4.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_13456B7E-FE69-4D94-8140-C6B29668BAF5.png",
+        "timestamp" : 1795572612.902
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "AF2FB1C5-B47D-4D20-B372-9CAC829A4F96.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_86BFB7B0-C97C-4721-8FF0-A5184DE68777.txt",
+        "timestamp" : 1795572604.95
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test19_StaffColdStartAdminLink()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test19_StaffColdStartAdminLink"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "7A0C0126-A094-49A3-9496-84C9C02484B5.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "20 товар сохранён_0_7C8378C1-B29A-408D-8CFE-07E0CF20056E.png",
+        "timestamp" : 1795572814.513
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "C15C7954-39A7-4E43-B1AB-2F0CDEC0B272.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "20 три фото цвета_0_465D20C0-6C18-4F6B-BE30-C2B72B3DAB7A.png",
+        "timestamp" : 1795572781.796
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "12D0B6AA-72CA-40B8-A8EA-2EC0BF799509.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_E4FAE51F-9A47-4405-BF21-9712002CAE3A.txt",
+        "timestamp" : 1795572781.614
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "D38954A6-8FBC-432D-A503-AD98FA187A1E.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_98D263BA-0748-4B68-BEA8-2741A83B9B3D.txt",
+        "timestamp" : 1795572781.613
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "32683A08-2F52-4604-A72A-B693068778B3.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_1F58287D-9900-45BC-B409-55CF8BACC289.txt",
+        "timestamp" : 1795572781.613
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "9B5DB2B9-CD28-4561-9AC7-92E0E1AA8753.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_8E4CD08D-1AC9-4276-BFB6-A451B750387A.txt",
+        "timestamp" : 1795572781.353
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "B318088D-3F9F-44CC-9369-F860F626DE66.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "20 выбрано 3 фото_0_311404CB-CCEA-45FB-97A6-2D47AD39BC32.png",
+        "timestamp" : 1795572771.83
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "00CACEF2-5E49-4B42-87C1-E23F019158F2.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_37FA0A07-4B8A-4098-9758-2931FF589166.txt",
+        "timestamp" : 1795572771.439
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "0AC6EF7C-AD20-4907-9A4A-A19DCC8CEE4F.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_053E1BDD-71D0-4261-AE38-B143BD0716A7.txt",
+        "timestamp" : 1795572761.833
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "E5103B75-6999-42A5-B288-F654BFD90B27.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_AD80D5CB-AA79-44A3-BE43-4E9FA4962485.txt",
+        "timestamp" : 1795572756.141
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "CF1123B5-5D61-47C2-BE7C-0EF3D50F9EDD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_976D5D66-381F-468D-B3C8-9495F36C572F.png",
+        "timestamp" : 1795572720.723
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test20_ColorPhotosAllAttached()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test20_ColorPhotosAllAttached"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "158E5187-9519-403B-B862-A2A38E85BAFB.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_46ABEE75-2A6E-4A5F-88EC-0467E22C53BC.txt",
+        "timestamp" : 1795572903.511
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "C31EBD5E-5E17-42D5-A58B-86A645511820.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "21 сумма пересчитывается_0_4D3E5619-CC2A-4476-909C-BDFB8C9D40C3.png",
+        "timestamp" : 1795572899.072
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "73D282AF-E98E-4702-AF80-FA67216A470B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "21 после опоздавшего ответа_0_D6BE73F6-F978-4CB7-BC64-C2E101590C9A.png",
+        "timestamp" : 1795572895.848
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "ED3C19B0-8B6E-4656-9367-0B82F0F4D1EC.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "21 позиции и кнопка возврата_0_12B8BC4F-A6B6-41A7-A854-75F518A9D3F3.png",
+        "timestamp" : 1795572880.475
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "B96EC24A-C8C5-4333-B917-69EABF87DAC5.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_558BF949-CFB6-4324-ABE6-2BB1CA01E8EA.txt",
+        "timestamp" : 1795572880.37
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "C6AADC4E-9419-404B-90E1-016D77A9E0E0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_8C1B8AE5-A07A-4C1D-898D-3A0A5E7C05B2.png",
+        "timestamp" : 1795572830.792
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test21_RefundSumFollowsSelection()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test21_RefundSumFollowsSelection"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "973CA574-FF6A-414C-BF2E-4277DA272AA7.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "21a по прямой ссылке_0_A5F3C01B-CFC7-48F8-9CCE-C598B9840C66.png",
+        "timestamp" : 1795572929.468
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "F478C519-3684-43EB-AA58-5682FBFE0D90.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_B588C65D-D442-4F6C-924A-872B07F3C403.png",
+        "timestamp" : 1795572920.323
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test21a_BulkDeepLinkLoadsData()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test21a_BulkDeepLinkLoadsData"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "398313DF-01E1-4532-B9EB-0F99C501A458.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "22 после удаления_0_385A4EAB-CBBE-46AA-BB15-BF790E7A86FF.png",
+        "timestamp" : 1795572989.6
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "0139629E-E9D5-4FE4-930F-1095BC681079.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "22 файл выгружен_0_567C8FA5-1BF1-4A53-868D-3881E3399036.png",
+        "timestamp" : 1795572975.183
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "4C8F2895-BDCB-4C2B-87B7-A8BE29F75BAD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_AEFA310A-42E2-4F7B-A066-60FD1457246E.png",
+        "timestamp" : 1795572961.8
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test22_StockFileRefreshedAfterDelete()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test22_StockFileRefreshedAfterDelete"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "09AD3D58-FFDE-4C75-82D8-885F8056836C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "24 товар сохранён_0_223A7FFD-EBAE-48B6-9468-E959AED7FAB8.png",
+        "timestamp" : 1795573130.71
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "714A34A8-1C7B-4019-AC94-777412DC15AE.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_02B9C5DB-53B0-4788-9860-8ED8B035DC4D.txt",
+        "timestamp" : 1795573097.872
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "6487FA24-2B44-430B-8ACC-74DAC0EB51AE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "24 после отмены_0_9DB9E0EC-EA05-4ED4-AE74-3AF256FA0594.png",
+        "timestamp" : 1795573087.794
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "C8D867AB-3F54-4F5A-B6CF-DBAE1D414671.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_CE0C495E-4512-4857-B63A-4EE212F1106E.txt",
+        "timestamp" : 1795573079.922
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "302F40EB-5A46-4A57-898E-7F02B1B4EB85.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "24 выбрано 3 фото_0_444FD849-B91B-465B-B601-CE20062089AF.png",
+        "timestamp" : 1795573064.762
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "8781A2F6-0DB6-4942-9A5B-99D23319E882.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_2CFB1392-6435-4050-9C61-1DEC77DBB46E.txt",
+        "timestamp" : 1795573064.376
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "AD80FD26-435C-4B84-B6E3-1A6BB67FC22B.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "заметка_0_FF9DE443-DD4D-48DB-B2AB-09257F9E4CF4.txt",
+        "timestamp" : 1795573054.433
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6F59DFAA-BED1-4947-ABFC-93E29BDFBBA2",
+        "deviceName" : "iPhone SE (3rd generation)",
+        "exportedFileName" : "2E7F9A6D-CFA4-4E29-B989-9191EF27333F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "вход владельца_0_041DEAFC-7DD8-4EC2-A08F-13D06F81C0F6.png",
+        "timestamp" : 1795573008.102
+      }
+    ],
+    "testIdentifier" : "AuditUITests/test24_ColorPhotosCancelUpload()",
+    "testIdentifierURL" : "test://com.apple.xcode/Albakov/AlbakovAudit/AuditUITests/test24_ColorPhotosCancelUpload"
+  }
+]

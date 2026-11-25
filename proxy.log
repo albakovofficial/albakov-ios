@@ -1,0 +1,102 @@
+посредник 3998 → 3999
+2026-11-25T01:25:38.966Z режим off orders 0
+2026-11-25T01:25:44.040Z режим on all 0
+2026-11-25T01:26:23.055Z режим drop-after orders 0
+2026-11-25T01:26:23.700Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvg0aep34202b27","number":"2","createdAt":"2026-11-25T01:26:23.686Z","customer":{"firstName":"Пётр","lastName":"Проверкин","phone":"
+2026-11-25T01:26:28.269Z режим on all 0
+2026-11-25T01:27:08.919Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvg0aep34202b27","number":"2","createdAt":"2026-11-25T01:26:23.686Z","customer":{"firstName":"Пётр","lastName":"Проверкин","phone":"
+2026-11-25T01:27:12.744Z режим on all 0
+2026-11-25T01:28:19.081Z режим on all 0
+2026-11-25T01:30:37.685Z режим on all 0
+2026-11-25T01:32:32.831Z POST /api/orders → 400 {"ok":false,"error":"Укажите имя и фамилию"}
+2026-11-25T01:33:33.326Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvg9hwj9efbe94a","number":"3","createdAt":"2026-11-25T01:33:33.315Z","customer":{"firstName":"Пётр","lastName":"Проверкин","phone":"
+2026-11-25T01:33:37.398Z режим on all 0
+2026-11-25T01:35:23.766Z режим off orders 0
+2026-11-25T01:35:28.883Z режим 502 orders 0
+2026-11-25T01:35:34.279Z режим drop-after orders 0
+2026-11-25T01:35:35.612Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvgc49z08fd04c7","number":"4","createdAt":"2026-11-25T01:35:35.600Z","customer":{"firstName":"Пётр","lastName":"Проверкин","phone":"
+2026-11-25T01:35:40.217Z режим on all 0
+2026-11-25T01:35:42.857Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvgc49z08fd04c7","number":"4","createdAt":"2026-11-25T01:35:35.600Z","customer":{"firstName":"Пётр","lastName":"Проверкин","phone":"
+2026-11-25T01:35:47.305Z режим on all 0
+2026-11-25T01:37:47.183Z режим slow orders 5000
+2026-11-25T01:37:53.897Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvgf2y43af26ad2","number":"5","createdAt":"2026-11-25T01:37:53.841Z","customer":{"firstName":"Пётр","lastName":"Проверкин","phone":"
+2026-11-25T01:38:00.183Z режим on all 0
+2026-11-25T01:39:55.291Z режим on all 0
+2026-11-25T01:39:55.627Z режим off all 0
+2026-11-25T01:40:30.217Z режим on all 0
+2026-11-25T01:40:40.092Z режим on all 0
+2026-11-25T01:41:33.313Z режим on all 0
+2026-11-25T01:43:26.669Z режим on all 0
+2026-11-25T01:45:54.052Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvgpdg2a083caf0","number":"6","createdAt":"2026-11-25T01:45:54.024Z","customer":{"firstName":"Александра-Виктория 👗 О'Коннор-Длинно
+2026-11-25T01:45:56.336Z режим on all 0
+2026-11-25T01:47:43.161Z режим on all 0
+2026-11-25T01:49:34.988Z режим on all 0
+2026-11-25T01:49:57.664Z support #129 GET /api/support тело 0 Б → 200 313 мс ok
+2026-11-25T01:50:42.447Z support #131 POST /api/support/upload тело 129988 Б → 200 140 мс ok
+2026-11-25T01:50:42.724Z support #132 POST /api/support/upload тело 129787 Б → 200 44 мс ok
+2026-11-25T01:50:43.304Z support #133 POST /api/support/upload тело 129505 Б → 200 7 мс ok
+2026-11-25T01:50:43.541Z support #134 POST /api/support/upload тело 130088 Б → 200 39 мс ok
+2026-11-25T01:50:44.249Z support #135 POST /api/support/upload тело 129894 Б → 200 10 мс ok
+2026-11-25T01:51:03.969Z режим on all 0
+2026-11-25T01:56:12.608Z режим on all 0
+2026-11-25T01:56:32.506Z режим off support 0
+2026-11-25T01:56:36.320Z support #150 GET /api/support тело 0 Б → обрыв (режим off) 0 мс 
+2026-11-25T01:56:36.327Z support #151 GET /api/support тело 0 Б → обрыв (режим off) 0 мс 
+2026-11-25T01:56:36.333Z support #152 GET /api/support тело 0 Б → обрыв (режим off) 0 мс 
+2026-11-25T01:56:42.528Z режим on all 0
+2026-11-25T01:56:45.630Z support #153 GET /api/support тело 0 Б → 200 13 мс ok
+2026-11-25T01:57:40.371Z режим off quote 0
+2026-11-25T01:57:52.813Z режим on all 0
+2026-11-25T01:58:10.353Z support #163 GET /api/support тело 0 Б → 200 344 мс ok
+2026-11-25T01:58:18.100Z режим off support/upload 0
+2026-11-25T01:58:38.701Z support #166 POST /api/support/upload тело 129988 Б → обрыв (режим off) 19 мс 
+2026-11-25T01:58:43.362Z режим on all 0
+2026-11-25T01:59:05.734Z support #168 POST /api/support тело 93 Б → 200 108 мс ok
+2026-11-25T01:59:06.255Z support #169 GET /api/support тело 0 Б → 200 130 мс ok
+2026-11-25T01:59:06.274Z support #170 GET /api/support/tmwvh6cao84d97f12 тело 0 Б → 200 142 мс ok
+2026-11-25T01:59:12.562Z режим off support 4000
+2026-11-25T01:59:15.908Z support #172 POST /api/support/tmwvh6cao84d97f12 тело 41 Б → обрыв (режим off, через 4000 мс) 1 мс 
+2026-11-25T01:59:22.157Z support #173 GET /api/support/tmwvh6cao84d97f12 тело 0 Б → обрыв (режим off, через 4000 мс) 0 мс 
+2026-11-25T01:59:24.089Z режим on all 0
+2026-11-25T01:59:24.141Z режим on all 0
+2026-11-25T01:59:43.157Z режим off admin/audit 0
+2026-11-25T01:59:54.363Z режим on all 0
+2026-11-25T02:00:00.395Z режим off admin/payment-secret 0
+2026-11-25T02:00:21.596Z режим on all 0
+2026-11-25T02:00:30.501Z режим off admin/order-seq 0
+2026-11-25T02:00:48.698Z режим on all 0
+2026-11-25T02:00:54.554Z режим off cdek/estimate 0
+2026-11-25T02:01:05.636Z режим on all 0
+2026-11-25T02:01:22.104Z режим off admin/data 0
+2026-11-25T02:01:41.138Z режим on all 0
+2026-11-25T02:01:47.360Z режим off admin/data 0
+2026-11-25T02:01:58.641Z режим on all 0
+2026-11-25T02:02:06.550Z режим on all 0
+2026-11-25T02:02:06.568Z режим on all 0
+2026-11-25T02:04:13.787Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvhcy0p89b6f923","number":"7","createdAt":"2026-11-25T02:04:13.767Z","customer":{"firstName":"Пётр-Длинноимённая-Очень-Длинное-Имя-Д
+2026-11-25T02:07:25.204Z режим on all 0
+2026-11-25T02:09:05.375Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvhj715b5ccb3f7","number":"8","createdAt":"2026-11-25T02:09:05.369Z","customer":{"firstName":"Секрет","lastName":"Покупатель-Восемна
+2026-11-25T02:09:51.664Z режим on all 0
+2026-11-25T02:11:35.167Z POST /api/orders → 200 {"ok":true,"order":{"id":"omwvhmelp5ba4cd46","number":"9","createdAt":"2026-11-25T02:11:35.151Z","customer":{"firstName":"Холодный","lastName":"Покупатель-Девят
+2026-11-25T02:11:44.450Z режим on all 0
+2026-11-25T02:12:57.259Z upload #329 → 200 JPEG 131656 Б 2000×1498 187 мс
+2026-11-25T02:12:57.452Z upload #331 → 200 JPEG 131763 Б 2000×1500 14 мс
+2026-11-25T02:12:57.689Z upload #333 → 200 JPEG 131759 Б 2000×1499 10 мс
+2026-11-25T02:13:34.525Z режим on all 0
+2026-11-25T02:14:41.618Z режим slow-once admin/orders/omwvfpafef68987af/refund 6000
+2026-11-25T02:14:42.753Z задержка 6000 мс один раз: POST /api/admin/orders/omwvfpafef68987af/refund
+2026-11-25T02:14:56.144Z режим slow-once admin/orders/omwvfpafef68987af/refund 6000
+2026-11-25T02:14:56.966Z задержка 6000 мс один раз: POST /api/admin/orders/omwvfpafef68987af/refund
+2026-11-25T02:15:03.519Z режим on all 0
+2026-11-25T02:15:45.634Z режим on all 0
+2026-11-25T02:16:31.741Z режим on all 0
+2026-11-25T02:16:48.166Z режим on all 0
+2026-11-25T02:16:48.172Z режим hold admin/upload 0
+2026-11-25T02:17:50.427Z удержан POST /api/admin/upload ; держится 1
+2026-11-25T02:17:51.886Z отпущено 1 в магазин ; держится 0
+2026-11-25T02:17:51.923Z upload #377 → 200 JPEG 131656 Б 2000×1498 1507 мс
+2026-11-25T02:17:52.064Z удержан POST /api/admin/upload ; держится 1
+2026-11-25T02:18:02.714Z приложение оборвало удержанный /api/admin/upload
+2026-11-25T02:18:17.878Z отпущено 1 в магазин ; держится 0
+2026-11-25T02:18:17.908Z upload #378 → 200 JPEG 131763 Б 2000×1500 25844 мс
+2026-11-25T02:19:00.834Z режим on all 0
