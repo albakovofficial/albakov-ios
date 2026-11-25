@@ -34,15 +34,14 @@ extension JSONSerialization {
     }
 }
 
-// Sendable (этап L.2.7) — проверяет компилятор: все поля неизменяемые (let) и сами Sendable (URL, URLSession, JSONDecoder).
+// Sendable (этап L.2.7) — проверяет компилятор: все поля неизменяемые (let) и сами Sendable (URL, URLSession).
 // Своего изменяемого состояния у API нет: куки — в HTTPCookieStorage, часы сервера — ServerClock под замком. Поэтому общий
-// экземпляр безопасен из любого контекста, и запросы, разбор и декодирование идут вне главного актора, как раньше
+// экземпляр безопасен из любого контекста, и запросы и разбор ответа идут вне главного актора, как раньше
 final class API: Sendable {
     static let shared = API()
 
     let base: URL
     private let session: URLSession
-    private let decoder = JSONDecoder()
 
     private convenience init() {
         let raw = Bundle.main.object(forInfoDictionaryKey: "AlbakovBaseURL") as? String ?? "https://albakovofficial.ru"
@@ -72,18 +71,6 @@ final class API: Sendable {
         if path.hasPrefix("data:") { return nil }
         let clean = path.hasPrefix("/") ? String(path.dropFirst()) : path
         return URL(string: clean, relativeTo: base)?.absoluteURL
-    }
-
-    /// Запрос к /api/…: ответ сервера { ok: true, … } разбирается в T, { ok: false, error } — в APIError.
-    func call<T: Decodable>(_ method: String = "GET", _ path: String, body: RequestBody? = nil, query: [String: String] = [:], as type: T.Type = T.self) async throws -> T {
-        let data = try await raw(method, path, body: body, query: query)
-        do { return try decoder.decode(T.self, from: data) }
-        catch {
-            #if DEBUG
-            print("Не разобран ответ \(path):", error)
-            #endif
-            throw APIError(message: "Не удалось прочитать ответ магазина. Обновите приложение или попробуйте позже.", status: -1)
-        }
     }
 
     /// Ответ как свободный JSON — для разделов панели, где поля меняются от настроек.
@@ -153,16 +140,11 @@ final class API: Sendable {
 }
 
 /// Свободный JSON с удобным доступом: j["orders"][0]["number"].string
-struct JSON: Decodable {
+struct JSON {
     let value: Any?
 
     init(_ value: Any?) { self.value = value is NSNull ? nil : value }
     init(data: Data) { value = try? JSONSerialization.jsonObject(with: data) }
-    init(from decoder: Decoder) throws {
-        // Через JSONSerialization надёжнее для произвольной вложенности
-        let c = try decoder.singleValueContainer()
-        if let v = try? c.decode(AnyDecodable.self) { value = v.value } else { value = nil }
-    }
 
     subscript(key: String) -> JSON { JSON((value as? [String: Any])?[key]) }
     subscript(i: Int) -> JSON { let a = value as? [Any]; return JSON(a != nil && i >= 0 && i < a!.count ? a![i] : nil) }
@@ -175,21 +157,6 @@ struct JSON: Decodable {
     var bool: Bool { (value as? NSNumber)?.boolValue ?? false }
     var exists: Bool { value != nil }
     var raw: Any? { value }
-}
-
-private struct AnyDecodable: Decodable {
-    let value: Any?
-    init(from decoder: Decoder) throws {
-        let c = try decoder.singleValueContainer()
-        if c.decodeNil() { value = nil }
-        else if let b = try? c.decode(Bool.self) { value = NSNumber(value: b) }
-        else if let i = try? c.decode(Int.self) { value = NSNumber(value: i) }
-        else if let d = try? c.decode(Double.self) { value = NSNumber(value: d) }
-        else if let s = try? c.decode(String.self) { value = s }
-        else if let a = try? c.decode([AnyDecodable].self) { value = a.map { $0.value ?? NSNull() } }
-        else if let o = try? c.decode([String: AnyDecodable].self) { value = o.mapValues { $0.value ?? NSNull() } }
-        else { value = nil }
-    }
 }
 
 /// Часы сервера (1.0.3): срок оплаты считаем по ним, а не по часам телефона — если на телефоне время сбито, отсчёт всё равно верный.

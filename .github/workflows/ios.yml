@@ -86,7 +86,7 @@ jobs:
             -project Albakov.xcodeproj -scheme Albakov -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO $EXTRA 2>&1 | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
-          # в режиме Swift 6 ошибки ожидаемы — это и есть список для плана миграции (полный журнал — в артефактах запуска)
+          # проект уже на Swift 6 (этап L.4): режимы complete и swift6 — контрольные, ошибок и предупреждений быть не должно
           if [ "$CHECK" != none ]; then echo "Проверка $CHECK: ошибок $(grep -c ' error:' build.log), предупреждений $(grep -c ' warning:' build.log)"; fi
           [ "$CHECK" = swift6 ] || grep -q "BUILD SUCCEEDED" build.log
 
@@ -181,7 +181,7 @@ jobs:
             swift-diag.txt
             paytest.log
 
-      # Ожидаемые ошибки Swift 6 не выдаются за успех: сборка не прошла — запуск красный (журналы уже сохранены шагом выше)
+      # Ошибки проверки Swift не выдаются за успех: сборка не прошла — запуск красный (журналы уже сохранены шагом выше)
       - name: Итог проверки Swift
         if: ${{ !cancelled() && (inputs.swift_check || 'none') != 'none' }}
         env:
@@ -264,6 +264,8 @@ jobs:
             -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee release.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
           echo "Release: ошибок $(grep -c ' error:' release.log), предупреждений $(grep -c ' warning:' release.log)"
+          # версия языка из команд компилятора — прямое подтверждение Swift 6 для Release (L8-17)
+          echo "Release, режим Swift: $(grep -oE -- '-swift-version [0-9]+' release.log | sort -u | tr '\n' ' ')"
           grep -q "BUILD SUCCEEDED" release.log
       - name: Архив Xcode
         run: |
@@ -297,9 +299,9 @@ jobs:
           echo "== dSYM"; ls "$A/dSYMs" || echo "нет"
           } | tee release-contents.txt
           # Отладочный код в Release. Короткие строки (до 15 байт) Swift кладёт прямо в машинный код — их поиск не видит,
-          # поэтому ищем длинные строки, которые есть только в коде под #if DEBUG (Demo, окно «Вышло обновление», журнал разбора),
-          # и проверяем сам поиск на сборке Debug: там они обязаны найтись
-          MARKS=("подберём по меркам изделия" "Обменять размер можно в личном кабинете" "поддержка с номером обращения и фото" "Не разобран ответ")
+          # поэтому ищем длинные строки, которые есть только в коде под #if DEBUG (Demo, окно «Вышло обновление»),
+          # и проверяем сам поиск на сборке Debug: там они обязаны найтись. Журнал разбора API.call удалён вместе с ним (L8-16)
+          MARKS=("подберём по меркам изделия" "Обменять размер можно в личном кабинете" "поддержка с номером обращения и фото")
           # ищем байты UTF-8 во всех файлах приложения (strings на macOS кириллицу не выводит; код Debug лежит в Albakov.debug.dylib)
           DBGAPP=build-debug/Build/Products/Debug-iphoneos/Albakov.app
           ls "$DBGAPP" | tee -a release-contents.txt
@@ -307,9 +309,9 @@ jobs:
           bad=0
           for m in "${MARKS[@]}"; do
             r=$(cnt "$APP" "$m"); d=$(cnt "$DBGAPP" "$m")
-            echo "«$m»: Release $r, Debug $d" | tee -a release-contents.txt
-            [ "$d" -gt 0 ] || { echo "::error::Контроль не сработал: в Debug нет «$m» — поиск ничего не доказывает"; bad=1; }
-            [ "$r" -eq 0 ] || { echo "::error::В Release попал отладочный код: «$m»"; bad=1; }
+            echo "«${m}»: Release $r, Debug $d" | tee -a release-contents.txt
+            [ "$d" -gt 0 ] || { echo "::error::Контроль не сработал: в Debug нет «${m}» — поиск ничего не доказывает"; bad=1; }
+            [ "$r" -eq 0 ] || { echo "::error::В Release попал отладочный код: «${m}»"; bad=1; }
           done
           exit $bad
       - name: Журналы
