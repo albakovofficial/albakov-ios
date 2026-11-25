@@ -13,7 +13,7 @@ import XCTest
 final class LogoutSyncTests: XCTestCase {
     private var shop: Shop { Shop.shared }
     private let line = CartLine(productId: "p1", colorId: "c1", size: "M", qty: 2)
-    private var keys: [String] { ["orderTokens", CheckoutView.draftStore, "cart", "favorites"] }
+    private var keys: [String] { ["orderTokens", DeviceData.checkoutDraft, "cart", "favorites"] }
 
     private func stubbed(_ body: () async throws -> Void) async throws {
         let hostReady = try await until(30) { Shop.shared.loaded || Shop.shared.loadError != nil }

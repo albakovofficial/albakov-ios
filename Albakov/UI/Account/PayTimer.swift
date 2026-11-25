@@ -4,6 +4,18 @@ import SwiftUI
    Последние 5 минут — красным. Время вышло — сервер отменяет заказ и возвращает вещи в продажу,
    а здесь появляется «Оформить заново»: вещи, которые ещё в наличии, снова в корзине. */
 
+/// Окно оплаты закрыто (L8-10, аудит IOS-10): уведомление ЮKassa о платеже может прийти на сервер позже, чем покупатель
+/// вернулся из окна, — тогда первое чтение ещё «ждёт оплаты». Заказ перечитывается сразу и затем до 4 раз через `step`,
+/// пока done() не вернёт true (оплачен или больше не ждёт оплаты): не дольше ~8 с. Задачу отменили — повторы прекращаются
+@MainActor
+func afterPayment(_ load: () async -> Void, step: Duration = .seconds(2), until done: () -> Bool) async {
+    await load()
+    for _ in 0..<4 where !done() {
+        do { try await Task.sleep(for: step) } catch { return }
+        await load()
+    }
+}
+
 enum PayClock {
     static let window: TimeInterval = 10 * 60
     static let hot: TimeInterval = 5 * 60

@@ -133,6 +133,12 @@ final class Router: ObservableObject {
         func cut(_ s: [Dest]) -> [Dest] { s.firstIndex(of: .checkout).map { Array(s[..<$0]) } ?? s }
         home = cut(home); catalog = cut(catalog); favorites = cut(favorites); cart = cut(cart); account = cut(account)
     }
+    /// Сотрудник вышел или права отозваны (L8-05): экраны панели уходят из стеков вместе со всем, что открыто поверх них, —
+    /// вместо стопки «Нет доступа», которую пришлось бы закрывать по одному. Экраны до первого экрана панели остаются
+    func closeAdmin() {
+        func cut(_ s: [Dest]) -> [Dest] { s.firstIndex(where: \.isAdmin).map { Array(s[..<$0]) } ?? s }
+        home = cut(home); catalog = cut(catalog); favorites = cut(favorites); cart = cut(cart); account = cut(account)
+    }
 
     func open(_ url: URL) {
         if url.scheme == "albakov" {

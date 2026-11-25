@@ -455,7 +455,7 @@ final class APIResponseTests: XCTestCase {
 final class ShopStateTests: XCTestCase {
     private var shop: Shop { Shop.shared }
     private let line = CartLine(productId: "p1", colorId: "c1", size: "M", qty: 2)
-    private var keys: [String] { ["expiredBack2", "expiredUndo", "orderTokens", CheckoutView.draftStore, "cart", "favorites"] }
+    private var keys: [String] { ["expiredBack2", "expiredUndo", "orderTokens", DeviceData.checkoutDraft, "cart", "favorites"] }
 
     private func stubbed(_ body: () async throws -> Void) async throws {
         let hostReady = try await until(30) { Shop.shared.loaded || Shop.shared.loadError != nil }
@@ -546,7 +546,7 @@ final class ShopStateTests: XCTestCase {
         try await stubbed {
             shop.setUser(User(JSON(["id": "u1"])), staff: true)
             shop.cart = [line]; shop.favorites = ["p1"]; shop.buyNow = [line]
-            UserDefaults.standard.set(["firstName": "Анна"], forKey: CheckoutView.draftStore)
+            UserDefaults.standard.set(["firstName": "Анна"], forKey: DeviceData.checkoutDraft)
             OrderTokens.save("o1", String(repeating: "a", count: 32))
             await shop.cartSync?.value; await shop.favSync?.value
             XCTAssertTrue(NetStub.paths("PUT").contains("me/cart") && NetStub.paths("PUT").contains("me/favorites"))
@@ -554,7 +554,7 @@ final class ShopStateTests: XCTestCase {
             await shop.logout()
             XCTAssertNil(shop.user); XCTAssertFalse(shop.isStaff)
             XCTAssertEqual(shop.cart, []); XCTAssertEqual(shop.favorites, []); XCTAssertNil(shop.buyNow)
-            XCTAssertNil(UserDefaults.standard.object(forKey: CheckoutView.draftStore)); XCTAssertTrue(OrderTokens.all.isEmpty)
+            XCTAssertNil(UserDefaults.standard.object(forKey: DeviceData.checkoutDraft)); XCTAssertTrue(OrderTokens.all.isEmpty)
             let onPhone = UserDefaults.standard.data(forKey: "cart").flatMap { try? JSONDecoder().decode([CartLine].self, from: $0) }
             XCTAssertEqual(onPhone, [])
             try await Task.sleep(nanoseconds: 1_200_000_000)

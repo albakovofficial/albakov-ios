@@ -230,6 +230,13 @@ final class Shop: ObservableObject {
         let epoch = userEpoch
         if let j = try? await api.json("GET", "state") { apply(j["data"]); if epoch == userEpoch { setUser(User(j["user"]), staff: j["isAdmin"].bool) } }
     }
+    /// 401 от панели (API.raw, аудит SEC-1): витрина перепроверяет вход и права. Несколько ответов подряд — одна проверка,
+    /// а не по GET state на каждый (L8-13); пришедший после неё 401 запускает новую
+    func recheckAccess() {
+        guard accessCheck == nil else { return }
+        accessCheck = Task { await refreshUser(); accessCheck = nil }
+    }
+    private var accessCheck: Task<Void, Never>?
     func signedIn(_ j: JSON) {
         // ответ state, запрошенный до входа (без куки), не должен «разлогинить» только что вошедшего (ревью этапа H)
         userEpoch += 1
@@ -268,8 +275,14 @@ final class Shop: ObservableObject {
         stopSync()
         user = nil; isStaff = false
         favorites = []; clearCart(); buyNow = nil
-        UserDefaults.standard.removeObject(forKey: CheckoutView.draftStore)
+        UserDefaults.standard.removeObject(forKey: DeviceData.checkoutDraft)
         OrderTokens.clear()
+        // мерки, «Вы недавно смотрели» и ответ «мне есть 18» — тоже прежнего человека (L8-11, решение владельца);
+        // счётчик мерок меняется, чтобы открытые экраны размера перечитали пустые мерки
+        UserDefaults.standard.removeObject(forKey: DeviceData.fit)
+        UserDefaults.standard.set(UserDefaults.standard.integer(forKey: DeviceData.fitTick) &+ 1, forKey: DeviceData.fitTick)
+        clearRecent()
+        AgeCheck.forget()
     }
     private func stopSync() { cartSync?.cancel(); favSync?.cancel() }
 }

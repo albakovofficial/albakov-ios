@@ -147,6 +147,9 @@ final class FormEditLockTests: XCTestCase {
         let nav = LockNav(fields: ["name"], textField: true)
         try await show(nav)
         window?.makeKey()
+        // UITextField внутри TextField SwiftUI создаётся после первой раскладки, а не вместе с экраном: на медленном
+        // симуляторе его не было в момент проверки (L8-25, падения в L.8.4) — ждём появления, а не проверяем сразу
+        _ = try await until(10) { textField() != nil }
         let field = try XCTUnwrap(textField(), "В форме нет поля ввода")
         XCTAssertTrue(field.becomeFirstResponder(), "Поле не приняло ввод")
         try await startSave(nav)

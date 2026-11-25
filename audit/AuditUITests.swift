@@ -1061,9 +1061,17 @@ final class AuditUITests: XCTestCase {
         let c = button("Подтвердить заказ"); scrollTo(c); c.tap()
         XCTAssertTrue(waitOrderOpened(), "Заказ владельца не оформился")
         addToCart(product: "p2", size: "M"); sleep(2)  // корзина аккаунта (сохранение на сервер — через 0,8 с)
+        // «Вы недавно смотрели» (L8-11): два просмотренных товара — ряд на главной есть до выхода
+        launch("/product/p4"); sleep(1)
+        launch("/")
+        XCTAssertTrue(text("Вы недавно смотрели").waitForExistence(timeout: 10), "До выхода на главной нет просмотренных товаров — проверка после выхода была бы пустой")
         // выход
         launch("/account")
         logoutFromAccount()
+        launch("/")
+        _ = text("Новинки").waitForExistence(timeout: 10)
+        XCTAssertFalse(text("Вы недавно смотрели").exists, "После выхода на главной видны товары, которые смотрел прежний покупатель")
+        shot("17а2 главная после выхода")
         // после выхода (и перезапуска) корзина пуста, а в оформлении гостя нет данных владельца
         launch("/cart")
         XCTAssertTrue(text("В корзине пока пусто").waitForExistence(timeout: 10), "После выхода в корзине остались вещи аккаунта")

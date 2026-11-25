@@ -11,6 +11,8 @@ import DeclaredAgeRange
 enum AgeCheck {
     enum Outcome { case adult, minor, declined }
     private static let adultKey = "ageCheck.adult"
+    /// Выход и удаление аккаунта (Shop.forgetUser, L8-11): следующий человек на этом телефоне отвечает заново
+    static func forget() { UserDefaults.standard.removeObject(forKey: adultKey) }
 
     /// Нужно ли спросить возраст перед заказом
     static func needed() async -> Bool {

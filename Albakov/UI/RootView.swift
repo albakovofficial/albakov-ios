@@ -28,6 +28,7 @@ struct RootView: View {
         .task { try? await Task.sleep(nanoseconds: 1_200_000_000); splashShown = true; revealIfReady() }
         .sheet(isPresented: $askPush) { PushAskSheet().presentationDetents([.medium, .large]) }
         .fullScreenCover(item: $update) { UpdateView(info: $0) }
+        .onChange(of: shop.isStaff) { staff in if !staff { router.closeAdmin() } }   // L8-05
         .onChange(of: shop.loaded) { ok in
             guard ok else { return }
             revealIfReady()

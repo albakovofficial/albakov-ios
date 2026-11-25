@@ -32,6 +32,10 @@ struct CheckoutView: View {
     @State private var quote = JSON(nil)
     /// Итог не посчитан из-за ошибки (Q-3): вместо «0 ₽» — причина и «Посчитать ещё раз»
     @State private var quoteError: String?
+    /// Для каких данных посчитана сумма (quoteKey в момент запроса). Пока идёт пересчёт после изменения доставки, оплаты,
+    /// промокода или бонусов, кнопка не показывает прежнюю сумму и не нажимается (L8-24); ошибка пересчёта — не ожидание
+    @State private var quotedKey: String?
+    private var recalculating: Bool { quotedKey != quoteKey && quoteError == nil }
     @State private var busy = false
     @State private var error: String?
     @State private var pickCity = false
@@ -110,7 +114,7 @@ struct CheckoutView: View {
                     checkRow($offer) { Text("Принимаю условия ") + Text("публичной оферты").underline() }
                     checkRow($consent) { Text("Даю ") + Text("согласие на обработку персональных данных").underline() }
                     ErrorText(text: error)
-                    PrimaryButton(title: payment == "online" && onlineOk && !paidInFull ? "Перейти к оплате" + (quote["total"].int.map { " · " + Fmt.rub($0) } ?? "") : "Подтвердить заказ", busy: busy, disabled: !consent || !offer) { Task { await place() } }
+                    PrimaryButton(title: payment == "online" && onlineOk && !paidInFull ? "Перейти к оплате" + (recalculating ? "" : quote["total"].int.map { " · " + Fmt.rub($0) } ?? "") : "Подтвердить заказ", busy: busy, disabled: !consent || !offer || recalculating) { Task { await place() } }
                     HStack(spacing: 14) {
                         ForEach(["offer", "privacy", "consent"], id: \.self) { s in if let p = shop.page(s) { Button(p.title) { router.push(.page(s)) }.font(Theme.font(11.5)).foregroundStyle(Theme.dim) } }
                     }
@@ -282,17 +286,17 @@ struct CheckoutView: View {
         if !onlineOk { payment = "cod" }
     }
     // MARK: Черновик оформления (1.0.3): покупатель, доставка, город, пункт, адрес и комментарий
-    static let draftStore = "checkoutDraft"   // стирается при выходе и удалении аккаунта (Shop.forgetUser)
+    // хранится под DeviceData.checkoutDraft — стирается при выходе и удалении аккаунта (Shop.forgetUser)
     private var draftKey: String { [firstName, lastName, phone, email, deliveryId, String(city?.code ?? 0), point?.code ?? "", cityText, address, comment, payment].joined(separator: "\u{1}") }
     private func saveDraft() {
         var d: [String: Any] = ["firstName": firstName, "lastName": lastName, "phone": phone, "email": email, "deliveryId": deliveryId,
                                 "cityText": cityText, "address": address, "comment": comment, "payment": payment]
         if let c = city { d["city"] = ["code": c.code, "city": c.city, "region": c.region] }
         if let p = point { d["point"] = ["code": p.code, "type": p.type, "address": p.address, "hours": p.hours, "metro": p.metro, "cod": p.cod] }
-        UserDefaults.standard.set(d, forKey: Self.draftStore)
+        UserDefaults.standard.set(d, forKey: DeviceData.checkoutDraft)
     }
     private func restoreDraft() {
-        guard let d = UserDefaults.standard.dictionary(forKey: Self.draftStore) else { return }
+        guard let d = UserDefaults.standard.dictionary(forKey: DeviceData.checkoutDraft) else { return }
         func str(_ k: String) -> String { d[k] as? String ?? "" }
         if firstName.isEmpty && lastName.isEmpty && phone.isEmpty && email.isEmpty { firstName = str("firstName"); lastName = str("lastName"); phone = str("phone"); email = str("email") }
         if deliveryId.isEmpty, shop.settings.delivery.contains(where: { $0.id == str("deliveryId") }) { deliveryId = str("deliveryId") }
@@ -315,10 +319,12 @@ struct CheckoutView: View {
         return b
     }
     private func recalc() async {
+        let key = quoteKey
         do {
             let q = try await API.shared.json("POST", "quote", body: RequestBody(body0))["quote"]
             quoteError = nil
             withAnimation { quote = q }
+            quotedKey = key
         } catch {
             guard let m = error.userMessage else { return }   // пересчёт отменён следующим — ждём его ответа
             quote = JSON(nil); quoteError = m                  // прежний итог уже не про эти данные — не показываем его

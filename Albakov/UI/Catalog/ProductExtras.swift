@@ -157,8 +157,8 @@ enum Fit {
 
     // Сохранённые мерки покупателя — как localStorage «albakov:fit» на сайте
     static var saved: [String: Any] {
-        get { UserDefaults.standard.dictionary(forKey: "fit") ?? [:] }
-        set { UserDefaults.standard.set(newValue, forKey: "fit") }
+        get { UserDefaults.standard.dictionary(forKey: DeviceData.fit) ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: DeviceData.fit) }
     }
 }
 
@@ -167,7 +167,7 @@ struct FitCheckCard: View {
     let product: Product, color: PColor
     let selected: String?
     let onFind: () -> Void, onCompare: () -> Void, onPick: (String) -> Void
-    @AppStorage("fitTick") private var tick = 0
+    @AppStorage(DeviceData.fitTick) private var tick = 0
     var body: some View {
         let sv = Fit.saved
         let h = sv["h"] as? Double ?? 0, kg = sv["kg"] as? Double ?? 0, pref = sv["pref"] as? String ?? "free", done = sv["done"] as? Bool ?? false
@@ -225,7 +225,7 @@ struct FitFinderSheet: View {
     let onPick: (String) -> Void
     var onCompare: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("fitTick") private var tick = 0
+    @AppStorage(DeviceData.fitTick) private var tick = 0
     @State private var h: Double = (Fit.saved["h"] as? Double) ?? 178
     @State private var kg: Double = (Fit.saved["kg"] as? Double) ?? 75
     @State private var pref: String = (Fit.saved["pref"] as? String) ?? "free"
