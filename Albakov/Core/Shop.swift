@@ -236,7 +236,7 @@ final class Shop: ObservableObject {
         guard accessCheck == nil else { return }
         accessCheck = Task { await refreshUser(); accessCheck = nil }
     }
-    private var accessCheck: Task<Void, Never>?
+    private(set) var accessCheck: Task<Void, Never>?
     func signedIn(_ j: JSON) {
         // ответ state, запрошенный до входа (без куки), не должен «разлогинить» только что вошедшего (ревью этапа H)
         userEpoch += 1

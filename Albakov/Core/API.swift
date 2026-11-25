@@ -119,7 +119,8 @@ final class API: Sendable {
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if let d = (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Date") { ServerClock.sync(d) }
         // Панель ответила 401 — сеанс сотрудника истёк или доступ к панели отозван (аудит SEC-1): витрина перепроверяет,
-        // кто вошёл; isStaff становится false — Admin стирает данные, DestView закрывает все экраны панели вместе с их состоянием
+        // кто вошёл (одна проверка на несколько ответов подряд, L8-13); isStaff становится false — Admin стирает данные, а
+        // RootView убирает экраны панели из стеков (Router.closeAdmin, L8-05)
         if status == 401, path.hasPrefix("admin/") { Task { @MainActor in Shop.shared.recheckAccess() } }
         if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any], obj["ok"] as? Bool == false || status >= 400 {
             throw APIError(message: obj["error"] as? String ?? "Что-то пошло не так. Попробуйте ещё раз.", status: status)

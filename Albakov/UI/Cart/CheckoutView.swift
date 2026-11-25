@@ -322,11 +322,15 @@ struct CheckoutView: View {
         let key = quoteKey
         do {
             let q = try await API.shared.json("POST", "quote", body: RequestBody(body0))["quote"]
+            // ответ для прежних данных (повтор «Посчитать ещё раз» не отменяется сменой доставки): сумму считает
+            // пересчёт для нынешних — иначе прежняя сумма вернулась бы на экран, а кнопка ждала бы вечно (L8-24)
+            guard key == quoteKey else { return }
             quoteError = nil
             withAnimation { quote = q }
             quotedKey = key
         } catch {
             guard let m = error.userMessage else { return }   // пересчёт отменён следующим — ждём его ответа
+            guard key == quoteKey else { return }               // ошибка для прежних данных — нынешние считаются отдельно
             quote = JSON(nil); quoteError = m                  // прежний итог уже не про эти данные — не показываем его
         }
     }

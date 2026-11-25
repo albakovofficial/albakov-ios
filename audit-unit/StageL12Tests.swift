@@ -103,11 +103,15 @@ final class DeviceDataLogoutTests: XCTestCase {
             gate.signal()
             let done = try await until { !shop.isStaff }
             XCTAssertTrue(done, "После перепроверки права сотрудника не сняты")
+            await shop.accessCheck?.value
 
             NetStub.reset { _, p in p.hasPrefix("admin/") ? .json(["ok": false], status: 401) : p == "state" ? stateReply(user: ["id": "s1"], staff: false) : .json(["ok": true]) }
+            XCTAssertNil(shop.accessCheck, "Проверка не завершилась")
+            NetStub.clearSeen()
             _ = try? await api.raw("GET", "admin/data")
             let again = try await until { NetStub.paths("GET").contains("state") }
             XCTAssertTrue(again, "401 после завершённой проверки не запустил новую")
+            await shop.accessCheck?.value   // проверка доработала до возврата состояния хоста
         }
     }
 }

@@ -185,6 +185,7 @@ final class AuditUITests: XCTestCase {
         let cod = button("При получении"); scrollTo(cod); if cod.exists { cod.tap() }
         let offer = button("публичной оферты"); scrollTo(offer); if offer.exists { offer.tap() }
         let consent = button("согласие на обработку"); scrollTo(consent); if consent.exists { consent.tap() }
+        waitCheckoutReady()
     }
     /// Ждёт конца отправки заказа: пока он отправляется, на кнопке индикатор вместо подписи «Подтвердить заказ».
     /// На симуляторе iOS 26.5 от нажатия до ответа магазина прошло ~6,7 с (test03; магазин отвечает сразу). До запроса
@@ -205,9 +206,17 @@ final class AuditUITests: XCTestCase {
         return app.staticTexts.matching(p).firstMatch.waitForExistence(timeout: timeout)
     }
     /// Галочки оферты и согласия (они не сохраняются в черновике — их ставят заново на каждом экране оформления)
+    /// Кнопка оформления неактивна, пока сумма пересчитывается после выбора доставки и оплаты (L8-24): нажатие по ней
+    /// ничего бы не сделало. Ждём, пока станет доступна, — не дольше 10 с; дальше тест проверяет своё как раньше
+    func waitCheckoutReady() {
+        let b = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Подтвердить заказ' OR label BEGINSWITH 'Перейти к оплате'")).firstMatch
+        guard b.waitForExistence(timeout: 5) else { return }
+        _ = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: b)], timeout: 10)
+    }
     func tickAgreements() {
         let offer = button("публичной оферты"); scrollTo(offer); if offer.exists { offer.tap() }
         let consent = button("согласие на обработку"); scrollTo(consent); if consent.exists { consent.tap() }
+        waitCheckoutReady()
     }
     /// Вход владельцем копии магазина (аккаунт создаёт audit.yml; почта в копии не настроена — вход без кода).
     /// Сеанс хранится между запусками: если уже вошли, формы входа нет.

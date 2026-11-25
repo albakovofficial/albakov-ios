@@ -45,7 +45,7 @@ on:
         type: boolean
         default: false
       swift_check:
-        description: 'Только проверка готовности к Swift 6 (проект и обычные сборки не меняются): complete — все предупреждения о конкурентности, swift6 — ошибки режима Swift 6'
+        description: 'Контрольная проверка Swift 6 (проект уже на Swift 6, этап L.4; обычные сборки не меняются): complete — предупреждения о конкурентности, swift6 — ошибки режима Swift 6'
         type: choice
         options: [none, complete, swift6]
         default: none
@@ -80,7 +80,7 @@ jobs:
           CHECK: ${{ inputs.swift_check || 'none' }}
         run: |
           set -o pipefail
-          # проверка Swift 6 — только флагом этой сборки, настройки проекта прежние
+          # контрольная проверка Swift — только флагом этой сборки, настройки проекта не меняются
           case "$CHECK" in complete) EXTRA="SWIFT_STRICT_CONCURRENCY=complete";; swift6) EXTRA="SWIFT_VERSION=6";; *) EXTRA="";; esac
           xcodebuild build \
             -project Albakov.xcodeproj -scheme Albakov -configuration Debug \
